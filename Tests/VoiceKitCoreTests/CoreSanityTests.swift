@@ -20,6 +20,14 @@ import VoiceKitCore
 @MainActor
 final class CoreSanityTests: XCTestCase {
 
+    func testCanCreateAndHardReset() async throws {
+        // This should not trigger any permission UI by itself.
+        // It validates actor-safety and basic initialization on main.
+        let io = RealVoiceIO()
+        io.hardReset()
+        XCTAssertTrue(true)
+    }
+
     func testPublicTypesAreReachable() {
         // Construct a few public types to confirm visibility and linkage
         let _ = RealVoiceIO.Config()
