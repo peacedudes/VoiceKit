@@ -1,7 +1,7 @@
 # VoiceKit
 
 Reusable voice I/O for SwiftUI apps (iOS 17+, macOS 14+)
-[![CI](https://github.com/rdoggett/VoiceKit/actions/workflows/ci.yml/badge.svg)](https://github.com/rdoggett/VoiceKit/actions/workflows/ci.yml)
+[![CI](https://github.com/rdoggett/VoiceKit/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/rdoggett/VoiceKit/actions/workflows/ci.yml?query=branch%3Amain)
 Products
 - VoiceKitCore: Voice I/O engine (RealVoiceIO), deterministic test engine (ScriptedVoiceIO), STT hints, TTS models, NameMatch utilities.
 - VoiceKitUI: VoicePickerView with persistence (profiles, favorites, active/hidden, language filter, live previews).
