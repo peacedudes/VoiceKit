@@ -15,6 +15,7 @@
 //
 
 import Foundation
+import CoreGraphics
 @preconcurrency import AVFoundation
 #if canImport(AVFAudio)
 @preconcurrency import AVFAudio
