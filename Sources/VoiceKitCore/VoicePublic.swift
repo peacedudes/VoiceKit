@@ -12,7 +12,6 @@ import CoreGraphics
 
 // MARK: - Public results and errors
 
-/// Result of a listen() operation.
 public struct VoiceResult: Sendable {
     public let transcript: String
     public let recordingURL: URL?
@@ -22,7 +21,6 @@ public struct VoiceResult: Sendable {
     }
 }
 
-/// Simple LocalizedError wrapper for user-friendly messages.
 public struct SimpleError: LocalizedError, Sendable {
     public var message: String
     public init(_ message: String) { self.message = message }
@@ -31,10 +29,8 @@ public struct SimpleError: LocalizedError, Sendable {
 
 // MARK: - VoiceIO API (main-actor)
 
-/// Primary voice I/O interface. All methods must be called on the main actor.
 @MainActor
 public protocol VoiceIO: AnyObject {
-    // UI callbacks (main-actor)
     var onListeningChanged: ((Bool) -> Void)? { get set }
     var onTranscriptChanged: ((String) -> Void)? { get set }
     var onLevelChanged: ((CGFloat) -> Void)? { get set }
@@ -42,20 +38,16 @@ public protocol VoiceIO: AnyObject {
     var onTTSPulse: ((CGFloat) -> Void)? { get set }
     var onStatusMessageChanged: ((String?) -> Void)? { get set }
 
-    // Setup
     func ensurePermissions() async throws
     func configureSessionIfNeeded() async throws
 
-    // TTS and STT
     func speak(_ text: String) async
     func listen(timeout: TimeInterval, inactivity: TimeInterval, record: Bool) async throws -> VoiceResult
 
-    // Short-clip SFX with optional gain
     func prepareBoosted(url: URL, gainDB: Float) async throws
     func startPreparedBoosted() async throws
     func playBoosted(url: URL, gainDB: Float) async throws
 
-    // Stop/cancel
     func stopAll()
     func hardReset()
 }
@@ -66,7 +58,6 @@ public extension VoiceIO {
     func playBoosted(url: URL) async throws { try await playBoosted(url: url, gainDB: 0) }
     func queueSFX(url: URL, gainDB: Float = 0) async throws { try await prepareBoosted(url: url, gainDB: gainDB) }
 
-    /// Convenience listen with context when using RealVoiceIO.
     func listen(timeout: TimeInterval,
                 inactivity: TimeInterval,
                 record: Bool,
@@ -80,7 +71,6 @@ public extension VoiceIO {
 
 // MARK: - TTS models and configuration
 
-/// Basic system voice info.
 public struct TTSVoiceInfo: Identifiable, Hashable, Codable, Sendable {
     public let id: String
     public let name: String
@@ -90,48 +80,48 @@ public struct TTSVoiceInfo: Identifiable, Hashable, Codable, Sendable {
     }
 }
 
-/// A user-tweakable voice profile.
-public struct TTSVoiceProfile: Identifiable, Hashable, Codable, Sendable {
+public struct TTSVoiceProfile: Sendable, Equatable, Codable {
     public let id: String
-    public var displayName: String
-    public var rate: Float
+    public var rate: Double
     public var pitch: Float
     public var volume: Float
-    public var isSelected: Bool
-    public var isHidden: Bool
-    public init(id: String, displayName: String, rate: Float, pitch: Float, volume: Float, isSelected: Bool = false, isHidden: Bool = false) {
-        self.id = id; self.displayName = displayName; self.rate = rate; self.pitch = pitch; self.volume = volume
-        self.isSelected = isSelected; self.isHidden = isHidden
+
+    public init(id: String, rate: Double = 0.5, pitch: Float = 1.0, volume: Float = 1.0) {
+        self.id = id
+        self.rate = rate
+        self.pitch = pitch
+        self.volume = volume
     }
 }
 
-/// Global master controls applied to speech.
-public struct TTSMasterControl: Codable, Sendable {
-    public var volume: Float
-    public var pitchVariation: Float
+public struct TTSMasterControl: Sendable, Equatable, Codable {
     public var rateVariation: Float
-    public init(volume: Float = 1.0, pitchVariation: Float = 0.0001, rateVariation: Float = 0.0001) {
-        self.volume = volume; self.pitchVariation = pitchVariation; self.rateVariation = rateVariation
+    public var pitchVariation: Float
+    public var volume: Float
+
+    public init(rateVariation: Float = 0, pitchVariation: Float = 0, volume: Float = 1.0) {
+        self.rateVariation = rateVariation
+        self.pitchVariation = pitchVariation
+        self.volume = volume
     }
 }
 
-/// TTS-specific configuration and targeted speak with selected voice.
+/// Annotated @MainActor to match RealVoiceIO’s isolation and allow calls through existential.
 @MainActor
 public protocol TTSConfigurable: AnyObject {
-    func availableVoices() -> [TTSVoiceInfo]
     func setVoiceProfile(_ profile: TTSVoiceProfile)
     func getVoiceProfile(id: String) -> TTSVoiceProfile?
     func setDefaultVoiceProfile(_ profile: TTSVoiceProfile)
     func getDefaultVoiceProfile() -> TTSVoiceProfile?
     func setMasterControl(_ master: TTSMasterControl)
     func getMasterControl() -> TTSMasterControl
+
+    /// Speak text using an optional voice profile id (nil uses default).
     func speak(_ text: String, using voiceID: String?) async
-    func stopSpeakingNow()
 }
 
 // MARK: - Recognition context
 
-/// Hints for speech recognition to improve accuracy.
 public struct RecognitionContext: Sendable {
     public enum Expectation: Sendable {
         case freeform
@@ -155,7 +145,6 @@ public extension RecognitionContext {
 
 // MARK: - Operation gate
 
-/// A minimal async gate to serialize higher-level operations.
 public actor VoiceOpGate {
     private var busy = false
     public init() {}

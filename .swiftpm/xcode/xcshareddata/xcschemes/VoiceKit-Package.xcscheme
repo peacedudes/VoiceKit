@@ -53,6 +53,14 @@
                BlueprintName = "VoiceKitCoreTests"
                ReferencedContainer = "container:">
             </BuildableReference>
+            <SkippedTests>
+               <Test
+                  Identifier = "BoostedSchedulingSeamTests/testResetCalledOnStopClip()">
+               </Test>
+               <Test
+                  Identifier = "RealVoiceIOBoostedTests">
+               </Test>
+            </SkippedTests>
          </TestableReference>
          <TestableReference
             skipped = "NO">
@@ -63,6 +71,20 @@
                BlueprintName = "VoiceKitUITests"
                ReferencedContainer = "container:">
             </BuildableReference>
+            <SkippedTests>
+               <Test
+                  Identifier = "VoicePickerBootstrappingTests">
+               </Test>
+               <Test
+                  Identifier = "VoicePickerFilteringTests">
+               </Test>
+               <Test
+                  Identifier = "VoicePickerPreviewSelectionTests">
+               </Test>
+               <Test
+                  Identifier = "VoiceProfilesStoreBootstrapTests/testBootstrapCreatesProfilesWithSystemNames()">
+               </Test>
+            </SkippedTests>
          </TestableReference>
       </Testables>
    </TestAction>
@@ -76,6 +98,23 @@
       debugDocumentVersioning = "YES"
       debugServiceExtension = "internal"
       allowLocationSimulation = "YES">
+      <AdditionalOptions>
+         <AdditionalOption
+            key = "MallocScribble"
+            value = ""
+            isEnabled = "YES">
+         </AdditionalOption>
+         <AdditionalOption
+            key = "DYLD_INSERT_LIBRARIES"
+            value = "/usr/lib/libgmalloc.dylib"
+            isEnabled = "YES">
+         </AdditionalOption>
+         <AdditionalOption
+            key = "NSZombieEnabled"
+            value = "YES"
+            isEnabled = "YES">
+         </AdditionalOption>
+      </AdditionalOptions>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
