@@ -1,30 +1,20 @@
 # Concurrency and Thread Safety (Swift 6)
 
-Design
-- Public API is @MainActor (VoiceIO protocol, RealVoiceIO, ScriptedVoiceIO).
-- UI callbacks (onTranscriptChanged, onLevelChanged, etc.) are invoked on the main actor.
+Isolation
+- Public API is @MainActor (VoiceIO, RealVoiceIO, ScriptedVoiceIO).
+- UI callbacks (onTranscriptChanged, onLevelChanged, etc.) are invoked on @MainActor.
 
 Permission callbacks (TCC)
-- Apple’s TCC APIs may deliver on background queues. Passing @MainActor closures causes libdispatch assertions.
-- Solution: PermissionBridge (nonisolated) wraps:
-  - iOS 17+: AVAudioApplication.requestRecordPermission(completionHandler:)
-  - macOS: AVCaptureDevice.requestAccess(for: .audio, completionHandler:)
-  - Speech: SFSpeechRecognizer.requestAuthorization(_:)
-- We await withCheckedContinuation and resume; execution returns to @MainActor after suspension safely.
-
-Audio engine tap
-- Core Audio calls back on a real-time thread.
-- We avoid capturing @MainActor self; we compute meter levels and post to main via a tiny @unchecked Sendable LevelSink wrapper.
+- Don’t pass @MainActor closures directly into TCC callbacks (background queues).
+- Use PermissionBridge (nonisolated) with withCheckedContinuation to await results safely.
 
 AVSpeechSynthesizer delegate
-- We avoid sending AVSpeechUtterance across actors by:
-  - Computing ObjectIdentifier(utterance) and copying Strings inside the delegate.
-  - Hopping to @MainActor with those Sendable values.
+- Delegate methods hop to @MainActor and only move ObjectIdentifier/primitive data across actors.
 
-Notifications (iOS)
-- Interruption/route-change notifications are observed on the main queue to avoid queue assertions in handlers.
+Audio tap (if you enable real STT in your app)
+- Don’t capture @MainActor self on real-time thread. Compute level locally and hop updates to main via a Sendable helper.
 
 Do / Don’t
-- Do call VoiceIO methods from @MainActor contexts (SwiftUI actions, @MainActor ViewModels).
-- Don’t mutate UI/SwiftData from background contexts around VoiceIO callbacks.
-- Don’t pass @MainActor closures into TCC/AVFoundation callbacks; use nonisolated bridges instead.
+- Do call VoiceIO methods on main.
+- Don’t mutate UI from background contexts around callbacks.
+- Do keep tests deterministic by using ScriptedVoiceIO or FakeTTS.

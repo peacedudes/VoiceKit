@@ -1,52 +1,55 @@
 # Quick Start
 
-1) Add the package
-- Local path (fastest while iterating): File > Add Packages… > Add Local… and choose the VoiceKit folder.
-- Remote URL (for releases): Add Packages… > paste the GitHub URL; select “Up to Next Major” starting at v0.1.0.
+Requirements
+- Swift tools-version: 6.0 (swiftLanguageModes [.v6])
+- iOS 17.0+ and/or macOS 14.0+
 
-2) Link products
-- In your app target, General > Frameworks, Libraries, and Embedded Content:
-  - Add VoiceKitCore and VoiceKitUI (Do Not Embed).
+Add the package
+- Local path while iterating: File > Add Packages… > Add Local… and choose the VoiceKit folder.
+- Remote URL for releases: Add Packages… > paste the GitHub URL; rule “Up to Next Major” from your tag (e.g., v0.1.1+).
 
-3) App permissions
-- Add to Info.plist:
-  - NSMicrophoneUsageDescription
-  - NSSpeechRecognitionUsageDescription
+Link products
+- Link VoiceKitCore (and VoiceKitUI if you use the picker). Do Not Embed.
 
-4) Use RealVoiceIO
+App permissions (if you use RealVoiceIO.listen in your app)
+- NSMicrophoneUsageDescription
+- NSSpeechRecognitionUsageDescription
+
+Say hello (TTS only)
 ```swift
 import VoiceKitCore
 
 @MainActor
-final class MyVM: ObservableObject {
+final class DemoVM: ObservableObject {
     let voice = RealVoiceIO()
-    func go() {
+    func run() {
         Task {
-            try? await voice.ensurePermissions()
-            try? await voice.configureSessionIfNeeded()
-            await voice.speak("Hello!")
-            let r = try? await voice.listen(timeout: 8, inactivity: 2, record: false)
-            print("Transcript:", r?.transcript ?? "")
+            await voice.speak("Hello from VoiceKit!")
         }
     }
 }
 ```
 
-5) Add the picker UI
+Listen (package default uses a simple shim suitable for tests)
+```swift
+let r = try await voice.listen(timeout: 6, inactivity: 2, record: false,
+                               context: RecognitionContext(expectation: .number))
+print("Heard:", r.transcript) // shim returns "42" for .number
+```
+
+Picker UI
 ```swift
 import VoiceKitCore
 import VoiceKitUI
+import SwiftUI
 
 struct SettingsView: View {
     let voice = RealVoiceIO()
-    var body: some View {
-        VoicePickerView(tts: voice)
-    }
+    var body: some View { VoicePickerView(tts: voice) }
 }
 ```
 
-6) Tests without hardware
-- Use ScriptedVoiceIO:
+Deterministic tests without hardware
 ```swift
 import VoiceKitCore
 import XCTest
@@ -54,9 +57,9 @@ import XCTest
 @MainActor
 final class ScriptTests: XCTestCase {
     func testListen() async throws {
-        let b64 = try! JSONSerialization.data(withJSONObject: ["alpha","beta"]).base64EncodedString()
-        let io = ScriptedVoiceIO(fromBase64: b64)!
-        let r1 = try await io.listen(timeout: 1.5, inactivity: 0.4, record: false)
+        let data = try! JSONSerialization.data(withJSONObject: ["alpha","beta"])
+        let io = ScriptedVoiceIO(fromBase64: data.base64EncodedString())!
+        let r1 = try await io.listen(timeout: 1.0, inactivity: 0.3, record: false)
         XCTAssertEqual(r1.transcript, "alpha")
     }
 }

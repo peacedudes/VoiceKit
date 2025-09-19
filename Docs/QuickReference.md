@@ -5,77 +5,50 @@ Import
 - UI: import VoiceKitUI
 
 Primary types
-- RealVoiceIO (@MainActor): production speech + recognition engine.
-- ScriptedVoiceIO (@MainActor): deterministic test engine; no hardware.
-- VoiceQueue (@MainActor): kid‑friendly sequencing of speak/SFX/pause with optional parallel channels.
-- VoicePickerView (SwiftUI): voices UI with profiles and live preview.
+- RealVoiceIO (@MainActor): production TTS + a simple STT test shim by default.
+- ScriptedVoiceIO (@MainActor): deterministic listen/speak for tests and demos.
+- VoiceQueue (@MainActor): sequence speak/SFX/pause; optional parallel channels.
+- VoicePickerView (SwiftUI): system voices with profiles, hidden/active, preview.
 
-Common flows
-- Permissions + session
+Core models (as used across Core & UI)
 ```swift
-let voice = RealVoiceIO()
-try await voice.ensurePermissions()
-try await voice.configureSessionIfNeeded()
+public struct TTSVoiceInfo { public let id, name, language: String }
+public struct TTSVoiceProfile { public let id: String; public var rate: Double; public var pitch, volume: Float }
+public struct TTSMasterControl { public var rateVariation, pitchVariation, volume: Float }
+public struct VoiceResult { public let transcript: String; public let recordingURL: URL? }
+public struct RecognitionContext { public enum Expectation { case freeform, name(allowed: [String]), number } }
 ```
 
+Typical flow
 - Speak
 ```swift
-await voice.speak("Hello there!")
+let io = RealVoiceIO()
+await io.speak("Hello there!")
 ```
 
-- Listen (with numeric hints)
+- Listen (shim returns “42” for .number)
 ```swift
-let r = try await voice.listen(timeout: 6, inactivity: 2, record: false,
-                               context: RecognitionContext(expectation: .number))
-print(r.transcript)
+let r = try await io.listen(timeout: 6, inactivity: 2, record: false,
+                            context: .init(expectation: .number))
 ```
 
-- Play a short clip (boosted)
+- Short clip SFX
 ```swift
 let url = Bundle.main.url(forResource: "ding", withExtension: "caf")!
-try await voice.playBoosted(url: url, gainDB: 6)
+try await io.playBoosted(url: url, gainDB: 6)
 ```
 
-- Sequence speak → sfx → speak (near‑zero gap)
+- Sequencing with VoiceQueue
 ```swift
-let q = VoiceQueue(primary: voice)
-q.enqueueSpeak("Thank you.", voiceID: nil)
-q.enqueueSFX(url) // pre-scheduled; will auto-fire right after speak
-q.enqueueSpeak("Next question.")
+let q = VoiceQueue(primary: io)
+q.enqueueSpeak("A")
+q.enqueueSFX(url)
+q.enqueueSpeak("B")
 await q.play()
-```
-
-- Embedded SFX in text
-```swift
-let resolver: VoiceQueue.SFXResolver = { name in Bundle.main.url(forResource: name, withExtension: "caf") }
-let q = VoiceQueue(primary: voice)
-q.enqueueParsingSFX(text: "Say your name [sfx:ding] now.", resolver: resolver)
-await q.play()
-```
-
-- Parallel channels (optional)
-```swift
-let q = VoiceQueue(primary: RealVoiceIO()) { RealVoiceIO() } // channel factory
-q.enqueueSpeak("Left", on: 0)
-q.enqueueSpeak("Right", on: 1)
-await q.play() // channels 0 and 1 run concurrently
-```
-
-- Cancel everything
-```swift
-q.cancelAll()     // cancels queued playback
-voice.stopAll()   // stops any active speech/recording/clip at engine level
 ```
 
 Picker UI
 ```swift
-import VoiceKitCore
-import VoiceKitUI
 let voice = RealVoiceIO()
 VoicePickerView(tts: voice)
-```
-
-Diagnostics
-```swift
-print("VoiceKit", VoiceKitInfo.version)
 ```
