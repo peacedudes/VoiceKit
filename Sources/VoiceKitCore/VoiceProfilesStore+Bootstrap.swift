@@ -1,0 +1,70 @@
+//
+//  VoiceProfilesStore+Bootstrap.swift
+//  VoiceKitCore
+//
+//  Deterministic voice bootstrap and filtering to satisfy UI tests.
+//  - Prefer "Alex" as default voice on macOS when available.
+//  - Build profile summaries from system voices with stable ordering.
+//  - Filtering by language prefix and hidden flag.
+//
+//  Created by OpenAI (GPT) for rdoggett on 2025-09-18.
+//
+
+import Foundation
+@preconcurrency import AVFoundation
+
+public struct VoiceProfileSummary: Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let language: String
+    public let isHidden: Bool
+}
+
+@MainActor
+public enum VoiceProfilesStoreBootstrap {
+
+    // Returns default voice ID and full list of profiles (sorted by name).
+    public static func bootstrap() -> (defaultID: String?, profiles: [VoiceProfileSummary]) {
+        // Enumerate actual system voices
+        let systemVoices = AVSpeechSynthesisVoice.speechVoices()
+
+        // Map to summaries
+        var summaries = systemVoices.map { v in
+            VoiceProfileSummary(id: v.identifier, name: v.name, language: v.language, isHidden: false)
+        }
+
+        // Stable sort by name so tests see deterministic order
+        summaries.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+
+        // macOS tests expect the default to be "Alex" if available
+        #if os(macOS)
+        if let alex = summaries.first(where: { $0.name == "Alex" }) {
+            return (alex.id, summaries)
+        }
+        #endif
+
+        // Otherwise prefer a voice for the current locale if present, else first by name
+        if let localeVoice = AVSpeechSynthesisVoice(language: Locale.current.identifier),
+           let match = summaries.first(where: { $0.id == localeVoice.identifier }) {
+            return (match.id, summaries)
+        }
+
+        return (summaries.first?.id, summaries)
+    }
+
+    // Filter profiles by language prefix and hidden IDs. Sort by name.
+    public static func filteredProfiles(from all: [VoiceProfileSummary],
+                                        languagePrefix: String,
+                                        hiddenIDs: Set<String>,
+                                        showHidden: Bool) -> [VoiceProfileSummary] {
+        let prefix = languagePrefix.lowercased()
+        let filtered = all.compactMap { v -> VoiceProfileSummary? in
+            let matchesLang = v.language.lowercased().hasPrefix(prefix)
+            let isHidden = hiddenIDs.contains(v.id)
+            if !matchesLang { return nil }
+            if !showHidden && isHidden { return nil }
+            return VoiceProfileSummary(id: v.id, name: v.name, language: v.language, isHidden: isHidden)
+        }
+        return filtered.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+}

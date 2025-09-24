@@ -1,49 +1,24 @@
 # Programmer’s Guide
 
-Architecture
+Modules
 - VoiceKitCore
-  - VoiceIO protocol: speak/listen/boosted playback with UI callbacks.
-  - RealVoiceIO: AVSpeechSynthesizer + SFSpeechRecognizer + AVAudioEngine implementation.
-  - ScriptedVoiceIO: deterministic “fake mic” for tests/demos.
-  - TTS models: TTSVoiceInfo, TTSVoiceProfile, TTSMasterControl; TTSConfigurable protocol.
-  - RecognitionContext: STT hints (freeform, name(allowed:), number).
-  - NameMatch: normalizeKey + stringDistanceScore.
+  - RealVoiceIO: AVSpeechSynthesizer TTS; STT shim by default in-package.
+  - ScriptedVoiceIO: deterministic test engine (speak pulses, listen dequeues).
+  - VoiceQueue: sequence speak/SFX/pause; optional parallel channels factory.
+  - Utilities: NameMatch, NameResolver, PermissionBridge, VoiceOpGate.
+  - Models: TTSVoiceInfo, TTSVoiceProfile (rate: Double; pitch/volume: Float), TTSMasterControl, RecognitionContext.
 - VoiceKitUI
-  - VoicePickerView: SwiftUI picker with favorites, active/hidden, language filter, live previews.
-  - VoiceProfilesStore: JSON persistence (profiles, default, active, master).
+  - VoicePickerView: SwiftUI picker with profiles and previews.
+  - VoiceProfilesStore: JSON persistence; tracks default, active, hidden, master.
 
 Data flow
-1) ViewModel calls RealVoiceIO.ensurePermissions/configureSession.
-2) speak() produces TTS with pulse callbacks for animation; listen() captures audio and streams to Speech for partial/final transcripts (with optional recording/trim).
-3) VoicePickerView uses TTSConfigurable and VoiceProfilesStore to list/preview/update voices and master controls.
+- ViewModel (UI) queries system voices (or FakeTTS in tests), bootstraps profiles, applies TTS master/profile to TTSConfigurable, and drives previews.
 
-Key APIs (Core)
-- VoiceIO (all @MainActor)
-  - onListeningChanged/onTranscriptChanged/onLevelChanged
-  - onTTSSpeakingChanged/onTTSPulse
-  - ensurePermissions(), configureSessionIfNeeded()
-  - speak(_ text:), listen(timeout:inactivity:record:)
-  - prepareBoosted/startPreparedBoosted/playBoosted
-  - stopAll(), hardReset()
-- RealVoiceIO: implements VoiceIO + TTSConfigurable
-- ScriptedVoiceIO: implements VoiceIO (deterministic scripts)
-- NameMatch.normalizeKey(String) -> String
-- NameMatch.stringDistanceScore(a:b) -> Double
+Extensibility
+- Replace RealVoiceIO with your own TTS by conforming to TTSConfigurable.
+- Keep tests deterministic with ScriptedVoiceIO/FakeTTS. Reserve real STT for app-level integration tests.
 
-STT hints (RecognitionContext)
-- .freeform (default)
-- .name(allowed: [String]) sets contextualStrings
-- .number sets numeric contextualStrings and normalizes spelled numbers when possible
-
-Persistence (VoicePicker)
-- VoiceProfilesStore writes JSON to Application Support.
-- Fields: defaultVoiceID, master, profilesByID, activeVoiceIDs.
-
-Customization
-- Replace RealVoiceIO with your own TTS engine by conforming to TTSConfigurable; the picker works unchanged.
-- Build custom voice UI by reusing VoiceProfilesStore directly.
-
-See also
-- docs/VoiceIO.md for API details and examples.
-- docs/Concurrency.md for Swift 6 isolation notes.
-- docs/VoicePicker.md for UI details and customization.
+Design decisions
+- @MainActor public API for simplicity and safety.
+- No displayName in TTSVoiceProfile: UI fetches system name lazily via AVSpeechSynthesisVoice.
+- STT shim in-package to avoid CI/device dependencies; full STT reserved for apps.

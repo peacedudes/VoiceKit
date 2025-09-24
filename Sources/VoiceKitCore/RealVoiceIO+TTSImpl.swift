@@ -1,0 +1,126 @@
+//
+//  RealVoiceIO+TTSImpl.swift
+//  VoiceKitCore
+//
+//  AVSpeechSynthesizer setup and delegate method implementations.
+//  Delegate methods are nonisolated entry points and immediately hop to @MainActor.
+//  We only pass primitive/Sendable data (ObjectIdentifier) across the hop.
+//
+//  Created by OpenAI (GPT) for rdoggett on 2025-09-18.
+//
+
+import Foundation
+@preconcurrency import AVFoundation
+import CoreGraphics
+
+// MARK: - Synth management and public speak (main-actor)
+
+@MainActor
+extension RealVoiceIO {
+
+    internal func ensureSynth() {
+        if synthesizer == nil {
+            let s = AVSpeechSynthesizer()
+            s.delegate = self
+            synthesizer = s
+        }
+    }
+
+    public func speak(_ text: String) async {
+        await speak(text, using: defaultProfile?.id)
+    }
+
+    public func speak(_ text: String, using voiceID: String?) async {
+        ensureSynth()
+        guard let synthesizer else { return }
+        let utt = AVSpeechUtterance(string: text)
+        applyProfile(to: utt, voiceID: voiceID ?? defaultProfile?.id)
+
+        let key = ObjectIdentifier(utt)
+        do {
+            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+                speakContinuations[key] = cont
+                synthesizer.speak(utt)
+            }
+        } catch {
+            ttsStopPulse()
+        }
+    }
+
+    internal func applyProfile(to utterance: AVSpeechUtterance, voiceID: String?) {
+        if let voiceID, let v = AVSpeechSynthesisVoice(identifier: voiceID) {
+            utterance.voice = v
+        }
+
+        let m = master
+        utterance.rate = Float((defaultProfile?.rate ?? 0.5).clamped(to: 0...1))
+        utterance.pitchMultiplier = (defaultProfile?.pitch ?? 1.0) + .random(in: -m.pitchVariation...m.pitchVariation)
+        utterance.volume = defaultProfile?.volume ?? 1.0
+
+        if let id = voiceID, let p = profilesByID[id] {
+            utterance.rate = Float(p.rate.clamped(to: 0...1))
+            utterance.pitchMultiplier = p.pitch + .random(in: -m.pitchVariation...m.pitchVariation)
+            utterance.volume = p.volume
+        }
+
+        utterance.rate += .random(in: -m.rateVariation...m.rateVariation)
+    }
+
+    internal func ttsStartPulse() {}
+    internal func ttsStopPulse() {}
+}
+
+// MARK: - AVSpeechSynthesizerDelegate (nonisolated entry points; hop to main)
+
+extension RealVoiceIO {
+
+    nonisolated public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
+                                              didStart utterance: AVSpeechUtterance) {
+        Task { @MainActor in
+            self.onTTSSpeakingChanged?(true)
+            self.ttsStartPulse()
+        }
+    }
+
+    nonisolated public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
+                                              didFinish utterance: AVSpeechUtterance) {
+        // Capture ObjectIdentifier in nonisolated context; don't send utterance across
+        let key = ObjectIdentifier(utterance)
+        Task { @MainActor in
+            if let cont = self.speakContinuations.removeValue(forKey: key) {
+                cont.resume()
+            }
+            self.onTTSSpeakingChanged?(false)
+            self.ttsStopPulse()
+        }
+    }
+
+    nonisolated public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
+                                              didCancel utterance: AVSpeechUtterance) {
+        let key = ObjectIdentifier(utterance)
+        Task { @MainActor in
+            if let cont = self.speakContinuations.removeValue(forKey: key) {
+                cont.resume()
+            }
+            self.onTTSSpeakingChanged?(false)
+            self.ttsStopPulse()
+        }
+    }
+
+    nonisolated public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
+                                              willSpeakRangeOfSpeechString characterRange: NSRange,
+                                              utterance: AVSpeechUtterance) {
+        Task { @MainActor in
+            self.ttsPhase += 0.2
+            let glow = max(0, sin(self.ttsPhase))
+            self.ttsGlow = CGFloat(glow)
+            self.onTTSPulse?(self.ttsGlow)
+        }
+    }
+}
+
+private extension Comparable {
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        min(max(self, range.lowerBound), range.upperBound)
+    }
+}
