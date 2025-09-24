@@ -13,12 +13,12 @@ import XCTest
 final class VoicePickerBootstrappingTests: XCTestCase {
 
     @MainActor
-    final class FakeTTS: TTSConfigurable {
+    final class FakeTTS: TTSConfigurable, VoiceListProvider {
         var voices: [TTSVoiceInfo] = []
         var profiles: [String: TTSVoiceProfile] = [:]
         var defaultProfile: TTSVoiceProfile?
         var master: TTSMasterControl = .init()
-        func availableVoices() -> [TTSVoiceInfo] { voices }
+        nonisolated func availableVoices() -> [TTSVoiceInfo] { MainActor.assumeIsolated { voices } }
         func setVoiceProfile(_ profile: TTSVoiceProfile) { profiles[profile.id] = profile }
         func getVoiceProfile(id: String) -> TTSVoiceProfile? { profiles[id] }
         func setDefaultVoiceProfile(_ profile: TTSVoiceProfile) { defaultProfile = profile }
@@ -33,6 +33,7 @@ final class VoicePickerBootstrappingTests: XCTestCase {
         let filename = "picker_bootstrap.json"
         let store = VoiceProfilesStore(filename: filename)
         defer { cleanup(filename) }
+        store.defaultVoiceID = nil
 
         let tts = FakeTTS()
         tts.voices = [
@@ -41,7 +42,7 @@ final class VoicePickerBootstrappingTests: XCTestCase {
         ]
 
         // IMPORTANT: use FakeTTS in the ViewModel
-        let vm = VoicePickerViewModel(tts: tts, store: store)
+        let vm = VoicePickerViewModel(tts: tts, store: store, allowSystemVoices: false)
         vm.refreshAvailableVoices()
 
         XCTAssertEqual(vm.voices.map(\.id), ["a","b"])

@@ -13,14 +13,14 @@ import VoiceKitUI
 final class VoicePickerPreviewSelectionTests: XCTestCase {
 
     @MainActor
-    final class FakeTTS: TTSConfigurable {
+    final class FakeTTS: TTSConfigurable, VoiceListProvider {
         var voices: [TTSVoiceInfo] = []
         var lastSpeakText: String?
         var lastSpeakVoiceID: String?
         var profiles: [String: TTSVoiceProfile] = [:]
         var defaultProfile: TTSVoiceProfile?
         var master: TTSMasterControl = .init()
-        func availableVoices() -> [TTSVoiceInfo] { voices }
+        nonisolated func availableVoices() -> [TTSVoiceInfo] { MainActor.assumeIsolated { voices } }
         func setVoiceProfile(_ profile: TTSVoiceProfile) { profiles[profile.id] = profile }
         func getVoiceProfile(id: String) -> TTSVoiceProfile? { profiles[id] }
         func setDefaultVoiceProfile(_ profile: TTSVoiceProfile) { defaultProfile = profile }
@@ -39,6 +39,7 @@ final class VoicePickerPreviewSelectionTests: XCTestCase {
         ]
         let store = VoiceProfilesStore(filename: "hidden-\(UUID().uuidString).json")
         let vm = VoicePickerViewModel(tts: tts, store: store)
+        vm.refreshAvailableVoices()
 
         vm.languageFilter = .all
         store.setHidden("vh", true)

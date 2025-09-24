@@ -57,9 +57,6 @@
                <Test
                   Identifier = "BoostedSchedulingSeamTests/testResetCalledOnStopClip()">
                </Test>
-               <Test
-                  Identifier = "RealVoiceIOBoostedTests">
-               </Test>
             </SkippedTests>
          </TestableReference>
          <TestableReference
@@ -71,20 +68,6 @@
                BlueprintName = "VoiceKitUITests"
                ReferencedContainer = "container:">
             </BuildableReference>
-            <SkippedTests>
-               <Test
-                  Identifier = "VoicePickerBootstrappingTests">
-               </Test>
-               <Test
-                  Identifier = "VoicePickerFilteringTests">
-               </Test>
-               <Test
-                  Identifier = "VoicePickerPreviewSelectionTests">
-               </Test>
-               <Test
-                  Identifier = "VoiceProfilesStoreBootstrapTests/testBootstrapCreatesProfilesWithSystemNames()">
-               </Test>
-            </SkippedTests>
          </TestableReference>
       </Testables>
    </TestAction>

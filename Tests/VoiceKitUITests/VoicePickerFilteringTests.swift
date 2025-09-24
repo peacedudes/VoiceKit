@@ -13,9 +13,9 @@ import VoiceKitUI
 final class VoicePickerFilteringTests: XCTestCase {
 
     @MainActor
-    final class FakeTTS: TTSConfigurable {
+    final class FakeTTS: TTSConfigurable, VoiceListProvider {
         var voices: [TTSVoiceInfo] = []
-        func availableVoices() -> [TTSVoiceInfo] { voices }
+        nonisolated func availableVoices() -> [TTSVoiceInfo] { MainActor.assumeIsolated { voices } }
         func setVoiceProfile(_ profile: TTSVoiceProfile) {}
         func getVoiceProfile(id: String) -> TTSVoiceProfile? { nil }
         func setDefaultVoiceProfile(_ profile: TTSVoiceProfile) {}
@@ -36,6 +36,7 @@ final class VoicePickerFilteringTests: XCTestCase {
 
         let store = VoiceProfilesStore(filename: "filter-\(UUID().uuidString).json")
         let vm = VoicePickerViewModel(tts: fake, store: store)
+        vm.refreshAvailableVoices()
 
         vm.languageFilter = .all
         XCTAssertEqual(Set(vm.filteredVoices.map(\.id)), Set(["v1","v2","v3"]))

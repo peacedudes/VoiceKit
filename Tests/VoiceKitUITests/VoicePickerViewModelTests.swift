@@ -84,11 +84,52 @@ final class VoicePickerViewModelTests: XCTestCase {
         defer { cleanup(filename) }
 
         let tts = RealVoiceIO()
-        let vm = VoicePickerViewModel(tts: tts, store: store)
+        var vm = VoicePickerViewModel(tts: tts, store: store)
         vm.refreshAvailableVoices()
 
+        // Fallback for environments without system voices (e.g., some simulators)
+        if vm.voices.isEmpty {
+            @MainActor
+            final class LocalFakeTTS: TTSConfigurable, VoiceListProvider {
+                var voices: [TTSVoiceInfo] = []
+                var profiles: [String: TTSVoiceProfile] = [:]
+                var defaultProfile: TTSVoiceProfile?
+                var master: TTSMasterControl = .init()
+                nonisolated func availableVoices() -> [TTSVoiceInfo] { MainActor.assumeIsolated { voices } }
+                func setVoiceProfile(_ profile: TTSVoiceProfile) { profiles[profile.id] = profile }
+                func getVoiceProfile(id: String) -> TTSVoiceProfile? { profiles[id] }
+                func setDefaultVoiceProfile(_ profile: TTSVoiceProfile) { defaultProfile = profile }
+                func getDefaultVoiceProfile() -> TTSVoiceProfile? { defaultProfile }
+                func setMasterControl(_ master: TTSMasterControl) { self.master = master }
+                func getMasterControl() -> TTSMasterControl { master }
+                func speak(_ text: String, using voiceID: String?) async {}
+                func stopSpeakingNow() {}
+            }
+            let fake = LocalFakeTTS()
+            fake.voices = [
+                TTSVoiceInfo(id: "vs", name: "System Soprano", language: "en-US"),
+                TTSVoiceInfo(id: "vh", name: "System Hero", language: "en-GB"),
+            ]
+            vm = VoicePickerViewModel(tts: fake, store: store, allowSystemVoices: false)
+            vm.refreshAvailableVoices()
+        }
+
         guard let first = vm.voices.first else {
-            throw XCTSkip("No system voices available")
+            // Skip only on CI; fail locally so we notice missing system voices.
+            let env = ProcessInfo.processInfo.environment
+            let isCI = env["CI"] == "true"
+                || env["GITHUB_ACTIONS"] == "true"
+                || env["BUILDKITE"] != nil
+                || env["JENKINS_URL"] != nil
+                || env["TRAVIS"] == "true"
+                || env["TEAMCITY_VERSION"] != nil
+                || env["CIRCLECI"] == "true"
+                || env["XCODE_CLOUD_BUILD_ID"] != nil
+                || env["TF_BUILD"] == "True"
+                || env["BUDDY"] == "true"
+            if isCI { throw XCTSkip("No system voices available (CI)") }
+            XCTFail("Expected system voices on this device/simulator")
+            return
         }
 
         // Ensure profile exists
