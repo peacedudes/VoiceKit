@@ -1,25 +1,31 @@
 # VoiceKit
 
-Reusable voice I/O for SwiftUI apps (iOS 17+, macOS 14+)
+Reusable voice I/O for SwiftUI apps (iOS 17+, macOS 14+). Swift 6–safe, test‑friendly, and designed for delightful APIs.
 
 Products
-- VoiceKitCore: RealVoiceIO (TTS), ScriptedVoiceIO (deterministic tests/demos), NameMatch/NameResolver, minimal STT shim, VoiceQueue, models.
-- VoiceKitUI: VoicePickerView with profiles (default/active/hidden), language filter, and live previews.
+- VoiceKitCore: RealVoiceIO (TTS with a simple STT test shim), ScriptedVoiceIO (deterministic tests/demos), NameMatch/NameResolver, VoiceQueue, models.
+- VoiceKitUI: VoicePickerView with profiles (default/active/hidden), language filter, and debounced live previews.
 
 Highlights
-- Swift 6 actor-safety (@MainActor API), safe permission bridging, deterministic test path.
-- Picker UI with persisted profiles and debounced previews.
-- Clean models shared across Core and UI.
+- Swift 6 actor-safety (@MainActor public API), safe permission bridging.
+- Deterministic test paths that don’t depend on device voices or locale.
+- Clean shared models across Core and UI.
 
 Requirements
 - Swift tools-version: 6.0; Swift language mode v6
 - iOS 17.0+ and/or macOS 14.0+
-- App Info.plist keys (if you enable real STT in app): NSMicrophoneUsageDescription, NSSpeechRecognitionUsageDescription
+
+Install (Swift Package Manager)
+- Local during development: Add Local Package…; choose the VoiceKit folder; link VoiceKitCore (and VoiceKitUI if needed).
+- Remote: Add from your Git URL; rule “Up to Next Major” from your tag (e.g., v0.1.2).
+- No special embedding step is required—SwiftPM/Xcode handle linking automatically.
 
 Quick start
 ```swift
 import VoiceKitCore
-@MainActor final class DemoVM: ObservableObject {
+
+@MainActor
+final class DemoVM: ObservableObject {
   let voice = RealVoiceIO()
   func run() {
     Task {
@@ -34,7 +40,10 @@ import VoiceKitCore
 
 Voice picker
 ```swift
-import VoiceKitCore, VoiceKitUI, SwiftUI
+import VoiceKitCore
+import VoiceKitUI
+import SwiftUI
+
 struct SettingsView: View {
   let voice = RealVoiceIO()
   var body: some View { VoicePickerView(tts: voice) }
@@ -42,18 +51,8 @@ struct SettingsView: View {
 ```
 
 Docs
-- Docs/QuickStart.md
-- Docs/ProgrammersGuide.md
-- Docs/VoiceIO.md
-- Docs/VoicePicker.md
-- Docs/Concurrency.md
-- Docs/Testing.md
-- Docs/FAQ.md
+- Docs/Guide.md (single, comprehensive)
 - CHANGELOG.md
-
-Install
-- Local during development: Add Local Package…; link VoiceKitCore and (optionally) VoiceKitUI (Do Not Embed).
-- Remote: Add from GitHub URL; rule “Up to Next Major” from your tag (e.g., v0.1.1).
 
 License
 - MIT — see LICENSE.

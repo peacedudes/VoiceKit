@@ -1,6 +1,6 @@
 //
 //  VoicePickerFilteringTests.swift
-//  VoiceKitUITests
+//  VoiceKit
 //
 //  Deterministic FakeTTS voices; force .all to avoid locale dependence.
 //

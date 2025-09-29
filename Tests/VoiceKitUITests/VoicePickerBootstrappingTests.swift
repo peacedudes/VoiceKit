@@ -1,6 +1,6 @@
 //
 //  VoicePickerBootstrappingTests.swift
-//  VoiceKitUITests
+//  VoiceKit
 //
 //  Deterministic bootstrap test using FakeTTS voices only.
 //

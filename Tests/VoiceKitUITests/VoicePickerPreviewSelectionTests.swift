@@ -1,6 +1,6 @@
 //
 //  VoicePickerPreviewSelectionTests.swift
-//  VoiceKitUITests
+//  VoiceKit
 //
 //  Deterministic FakeTTS voices; force .all; verify hidden toggle.
 //

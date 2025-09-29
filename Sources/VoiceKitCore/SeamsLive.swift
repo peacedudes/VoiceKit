@@ -1,6 +1,6 @@
 //
 //  SeamsLive.swift
-//  VoiceKitCore
+//  VoiceKit
 //
 //  Single source of truth for seam types used by RealVoiceIO.
 //

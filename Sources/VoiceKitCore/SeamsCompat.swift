@@ -1,6 +1,6 @@
 //
 //  SeamsCompat.swift
-//  VoiceKitCore
+//  VoiceKit
 //
 //  Protocols and types matching ListenFlowSeamTests expectations.
 //

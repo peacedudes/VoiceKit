@@ -1,6 +1,6 @@
 //
 //  RealVoiceIO+Boosted.swift
-//  VoiceKitCore
+//  VoiceKit
 //
 //  Idempotent waiter handling for short-clip (boosted) playback.
 //  Ensures continuations are resumed exactly once and never retained after resume.

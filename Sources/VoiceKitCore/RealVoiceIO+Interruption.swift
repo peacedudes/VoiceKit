@@ -1,6 +1,6 @@
 //
 //  RealVoiceIO+Interruption.swift
-//  VoiceKitCore
+//  VoiceKit
 //
 //  iOS/tvOS/watchOS-only AVAudioSession interruption handling.
 //  Entirely excluded on macOS where AVAudioSession is unavailable.

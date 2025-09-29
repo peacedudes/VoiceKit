@@ -1,6 +1,6 @@
 //
 //  VoiceProfilesStoreBootstrapTests.swift
-//  VoiceKitUITests
+//  VoiceKit
 //
 //  Deterministic: use FakeTTS; verify profiles and default without system voice assumptions.
 //

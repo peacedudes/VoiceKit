@@ -1,6 +1,6 @@
 //
 //  RealVoiceIOBoostedTests.swift
-//  VoiceKitCoreTests
+//  VoiceKit
 //
 //  Updated to match idempotent boosted semantics:
 //  - Adding a waiter via boostWaiters immediately resumes it and does not retain it.
