@@ -134,11 +134,11 @@ public struct RecognitionContext: Sendable {
 
 public extension RecognitionContext {
     static var numericContextualStrings: [String] {
-        let digits = (0...20).map { String($0) } + ["30","40","50","60","70","80","90","100"]
-        let words = ["zero","one","two","three","four","five","six","seven","eight","nine",
-                     "ten","eleven","twelve","thirteen","fourteen","fifteen",
-                     "sixteen","seventeen","eighteen","nineteen","twenty",
-                     "thirty","forty","fifty","sixty","seventy","eighty","ninety","hundred"]
+        let digits = (0...20).map { String($0) } + ["30", "40", "50", "60", "70", "80", "90", "100"]
+        let words = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+                     "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
+                     "sixteen", "seventeen", "eighteen", "nineteen", "twenty",
+                     "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "hundred"]
         return digits + words
     }
 }

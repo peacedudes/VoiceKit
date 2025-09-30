@@ -30,7 +30,7 @@ final class VoicePickerFilteringTests: XCTestCase {
         let fake = FakeTTS()
         fake.voices = [
             TTSVoiceInfo(id: "v1", name: "Alpha", language: "en-US"),
-            TTSVoiceInfo(id: "v2", name: "Beta",  language: "en-GB"),
+            TTSVoiceInfo(id: "v2", name: "Beta", language: "en-GB"),
             TTSVoiceInfo(id: "v3", name: "Gamma", language: "fr-FR")
         ]
 
@@ -39,16 +39,16 @@ final class VoicePickerFilteringTests: XCTestCase {
         vm.refreshAvailableVoices()
 
         vm.languageFilter = .all
-        XCTAssertEqual(Set(vm.filteredVoices.map(\.id)), Set(["v1","v2","v3"]))
+        XCTAssertEqual(Set(vm.filteredVoices.map(\.id)), Set(["v1", "v2", "v3"]))
 
         store.setHidden("v2", true)
-        XCTAssertEqual(Set(vm.filteredVoices.map(\.id)), Set(["v1","v3"]))
+        XCTAssertEqual(Set(vm.filteredVoices.map(\.id)), Set(["v1", "v3"]))
 
         vm.showHidden = true
-        XCTAssertEqual(Set(vm.filteredVoices.map(\.id)), Set(["v1","v2","v3"]))
+        XCTAssertEqual(Set(vm.filteredVoices.map(\.id)), Set(["v1", "v2", "v3"]))
 
         store.setHidden("v1", true)
-        XCTAssertEqual(Set(vm.filteredVoices.map(\.id)), Set(["v1","v2","v3"]))
+        XCTAssertEqual(Set(vm.filteredVoices.map(\.id)), Set(["v1", "v2", "v3"]))
 
         vm.showHidden = false
         XCTAssertEqual(Set(vm.filteredVoices.map(\.id)), Set(["v3"]))

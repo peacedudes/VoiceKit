@@ -37,7 +37,7 @@ final class VoiceProfilesStoreBootstrapTests: XCTestCase {
         let tts = FakeTTS()
         tts.voices = [
             TTSVoiceInfo(id: "a", name: "Alpha", language: "en-US"),
-            TTSVoiceInfo(id: "b", name: "Beta",  language: "en-GB"),
+            TTSVoiceInfo(id: "b", name: "Beta", language: "en-GB")
         ]
         let vm = VoicePickerViewModel(tts: tts, store: store, allowSystemVoices: false)
         vm.refreshAvailableVoices()
@@ -62,7 +62,7 @@ final class VoiceProfilesStoreBootstrapTests: XCTestCase {
         let tts = FakeTTS()
         tts.voices = [
             TTSVoiceInfo(id: "a", name: "Alpha", language: "en-US"),
-            TTSVoiceInfo(id: "b", name: "Beta",  language: "en-GB"),
+            TTSVoiceInfo(id: "b", name: "Beta", language: "en-GB")
         ]
         let vm = VoicePickerViewModel(tts: tts, store: store, allowSystemVoices: false)
         vm.refreshAvailableVoices()

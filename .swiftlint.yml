@@ -1,0 +1,39 @@
+---
+# .swiftlint.yml
+included:
+  - Sources
+  - Tests
+
+disabled_rules: []
+
+opt_in_rules:
+  - empty_count
+  - explicit_init
+  - first_where
+  - operator_usage_whitespace
+  - duplicate_imports
+  - trailing_newline
+  - trailing_comma
+  - statement_position
+  - comma
+
+identifier_name:
+  min_length: 2
+  allowed_symbols: ["_"]
+  allowed_names: []  # enforce meaningful names everywhere
+
+line_length:
+  warning: 120
+  error: 140
+  ignores_comments: true
+  ignores_function_declarations: true
+  ignores_urls: true
+
+inclusive_language:
+  severity: warning
+  override_allowed_terms: false  # don't whitelist terms; fix code instead
+
+trailing_whitespace:
+  ignores_empty_lines: true
+
+reporter: "github-actions-logging"

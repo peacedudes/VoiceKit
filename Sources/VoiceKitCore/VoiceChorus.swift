@@ -67,4 +67,3 @@ public final class VoiceChorus {
         isRunning = false
     }
 }
-

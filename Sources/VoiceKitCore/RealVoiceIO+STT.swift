@@ -19,7 +19,7 @@ extension RealVoiceIO {
     // Falls back to trimmed original if tokens are unrecognized.
     public static func normalizeNumeric(from s: String) -> String {
         let trimmed = s.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-                       .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty { return trimmed }
 
         let lower = trimmed.lowercased()
@@ -39,8 +39,8 @@ extension RealVoiceIO {
             "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90
         ]
 
-        var intValue: Int? = nil
-        var decimalPart: String? = nil
+        var intValue: Int?
+        var decimalPart: String?
         var i = 0
 
         // Combine multiple chunks by thousands if needed (simple concatenation rule).

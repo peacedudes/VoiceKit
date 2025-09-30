@@ -1,0 +1,16 @@
+---
+name: SwiftLint
+"on":
+  pull_request:
+  push:
+    branches:
+      - main
+jobs:
+  lint:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SwiftLint
+        run: brew install swiftlint
+      - name: SwiftLint (annotate)
+        run: swiftlint --reporter github-actions-logging || true

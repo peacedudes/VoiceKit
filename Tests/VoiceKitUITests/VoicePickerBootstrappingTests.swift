@@ -38,14 +38,14 @@ final class VoicePickerBootstrappingTests: XCTestCase {
         let tts = FakeTTS()
         tts.voices = [
             TTSVoiceInfo(id: "a", name: "Alpha", language: "en-US"),
-            TTSVoiceInfo(id: "b", name: "Beta",  language: "en-GB")
+            TTSVoiceInfo(id: "b", name: "Beta", language: "en-GB")
         ]
 
         // IMPORTANT: use FakeTTS in the ViewModel
         let vm = VoicePickerViewModel(tts: tts, store: store, allowSystemVoices: false)
         vm.refreshAvailableVoices()
 
-        XCTAssertEqual(vm.voices.map(\.id), ["a","b"])
+        XCTAssertEqual(vm.voices.map(\.id), ["a", "b"])
 
         let p = store.profile(for: vm.voices[0])
         XCTAssertEqual(p.id, "a")

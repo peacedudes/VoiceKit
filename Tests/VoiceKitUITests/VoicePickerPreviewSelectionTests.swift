@@ -35,7 +35,7 @@ final class VoicePickerPreviewSelectionTests: XCTestCase {
         let tts = FakeTTS()
         tts.voices = [
             TTSVoiceInfo(id: "vh", name: "Hidden", language: "en-US"),
-            TTSVoiceInfo(id: "vs", name: "Shown",  language: "en-US")
+            TTSVoiceInfo(id: "vs", name: "Shown", language: "en-US")
         ]
         let store = VoiceProfilesStore(filename: "hidden-\(UUID().uuidString).json")
         let vm = VoicePickerViewModel(tts: tts, store: store)
@@ -47,6 +47,6 @@ final class VoicePickerPreviewSelectionTests: XCTestCase {
         XCTAssertEqual(vm.filteredVoices.map(\.id), ["vs"])
 
         vm.showHidden = true
-        XCTAssertEqual(Set(vm.filteredVoices.map(\.id)), Set(["vh","vs"]))
+        XCTAssertEqual(Set(vm.filteredVoices.map(\.id)), Set(["vh", "vs"]))
     }
 }

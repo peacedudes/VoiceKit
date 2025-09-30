@@ -30,12 +30,12 @@ public enum NameMatch: Sendable {
         // 2) Unify dash variants to ASCII hyphen-minus
         //    Includes: hyphen (2010), non-breaking hyphen (2011), figure dash (2012),
         //    en dash (2013), em dash (2014), minus sign (2212)
-        let dashVariants = ["\u{2010}","\u{2011}","\u{2012}","\u{2013}","\u{2014}","\u{2212}"]
+        let dashVariants = ["\u{2010}", "\u{2011}", "\u{2012}", "\u{2013}", "\u{2014}", "\u{2212}"]
         for d in dashVariants { t = t.replacingOccurrences(of: d, with: "-") }
 
         // 3) Remove soft/zero-width characters that should not affect matching
         //    Soft hyphen (00AD), zero-width space/joiners (200B, 200C, 200D), word joiner (2060)
-        let invisibles = ["\u{00AD}","\u{200B}","\u{200C}","\u{200D}","\u{2060}"]
+        let invisibles = ["\u{00AD}", "\u{200B}", "\u{200C}", "\u{200D}", "\u{2060}"]
         for ch in invisibles { t = t.replacingOccurrences(of: ch, with: "") }
 
         // 4) Fold diacritics and case

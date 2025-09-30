@@ -108,7 +108,7 @@ final class VoicePickerViewModelTests: XCTestCase {
             let fake = LocalFakeTTS()
             fake.voices = [
                 TTSVoiceInfo(id: "vs", name: "System Soprano", language: "en-US"),
-                TTSVoiceInfo(id: "vh", name: "System Hero", language: "en-GB"),
+                TTSVoiceInfo(id: "vh", name: "System Hero", language: "en-GB")
             ]
             vm = VoicePickerViewModel(tts: fake, store: store, allowSystemVoices: false)
             vm.refreshAvailableVoices()

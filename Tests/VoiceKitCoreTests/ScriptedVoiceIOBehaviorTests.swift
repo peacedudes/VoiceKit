@@ -13,7 +13,7 @@ import VoiceKitCore
 final class ScriptedVoiceIOBehaviorTests: XCTestCase {
 
     private func b64(_ array: [String]) -> String {
-        let data = try! JSONSerialization.data(withJSONObject: array, options: [])
+        let data = (try? JSONSerialization.data(withJSONObject: array, options: [])) ?? Data()
         return data.base64EncodedString()
     }
 

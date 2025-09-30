@@ -480,8 +480,7 @@ private struct VoiceRow: View {
             .contentShape(Rectangle())
             .onTapGesture { onTapRow() }
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                if isHidden { Button("Unhide") { onUnhide() }.tint(.blue) }
-                else { Button("Hide") { onHide() }.tint(.red) }
+                if isHidden { Button("Unhide") { onUnhide() }.tint(.blue) } else { Button("Hide") { onHide() }.tint(.red) }
             }
 
             if expanded {

@@ -13,7 +13,7 @@ import VoiceKitCore
 final class ScriptedVoiceIOEdgeTests: XCTestCase {
 
     private func base64(of strings: [String]) -> String {
-        let data = try! JSONSerialization.data(withJSONObject: strings, options: [])
+        let data = (try? JSONSerialization.data(withJSONObject: strings, options: [])) ?? Data()
         return data.base64EncodedString()
     }
 
@@ -49,12 +49,10 @@ final class ScriptedVoiceIOEdgeTests: XCTestCase {
 
         voice.onTTSSpeakingChanged = { speaking in
             if speaking {
-                if startCount == 0 { startedFirst.fulfill() }
-                else if startCount == 1 { startedSecond.fulfill() }
+                if startCount == 0 { startedFirst.fulfill() } else if startCount == 1 { startedSecond.fulfill() }
                 startCount += 1
             } else {
-                if endCount == 0 { endedFirst.fulfill() }
-                else if endCount == 1 { endedSecond.fulfill() }
+                if endCount == 0 { endedFirst.fulfill() } else if endCount == 1 { endedSecond.fulfill() }
                 endCount += 1
             }
         }
