@@ -54,13 +54,13 @@ struct VoiceChorusPlayground: View {
 
             // Scrolling list area
             ScrollView {
-                VoiceSelectionSection()
+                voiceSelectionSection()
             }
         }
     }
 
     @ViewBuilder
-    private func VoiceSelectionSection() -> some View {
+    private func voiceSelectionSection() -> some View {
         Section(header: Text("Voices")) {
             ForEach(availableVoices(), id: \.id) { voice in
                 Toggle(voice.name, isOn: Binding(

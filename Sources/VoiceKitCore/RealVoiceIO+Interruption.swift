@@ -20,13 +20,31 @@ extension RealVoiceIO {
     private static var _wasPlayingClipKey: UInt8 = 0
 
     private var wasInterrupted: Bool {
-        get { (objc_getAssociatedObject(self, &RealVoiceIO._wasInterruptedKey) as? Bool) ?? false }
-        set { objc_setAssociatedObject(self, &RealVoiceIO._wasInterruptedKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
+        get {
+            (objc_getAssociatedObject(self, &RealVoiceIO._wasInterruptedKey) as? Bool) ?? false
+        }
+        set {
+            objc_setAssociatedObject(
+                self,
+                &RealVoiceIO._wasInterruptedKey,
+                newValue,
+                .OBJC_ASSOCIATION_RETAIN_NONATOMIC
+            )
+        }
     }
 
     private var wasPlayingClip: Bool {
-        get { (objc_getAssociatedObject(self, &RealVoiceIO._wasPlayingClipKey) as? Bool) ?? false }
-        set { objc_setAssociatedObject(self, &RealVoiceIO._wasPlayingClipKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
+        get {
+            (objc_getAssociatedObject(self, &RealVoiceIO._wasPlayingClipKey) as? Bool) ?? false
+        }
+        set {
+            objc_setAssociatedObject(
+                self,
+                &RealVoiceIO._wasPlayingClipKey,
+                newValue,
+                .OBJC_ASSOCIATION_RETAIN_NONATOMIC
+            )
+        }
     }
 
     // MARK: - Public wiring
@@ -112,7 +130,9 @@ extension RealVoiceIO {
                 boostedProvider.reset()
                 let waiters = clipWaiters
                 clipWaiters.removeAll()
-                for w in waiters { w.resume(throwing: SimpleError("Route changed")) }
+                for waiter in waiters {
+                    waiter.resume(throwing: SimpleError("Route changed"))
+                }
             }
         }
     }

@@ -58,7 +58,14 @@ public struct VoiceProfilesFile: Codable {
         activeVoiceIDs = try c.decodeIfPresent([String].self, forKey: .activeVoiceIDs) ?? []
         hiddenVoiceIDs = try c.decodeIfPresent([String].self, forKey: .hiddenVoiceIDs) ?? []
         let dict = try c.decodeIfPresent([String: ProfileDTO].self, forKey: .profilesByID) ?? [:]
-        profilesByID = dict.reduce(into: [:]) { acc, kv in acc[kv.key] = TTSVoiceProfile(id: kv.value.id, rate: kv.value.rate, pitch: kv.value.pitch, volume: kv.value.volume) }
+        profilesByID = dict.reduce(into: [:]) { acc, kv in
+            acc[kv.key] = TTSVoiceProfile(
+                id: kv.value.id,
+                rate: kv.value.rate,
+                pitch: kv.value.pitch,
+                volume: kv.value.volume
+            )
+        }
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -480,25 +487,79 @@ private struct VoiceRow: View {
             .contentShape(Rectangle())
             .onTapGesture { onTapRow() }
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                if isHidden { Button("Unhide") { onUnhide() }.tint(.blue) } else { Button("Hide") { onHide() }.tint(.red) }
+                if isHidden {
+                    Button("Unhide") { onUnhide() }
+                        .tint(.blue)
+                } else {
+                    Button("Hide") { onHide() }
+                        .tint(.red)
+                }
             }
 
             if expanded {
                 VStack(spacing: 10) {
                     HStack {
                         Text("Speed").frame(width: 70, alignment: .leading)
-                        Slider(value: Binding(get: { Double(profile.rate) }, set: { profile.rate = Double($0); onChange(profile, "at speed \(String(format: "%.2f", profile.rate))") }), in: 0...1, step: 0.01)
-                        Text(String(format: "%.2f", profile.rate)).monospacedDigit().foregroundStyle(.secondary).frame(width: 52, alignment: .trailing)
+                        Slider(
+                            value: Binding(
+                                get: { Double(profile.rate) },
+                                set: { newValue in
+                                    profile.rate = Double(newValue)
+                                    onChange(
+                                        profile,
+                                        "at speed \(String(format: "%.2f", profile.rate))"
+                                    )
+                                }
+                            ),
+                            in: 0...1,
+                            step: 0.01
+                        )
+                        Text(String(format: "%.2f", profile.rate))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 52, alignment: .trailing)
                     }
                     HStack {
                         Text("Pitch").frame(width: 70, alignment: .leading)
-                        Slider(value: Binding(get: { Double(profile.pitch) }, set: { profile.pitch = Float($0); onChange(profile, "at pitch \(String(format: "%.2f", profile.pitch))") }), in: 0.5...2.0, step: 0.01)
-                        Text(String(format: "%.2f", profile.pitch)).monospacedDigit().foregroundStyle(.secondary).frame(width: 52, alignment: .trailing)
+                        Slider(
+                            value: Binding(
+                                get: { Double(profile.pitch) },
+                                set: { newValue in
+                                    profile.pitch = Float(newValue)
+                                    onChange(
+                                        profile,
+                                        "at pitch \(String(format: "%.2f", profile.pitch))"
+                                    )
+                                }
+                            ),
+                            in: 0.5...2.0,
+                            step: 0.01
+                        )
+                        Text(String(format: "%.2f", profile.pitch))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 52, alignment: .trailing)
                     }
                     HStack {
                         Text("Volume").frame(width: 70, alignment: .leading)
-                        Slider(value: Binding(get: { Double(profile.volume) }, set: { profile.volume = Float($0); onChange(profile, "at volume \(String(format: "%.2f", profile.volume))") }), in: 0...1, step: 0.01)
-                        Text(String(format: "%.2f", profile.volume)).monospacedDigit().foregroundStyle(.secondary).frame(width: 52, alignment: .trailing)
+                        Slider(
+                            value: Binding(
+                                get: { Double(profile.volume) },
+                                set: { newValue in
+                                    profile.volume = Float(newValue)
+                                    onChange(
+                                        profile,
+                                        "at volume \(String(format: "%.2f", profile.volume))"
+                                    )
+                                }
+                            ),
+                            in: 0...1,
+                            step: 0.01
+                        )
+                        Text(String(format: "%.2f", profile.volume))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 52, alignment: .trailing)
                     }
                 }
                 .padding(.top, 4)

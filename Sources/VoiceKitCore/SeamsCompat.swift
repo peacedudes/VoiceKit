@@ -26,8 +26,8 @@ public struct SpeechEvent: Sendable, Equatable {
         guard lhs.text == rhs.text, lhs.isFinal == rhs.isFinal, lhs.segments.count == rhs.segments.count else {
             return false
         }
-        for (a, b) in zip(lhs.segments, rhs.segments) {
-            if a.0 != b.0 || a.1 != b.1 { return false }
+        for (left, right) in zip(lhs.segments, rhs.segments) {
+            if left.0 != right.0 || left.1 != right.1 { return false }
         }
         return true
     }

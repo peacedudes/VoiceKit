@@ -21,9 +21,9 @@ extension RealVoiceIO {
 
     internal func ensureSynth() {
         if synthesizer == nil {
-            let s = AVSpeechSynthesizer()
-            s.delegate = self
-            synthesizer = s
+            let synth = AVSpeechSynthesizer()
+            synth.delegate = self
+            synthesizer = synth
         }
     }
 
@@ -49,22 +49,22 @@ extension RealVoiceIO {
     }
 
     internal func applyProfile(to utterance: AVSpeechUtterance, voiceID: String?) {
-        if let voiceID, let v = AVSpeechSynthesisVoice(identifier: voiceID) {
-            utterance.voice = v
+        if let voiceID, let voice = AVSpeechSynthesisVoice(identifier: voiceID) {
+            utterance.voice = voice
         }
 
-        let m = master
+        let control = master
         utterance.rate = Float((defaultProfile?.rate ?? 0.5).clamped(to: 0...1))
-        utterance.pitchMultiplier = (defaultProfile?.pitch ?? 1.0) + .random(in: -m.pitchVariation...m.pitchVariation)
+        utterance.pitchMultiplier = (defaultProfile?.pitch ?? 1.0) + .random(in: -control.pitchVariation...control.pitchVariation)
         utterance.volume = defaultProfile?.volume ?? 1.0
 
-        if let id = voiceID, let p = profilesByID[id] {
-            utterance.rate = Float(p.rate.clamped(to: 0...1))
-            utterance.pitchMultiplier = p.pitch + .random(in: -m.pitchVariation...m.pitchVariation)
-            utterance.volume = p.volume
+        if let id = voiceID, let profile = profilesByID[id] {
+            utterance.rate = Float(profile.rate.clamped(to: 0...1))
+            utterance.pitchMultiplier = profile.pitch + .random(in: -control.pitchVariation...control.pitchVariation)
+            utterance.volume = profile.volume
         }
 
-        utterance.rate += .random(in: -m.rateVariation...m.rateVariation)
+        utterance.rate += .random(in: -control.rateVariation...control.rateVariation)
     }
 
     internal func ttsStartPulse() {}

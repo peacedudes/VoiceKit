@@ -83,8 +83,8 @@ public final class VoiceQueue {
         let parts = Self.parseTextForSFX(text)
         for part in parts {
             switch part {
-            case .text(let s) where !s.isEmpty:
-                enqueue(.speak(text: s, voiceID: defaultVoiceID), on: channel)
+            case .text(let text) where !text.isEmpty:
+                enqueue(.speak(text: text, voiceID: defaultVoiceID), on: channel)
             case .sfx(let name):
                 if let url = resolver(name) {
                     enqueue(.sfx(url: url, gainDB: 0), on: channel)
@@ -147,11 +147,11 @@ public final class VoiceQueue {
 
     private func runChannel(_ id: ChannelID) async {
         guard var ch = channels[id] else { return }
-        var i = 0
+        var index = 0
 
-        while i < ch.items.count, !cancelled, !Task.isCancelled {
-            let item = ch.items[i]
-            let next = i + 1 < ch.items.count ? ch.items[i + 1] : nil
+        while index < ch.items.count, !cancelled, !Task.isCancelled {
+            let item = ch.items[index]
+            let next = index + 1 < ch.items.count ? ch.items[index + 1] : nil
 
             switch item {
             case .speak(let text, let voiceID):
@@ -169,7 +169,7 @@ public final class VoiceQueue {
                 if case .sfx = next {
                     // Await clip completion; RealVoiceIO auto-starts; others may need start call.
                     try? await ch.io.startPreparedBoosted()
-                    i += 1 // consume the next .sfx
+                    index += 1 // consume the next .sfx
                 }
 
             case .sfx(let url, let gain):
@@ -179,7 +179,7 @@ public final class VoiceQueue {
                 try? await Task.sleep(nanoseconds: UInt64(max(0, seconds) * 1_000_000_000))
             }
 
-            i += 1
+            index += 1
         }
 
         // Clear consumed items on completion/cancel
@@ -194,29 +194,29 @@ public final class VoiceQueue {
         case sfx(String)
     }
 
-    static func parseTextForSFX(_ s: String) -> [Part] {
+    static func parseTextForSFX(_ text: String) -> [Part] {
         // Pattern: [sfx:NAME] where NAME is [a-zA-Z0-9._-]+
         let pattern = #"\[sfx:([A-Za-z0-9._-]+)\]"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [.text(s)] }
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [.text(text)] }
 
         var parts: [Part] = []
-        var idx = s.startIndex
+        var idx = text.startIndex
 
-        for match in regex.matches(in: s, range: NSRange(s.startIndex..<s.endIndex, in: s)) {
-            guard let r = Range(match.range, in: s) else { continue }
-            let before = String(s[idx..<r.lowerBound])
+        for match in regex.matches(in: text, range: NSRange(text.startIndex..<text.endIndex, in: text)) {
+            guard let range = Range(match.range, in: text) else { continue }
+            let before = String(text[idx..<range.lowerBound])
             if !before.isEmpty { parts.append(.text(before)) }
 
-            if let nameRange = Range(match.range(at: 1), in: s) {
-                parts.append(.sfx(String(s[nameRange])))
+            if let nameRange = Range(match.range(at: 1), in: text) {
+                parts.append(.sfx(String(text[nameRange])))
             }
 
-            idx = r.upperBound
+            idx = range.upperBound
         }
 
-        let tail = String(s[idx..<s.endIndex])
+        let tail = String(text[idx..<text.endIndex])
         if !tail.isEmpty { parts.append(.text(tail)) }
-        if parts.isEmpty { parts = [.text(s)] }
+        if parts.isEmpty { parts = [.text(text)] }
         return parts
     }
 }

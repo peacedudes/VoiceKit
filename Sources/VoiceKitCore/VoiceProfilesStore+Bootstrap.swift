@@ -30,8 +30,8 @@ public enum VoiceProfilesStoreBootstrap {
         let systemVoices = AVSpeechSynthesisVoice.speechVoices()
 
         // Map to summaries
-        var summaries = systemVoices.map { v in
-            VoiceProfileSummary(id: v.identifier, name: v.name, language: v.language, isHidden: false)
+        var summaries = systemVoices.map { voice in
+            VoiceProfileSummary(id: voice.identifier, name: voice.name, language: voice.language, isHidden: false)
         }
 
         // Stable sort by name so tests see deterministic order
@@ -59,12 +59,12 @@ public enum VoiceProfilesStoreBootstrap {
                                         hiddenIDs: Set<String>,
                                         showHidden: Bool) -> [VoiceProfileSummary] {
         let prefix = languagePrefix.lowercased()
-        let filtered = all.compactMap { v -> VoiceProfileSummary? in
-            let matchesLang = v.language.lowercased().hasPrefix(prefix)
-            let isHidden = hiddenIDs.contains(v.id)
+        let filtered = all.compactMap { voice -> VoiceProfileSummary? in
+            let matchesLang = voice.language.lowercased().hasPrefix(prefix)
+            let isHidden = hiddenIDs.contains(voice.id)
             if !matchesLang { return nil }
             if !showHidden && isHidden { return nil }
-            return VoiceProfileSummary(id: v.id, name: v.name, language: v.language, isHidden: isHidden)
+            return VoiceProfileSummary(id: voice.id, name: voice.name, language: voice.language, isHidden: isHidden)
         }
         return filtered.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
