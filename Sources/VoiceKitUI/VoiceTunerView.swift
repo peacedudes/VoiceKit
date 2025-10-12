@@ -1,0 +1,530 @@
+//
+//  VoiceTunerView.swift
+//  VoiceKitUI
+//
+//  A focused UI to pick a system voice and tune its settings (rate, pitch, volume)
+//  with immediate audio feedback.
+//
+
+import SwiftUI
+import AVFoundation
+import Foundation
+import VoiceKitCore
+
+@MainActor
+public struct VoiceTunerView: View {
+    private let tts: TTSConfigurable
+    @ObservedObject private var store: VoiceProfilesStore
+
+    // Optional chooser wiring
+    private var onChoose: (() -> Void)?
+    private var onCancel: (() -> Void)?
+    @Binding private var selectedIDBinding: String?
+
+    @State private var voices: [TTSVoiceInfo] = []
+    @State private var selectedID: String?
+    @State private var workingProfile: TTSVoiceProfile?
+    @State private var speakTask: Task<Void, Never>?
+    @State private var selectedIDString: String = ""
+    @State private var isLoadingVoices: Bool = false
+    @State private var hasAppliedProfile: Bool = false
+    
+    private enum SliderKind { case speed, pitch, volume }
+    @State private var activeSlider: SliderKind?
+    @State private var didAnnounceLabelForActiveDrag: Bool = false
+
+    // Language filtering
+    private enum LanguageFilter: Equatable { case current, all, specific(String) } // specific = base code like "en"
+    @State private var languageFilter: LanguageFilter = .current
+    @State private var allVoices: [TTSVoiceInfo] = []
+    @State private var languageOptions: [(code: String, name: String)] = []
+    @State private var showFullLanguagePicker: Bool = false
+    @State private var enhancedVoiceIDs: Set<String> = []
+
+    // Map LanguageFilter <-> String for a native Picker. Reserved tags:
+    // "_current" and "_all"; otherwise use base language codes like "en", "es".
+    private var languageSelectionBinding: Binding<String> {
+        Binding(
+            get: {
+                switch languageFilter {
+                case .current: return "_current"
+                case .all: return "_all"
+                case .specific(let code): return code.lowercased()
+                }
+            },
+            set: { sel in
+                switch sel {
+                case "_current": applyLanguage(.current)
+                case "_all": applyLanguage(.all)
+                default: applyLanguage(.specific(sel.lowercased()))
+                }
+            }
+        )
+    }
+
+    // Standard use
+    public init(tts: TTSConfigurable, store: VoiceProfilesStore) {
+        self.tts = tts
+        self._store = ObservedObject(initialValue: store)
+        self.onChoose = nil
+        self.onCancel = nil
+        self._selectedIDBinding = .constant(nil)
+    }
+
+    // Chooser mode
+    public init(tts: TTSConfigurable,
+                store: VoiceProfilesStore,
+                selectedID: Binding<String?>,
+                onChoose: (() -> Void)? = nil,
+                onCancel: (() -> Void)? = nil) {
+        self.tts = tts
+        self._store = ObservedObject(initialValue: store)
+        self.onChoose = onChoose
+        self.onCancel = onCancel
+        self._selectedIDBinding = selectedID
+    }
+
+    public var body: some View {
+        NavigationStack {
+            VStack(spacing: 10) {
+                // Compact language control: starts as "English voices" and expands one-way to full picker
+                if showFullLanguagePicker == false {
+                    Toggle("\(currentLanguageDisplayName()) voices", isOn: Binding(
+                        get: { languageFilter == LanguageFilter.current },
+                        set: { newVal in
+                            if newVal {
+                                // Stick to current language
+                                applyLanguage(.current)
+                            } else {
+                                // One-way expansion to full picker; default to All
+                                showFullLanguagePicker = true
+                                applyLanguage(.all)
+                            }
+                        }
+                    ))
+                    #if os(macOS)
+                    .toggleStyle(.checkbox)
+                    .controlSize(.small)
+                    #endif
+                    .padding(.horizontal, 20)
+                } else {
+                    // Full language picker (same style/padding as voice picker)
+                    Picker("Language", selection: languageSelectionBinding) {
+                        Text(currentLanguageDisplayName()).tag("_current")
+                        Text("All languages").tag("_all")
+                        ForEach(languageOptions, id: \.code) { opt in
+                            Text(opt.name).tag(opt.code)
+                        }
+                    }
+                    .pickerStyle(pickerStylePlatform())
+                    .frame(maxHeight: pickerMaxHeight())
+                    #if os(macOS)
+                    .controlSize(.small)
+                    #endif
+                    .padding(.horizontal, 20)
+                }
+
+                // Voice picker (wheel on iOS, default on macOS/tvOS)
+                Picker("Voice", selection: $selectedIDString) {
+                    ForEach(voices, id: \.id) { info in
+                        // Mark enhanced voices with a star to disambiguate variants.
+                        let name = enhancedVoiceIDs.contains(info.id) ? "\(info.name)*" : info.name
+                        Text("\(name) · \(info.language)").tag(info.id)
+                    }
+                }
+                .pickerStyle(pickerStylePlatform())
+                .frame(maxHeight: pickerMaxHeight())
+                #if os(macOS)
+                .controlSize(.small)
+                #endif
+                .padding(.horizontal, 20)
+                .onChange(of: selectedIDString) { _, newID in
+                    selectedID = newID.isEmpty ? nil : newID
+                    // Reflect selection to external binding if provided
+                    selectedIDBinding = selectedID
+                    loadWorkingProfile()
+                    // Apply current tuning and speak to differentiate variants immediately.
+                    commitChanges()
+                    previewSpeak(samplePhrase())
+                }
+
+                // Centered Sample between pickers and sliders
+                HStack {
+                    Spacer()
+                    Button {
+                        commitChanges()
+                        previewSpeak(samplePhrase())
+                    } label: {
+                        Label("Sample", systemImage: "play.fill")
+                    }
+                    Spacer()
+                }
+
+                // Lightweight indicator that voices are still loading
+                if isLoadingVoices && voices.isEmpty {
+                    ProgressView()
+                        .controlSize(.small)
+                        .padding(.top, -8)
+                }
+
+                // Single set of sliders for the selected voice
+                if let profile = workingProfile {
+                    VStack(spacing: 14) {
+                        sliderRow(
+                            icon: "speedometer", label: "Speed",
+                            kind: .speed,
+                            value: Binding(
+                                get: { Double(profile.rate) },
+                                set: { val in
+                                    workingProfile?.rate = .init(val)
+                                }
+                            ),
+                            range: 0.0...1.0,
+                            textFormat: "%.2g" // 0.20 -> 0.2
+                        )
+                        sliderRow(
+                            icon: "waveform", label: "Pitch",
+                            kind: .pitch,
+                            value: Binding(
+                                get: { Double(profile.pitch) },
+                                set: { val in
+                                    workingProfile?.pitch = .init(val)
+                                }
+                            ),
+                            range: 0.5...2.0,
+                            textFormat: "%.2g"
+                        )
+                        sliderRow(
+                            icon: "speaker.wave.2.fill", label: "Volume",
+                            kind: .volume,
+                            value: Binding(
+                                get: { Double(profile.volume) },
+                                set: { val in
+                                    workingProfile?.volume = .init(val)
+                                }
+                            ),
+                            range: 0.0...1.0,
+                            textFormat: "%.2g"
+                        )
+
+                        // Chooser actions (only when callbacks are provided)
+                        if onChoose != nil || onCancel != nil {
+                            HStack(spacing: 12) {
+                                if let onCancel {
+                                    Button(role: .cancel) {
+                                        onCancel()
+                                    } label: { Text("Cancel") }
+                                }
+                                Spacer()
+                                if let onChoose {
+                                    Button {
+                                        // Ensure external binding is updated
+                                        selectedIDBinding = selectedID
+                                        commitChanges()
+                                        onChoose()
+                                    } label: { Text("Choose") }
+                                    .buttonStyle(.borderedProminent)
+                                }
+                            }
+                            .padding(.top, 2)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                } else {
+                    Text("Select a voice to tune").foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .navigationTitle("Voice Tuner")
+            .onAppear { seedVoicesFast() }
+        }
+    }
+
+    // MARK: - Data / State
+    private func loadVoices() {
+        // Use cached system voices and pick default/first voice
+        let list = SystemVoicesCache.all().sorted {
+            if $0.name == $1.name { return $0.language < $1.language }
+            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+        voices = list
+
+        // Initialize from external binding if valid
+        if selectedID == nil, let bound = selectedIDBinding, list.contains(where: { $0.id == bound }) {
+            selectedID = bound
+        }
+
+        if selectedID == nil {
+            if let def = store.defaultVoiceID, list.contains(where: { $0.id == def }) {
+                selectedID = def
+            } else {
+                selectedID = list.first?.id
+            }
+        }
+        selectedIDString = selectedID ?? ""
+        loadWorkingProfile()
+    }
+
+    // MARK: - Language filtering
+    private func baseLanguageCode(_ tag: String) -> String {
+        if let dash = tag.firstIndex(of: "-") {
+            return String(tag[..<dash])
+        }
+        return tag
+    }
+    private func currentLanguageCode() -> String {
+        let tag = Locale.preferredLanguages.first ?? Locale.current.identifier
+        return baseLanguageCode(tag).lowercased()
+    }
+    private func currentLanguageDisplayName() -> String {
+        let code = currentLanguageCode()
+        return Locale.current.localizedString(forLanguageCode: code)?.capitalized ?? code.uppercased()
+    }
+    private func languageDisplayName(for code: String) -> String {
+        Locale.current.localizedString(forLanguageCode: code)?.capitalized ?? code.uppercased()
+    }
+    private func computeLanguageOptions(from list: [TTSVoiceInfo]) -> [(code: String, name: String)] {
+        let codes = Set(list.map { baseLanguageCode($0.language).lowercased() })
+        let mapped = codes.map { ($0, languageDisplayName(for: $0)) }
+        return mapped.sorted { $0.1.localizedCaseInsensitiveCompare($1.1) == .orderedAscending }
+    }
+    private func applyLanguageFilter(_ list: [TTSVoiceInfo]) -> [TTSVoiceInfo] {
+        switch languageFilter {
+        case .all:
+            return list
+        case .current:
+            let my = currentLanguageCode()
+            let filtered = list.filter { baseLanguageCode($0.language).lowercased() == my }
+            return filtered.isEmpty ? list : filtered
+        case .specific(let code):
+            let filtered = list.filter { baseLanguageCode($0.language).lowercased() == code.lowercased() }
+            return filtered.isEmpty ? list : filtered
+        }
+    }
+    private func applyLanguage(_ newFilter: LanguageFilter) {
+        languageFilter = newFilter
+        let filtered = applyLanguageFilter(allVoices)
+        voices = filtered
+        if let sel = selectedID, !filtered.contains(where: { $0.id == sel }) {
+            selectedID = filtered.first?.id
+            selectedIDString = selectedID ?? ""
+            loadWorkingProfile()
+        }
+    }
+
+    // Seed quickly from AVFoundation so the UI is interactive immediately,
+    // then the background loader will reconcile with SystemVoicesCache.
+    private func seedVoicesFast() {
+        if !voices.isEmpty { return }
+        Task.detached {
+            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+            let avList = AVSpeechSynthesisVoice.speechVoices()
+            var list: [TTSVoiceInfo] = avList.map { v in
+                TTSVoiceInfo(id: v.identifier, name: v.name, language: v.language)
+            }
+            let enhanced = Set(avList.filter { $0.quality == .enhanced }.map { $0.identifier })
+            list.sort {
+                if $0.name == $1.name { return $0.language < $1.language }
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+            guard !list.isEmpty else { return }
+            await MainActor.run {
+                self.allVoices = list
+                let filtered = applyLanguageFilter(list)
+                self.voices = filtered
+                self.languageOptions = computeLanguageOptions(from: list)
+                self.enhancedVoiceIDs = enhanced
+                // Initialize selection from external binding if valid
+                if self.selectedID == nil, let bound = self.selectedIDBinding, filtered.contains(where: { $0.id == bound }) {
+                    self.selectedID = bound
+                }
+                if self.selectedID == nil {
+                    if let def = self.store.defaultVoiceID, filtered.contains(where: { $0.id == def }) {
+                        self.selectedID = def
+                    } else {
+                        self.selectedID = filtered.first?.id
+                    }
+                }
+                self.selectedIDString = self.selectedID ?? ""
+                self.loadWorkingProfile()
+            }
+        }
+    }
+
+    private func startBackgroundLoad() {
+        isLoadingVoices = true
+        let store = self.store
+        Task {
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            var list = SystemVoicesCache.all()
+            list.sort {
+                if $0.name == $1.name { return $0.language < $1.language }
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+            self.allVoices = list
+            self.enhancedVoiceIDs = Set(
+                AVSpeechSynthesisVoice.speechVoices()
+                    .filter { $0.quality == .enhanced }
+                    .map { $0.identifier }
+            )
+            let filtered = applyLanguageFilter(list)
+            self.voices = filtered
+            self.languageOptions = computeLanguageOptions(from: list)
+            // Initialize selection from external binding if valid
+            if self.selectedID == nil, let bound = self.selectedIDBinding, filtered.contains(where: { $0.id == bound }) {
+                self.selectedID = bound
+                self.selectedIDString = bound
+            }
+            if self.selectedID == nil {
+                if let def = store.defaultVoiceID, filtered.contains(where: { $0.id == def }) {
+                    self.selectedID = def
+                } else {
+                    self.selectedID = filtered.first?.id
+                }
+            }
+            self.selectedIDString = self.selectedID ?? ""
+            self.loadWorkingProfile()
+            self.isLoadingVoices = false
+        }
+    }
+
+    private func loadWorkingProfile() {
+        guard let id = selectedID, let info = voices.first(where: { $0.id == id }) else {
+            workingProfile = nil
+            return
+        }
+        workingProfile = store.profile(for: info)
+    }
+
+    private func commitChanges() {
+        guard let profile = workingProfile else { return }
+        store.setProfile(profile)
+        tts.setVoiceProfile(profile)
+    }
+
+    private func commitForSpeak() {
+        if let p = workingProfile { tts.setVoiceProfile(p) }
+        previewSpeak(livePhrase())
+    }
+
+    // MARK: - Speaking
+    private func livePhrase() -> String { "Adjusting voice settings." }
+    private func samplePhrase() -> String { "The quick brown fox jumps over the lazy dog." }
+    private func previewSpeak(_ text: String) {
+        guard let id = selectedID else { return }
+        if let io = tts as? VoiceIO { io.stopAll() }
+        speakTask?.cancel()
+        speakTask = Task { [tts] in
+            if Task.isCancelled { return }
+            await tts.speak(text, using: id)
+        }
+    }
+
+    // MARK: - UI helpers
+    @ViewBuilder
+    private func sliderRow(
+        icon: String,
+        label: String,
+        kind: SliderKind,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        textFormat: String
+    ) -> some View {
+        HStack(spacing: 6) {
+            VStack(spacing: 2) {
+                Image(systemName: icon)
+                    .imageScale(.medium)
+                Text(label)
+                    .font(.caption2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text(String(format: textFormat, value.wrappedValue))
+                    .font(.caption2)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .frame(width: 44, alignment: .center)
+            Slider(
+                value: value,
+                in: range,
+                step: 0.01,
+                onEditingChanged: { editing in
+                    if editing {
+                        activeSlider = kind
+                        didAnnounceLabelForActiveDrag = false
+                    } else {
+                        activeSlider = nil
+                        let number = String(format: textFormat, value.wrappedValue)
+                        if let p = workingProfile { tts.setVoiceProfile(p) }
+                        previewSpeak(number)
+                    }
+                }
+            )
+            #if os(macOS)
+            .controlSize(.mini)
+            #endif
+        }
+        .onChange(of: value.wrappedValue) { _, newVal in
+            guard activeSlider == kind else { return }
+            let number = String(format: textFormat, newVal)
+            if didAnnounceLabelForActiveDrag == false {
+                didAnnounceLabelForActiveDrag = true
+                if let p = workingProfile { tts.setVoiceProfile(p) }
+                previewSpeak("\(label) \(number)")
+                return
+            }
+            if let p = workingProfile { tts.setVoiceProfile(p) }
+            previewSpeak(number)
+        }
+    }
+
+    private func pickerStylePlatform() -> some PickerStyle {
+        #if os(iOS)
+        return WheelPickerStyle()
+        #else
+        return DefaultPickerStyle()
+        #endif
+    }
+    private func pickerMaxHeight() -> CGFloat? {
+        #if os(iOS)
+        return 180
+        #else
+        return nil
+        #endif
+    }
+}
+
+// MARK: - Preview
+struct VoiceTunerView_Previews: PreviewProvider {
+    static var previews: some View {
+        VoiceTunerPreviewContainer()
+    }
+}
+
+private struct VoiceTunerPreviewContainer: View {
+    @State private var pickedVoiceID: String? = nil
+    private let tts: TTSConfigurable = RealVoiceIO()
+    private let store = VoiceProfilesStore()
+
+    var body: some View {
+        #if os(macOS)
+        VoiceTunerView(
+            tts: tts,
+            store: store,
+            selectedID: $pickedVoiceID,
+            onChoose: {},
+            onCancel: {}
+        )
+        .frame(minWidth: 400, minHeight: 520)
+        #else
+        VoiceTunerView(
+            tts: tts,
+            store: store,
+            selectedID: $pickedVoiceID,
+            onChoose: {},
+            onCancel: {}
+        )
+        #endif
+    }
+}

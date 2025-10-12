@@ -142,6 +142,7 @@ public final class VoicePickerViewModel: ObservableObject {
 
     public enum LanguageFilter: Hashable { case current, all }
     @Published public var languageFilter: LanguageFilter = .current
+    @Published public var previewAudioEnabled: Bool = false
 
     private var previewTask: Task<Void, Never>?
     private var masterPreviewDebounce: Task<Void, Never>?
@@ -151,11 +152,14 @@ public final class VoicePickerViewModel: ObservableObject {
 
     private let allowSystemVoicesOverride: Bool?
     private var allowSystemVoicesEffective: Bool = false
+    // True when running inside Xcode Canvas previews; avoid disk/AV work.
+    private let isPreview: Bool
 
     public init(tts: TTSConfigurable, store: VoiceProfilesStore, allowSystemVoices: Bool? = nil) {
         self.tts = tts
         self.store = store
         self.allowSystemVoicesOverride = allowSystemVoices
+        self.isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
 
         Task { @MainActor in
             if let override = allowSystemVoices {
@@ -164,8 +168,23 @@ public final class VoicePickerViewModel: ObservableObject {
                 self.allowSystemVoicesEffective = await VoiceKitTestMode.allowSystemVoiceQueries()
             }
             self.refreshAvailableVoices()
-            self.bootstrapDefaultsIfNeeded()
-            self.applyToTTS()
+            // In previews, avoid disk writes and TTS application to keep Canvas snappy.
+            if self.isPreview {
+                // If no provider supplies voices, populate asynchronously so first render is instant.
+                if (self.tts as? VoiceListProvider) == nil {
+                    Task { @MainActor in
+                        let list = SystemVoicesCache.all()
+                        self.voices = list.sorted { a, b in
+                            if a.name == b.name { return a.language < b.language }
+                            return a.name < b.name
+                        }
+                    }
+                }
+                return
+            } else {
+                self.bootstrapDefaultsIfNeeded()
+                self.applyToTTS()
+            }
         }
     }
 
@@ -184,15 +203,17 @@ public final class VoicePickerViewModel: ObservableObject {
             return provider.availableVoices()
         }
 
+        // In previews with no provider, return empty immediately; we populate async in init.
+        if isPreview {
+            return []
+        }
         // If system queries are explicitly disallowed, return empty rather than a placeholder.
         if allowSystemVoicesEffective == false {
             return []
         }
 
-        // Otherwise, query system voices.
-        return AVSpeechSynthesisVoice.speechVoices().map {
-            TTSVoiceInfo(id: $0.identifier, name: $0.name, language: $0.language)
-        }
+        // Otherwise, use the cached system voices (name-sorted).
+        return SystemVoicesCache.all()
     }
 
     // MARK: - Language/Filtering
@@ -215,12 +236,22 @@ public final class VoicePickerViewModel: ObservableObject {
             let pref = languageCodePrefix()
             base = voices.filter { $0.language.lowercased().hasPrefix(pref) }
         }
-        return base.filter { info in showHidden || !store.isHidden(info.id) }
+        var list = base.filter { info in showHidden || !store.isHidden(info.id) }
+        // In Xcode previews, limit rows to keep the Canvas responsive.
+        if isPreview {
+            let cap = 8
+            if list.count > cap {
+                list = Array(list.prefix(cap))
+            }
+        }
+        return list
     }
 
     // MARK: - Bootstrap / Apply
 
     private func bootstrapDefaultsIfNeeded() {
+        if isPreview { return } // skip persistence in previews
+
         // Create profiles for any resolved voices so UI sliders can bind immediately.
         for v in voices { _ = store.profile(for: v) }
         store.save()
@@ -243,6 +274,8 @@ public final class VoicePickerViewModel: ObservableObject {
     }
 
     public func applyToTTS() {
+        if isPreview { return } // skip TTS application in previews
+
         for (_, p) in store.profilesByID { tts.setVoiceProfile(p) }
         if let id = store.defaultVoiceID, let p = store.profilesByID[id] { tts.setDefaultVoiceProfile(p) }
         tts.setMasterControl(store.master)
@@ -286,7 +319,13 @@ public final class VoicePickerViewModel: ObservableObject {
     }
 
     public func samplePhrase(for profile: TTSVoiceProfile, suffix: String = "") -> String {
-        let who = AVSpeechSynthesisVoice(identifier: profile.id)?.name ?? "Voice"
+        // Avoid AV lookup in previews to keep Canvas responsive.
+        let who: String
+        if isPreview {
+            who = "Voice"
+        } else {
+            who = AVSpeechSynthesisVoice(identifier: profile.id)?.name ?? "Voice"
+        }
         let base = "My name is \(who). This is what my voice sounds like"
         return suffix.isEmpty ? base + "." : base + " " + suffix + "."
     }
@@ -321,9 +360,83 @@ public struct VoicePickerView: View {
         _vm = StateObject(wrappedValue: VoicePickerViewModel(tts: tts, store: store))
     }
 
+    @MainActor
+    public init(tts: TTSConfigurable, store: VoiceProfilesStore, allowSystemVoices: Bool) {
+        _store = ObservedObject(wrappedValue: store)
+        _vm = StateObject(wrappedValue: VoicePickerViewModel(
+            tts: tts, store: store, allowSystemVoices: allowSystemVoices
+        ))
+    }
+
     public var body: some View {
-        NavigationView {
-            Form {
+        NavigationStack {
+            if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
+                // Lightweight preview: simple, fast list of voice names.
+                List {
+                    // Filter controls
+                    Section {
+                        // Row 1: Segmented filter
+                        Picker("Filter", selection: $vm.languageFilter) {
+                            Text(vm.currentLanguageDisplayName).tag(VoicePickerViewModel.LanguageFilter.current)
+                            Text("All").tag(VoicePickerViewModel.LanguageFilter.all)
+                        }
+                        .pickerStyle(.segmented)
+
+                        // Row 2: Toggles with spacing
+                        HStack {
+                            Toggle("Show hidden", isOn: $vm.showHidden).toggleStyle(.switch)
+                            Spacer()
+                            Toggle("Audio", isOn: $vm.previewAudioEnabled).toggleStyle(.switch)
+                        }
+                    }
+                    // Voice rows
+                    Section {
+                        if vm.filteredVoices.isEmpty {
+                            Text("No system voices available for this filter.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(vm.filteredVoices, id: \.id) { info in
+                                VoiceRow(
+                                    info: info,
+                                    profile: store.profile(for: info),
+                                    isActive: store.isActive(info.id),
+                                    isFavorite: store.defaultVoiceID == info.id,
+                                    isHidden: store.isHidden(info.id),
+                                    onToggleActive: { store.toggleActive(info.id) },
+                                    onFavorite: { vm.setDefaultVoice(id: info.id) },
+                                    onHide: { store.setHidden(info.id, true) },
+                                    onUnhide: { store.setHidden(info.id, false) },
+                                    onChange: { updated, suffix in
+                                        vm.updateProfile(updated)
+                                        // playPreview is a no-op in previews; this keeps Canvas responsive.
+                                        vm.playPreview(
+                                            phrase: vm.samplePhrase(for: updated, suffix: suffix),
+                                            voiceID: info.id
+                                        )
+                                    },
+                                    onTapRow: {
+                                        let p = store.profile(for: info)
+                                        // No-op in previews; safe to call for parity with runtime.
+                                        vm.playPreview(
+                                            phrase: vm.samplePhrase(for: p),
+                                            voiceID: info.id
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                .navigationTitle("Voices")
+                #if os(iOS) || os(tvOS)
+                .listStyle(.insetGrouped)
+                #elseif os(macOS)
+                .listStyle(.inset)
+                #else
+                .listStyle(.automatic)
+                #endif
+            } else {
+                Form {
                 Section("Master") {
                     HStack {
                         Label("Volume", systemImage: "speaker.wave.2.fill")
@@ -424,8 +537,9 @@ public struct VoicePickerView: View {
                         }
                     }
                 }
+                }
+                .navigationTitle("Voices")
             }
-            .navigationTitle("Voices")
         }
         .onDisappear { vm.stopPreview() }
     }
@@ -458,7 +572,7 @@ private struct VoiceRow: View {
 
                 VStack(alignment: .leading) {
                     HStack {
-                        Text(AVSpeechSynthesisVoice(identifier: profile.id)?.name ?? info.name)
+                        Text(info.name)
                             .font(.headline)
                         if isHidden {
                             Text("Hidden").font(.caption2)
@@ -569,6 +683,77 @@ private struct VoiceRow: View {
     }
 }
 
+// Lightweight preview-only TTS to avoid system voice queries and speed up previews.
+@MainActor
+private final class PreviewFakeTTS: TTSConfigurable, VoiceListProvider {
+    private var profiles: [String: TTSVoiceProfile] = [:]
+    private var defaultProfile: TTSVoiceProfile?
+    private var master: TTSMasterControl = .init()
+    nonisolated func availableVoices() -> [TTSVoiceInfo] {
+        // Two deterministic voices; no AV queries.
+        return [
+            TTSVoiceInfo(id: "preview.alpha", name: "Alpha", language: "en-US"),
+            TTSVoiceInfo(id: "preview.beta", name: "Beta", language: "en-GB")
+        ]
+    }
+    func setVoiceProfile(_ profile: TTSVoiceProfile) { profiles[profile.id] = profile }
+    func getVoiceProfile(id: String) -> TTSVoiceProfile? { profiles[id] }
+    func setDefaultVoiceProfile(_ profile: TTSVoiceProfile) { defaultProfile = profile }
+    func getDefaultVoiceProfile() -> TTSVoiceProfile? { defaultProfile }
+    func setMasterControl(_ master: TTSMasterControl) { self.master = master }
+    func getMasterControl() -> TTSMasterControl { master }
+    func speak(_ text: String, using voiceID: String?) async { /* no-op for preview */ }
+}
+
+// Preview TTS that wraps the device's real system voices once,
+// then serves them via VoiceListProvider to keep previews snappy.
+@MainActor
+private final class PreviewSystemVoicesTTS: TTSConfigurable, VoiceListProvider {
+    private let voiceList: [TTSVoiceInfo]
+    private var profiles: [String: TTSVoiceProfile] = [:]
+    private var defaultProfile: TTSVoiceProfile?
+    private var master: TTSMasterControl = .init()
+
+    init() {
+        self.voiceList = AVSpeechSynthesisVoice.speechVoices()
+            .map { TTSVoiceInfo(id: $0.identifier, name: $0.name, language: $0.language) }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    // VoiceListProvider
+    nonisolated func availableVoices() -> [TTSVoiceInfo] { MainActor.assumeIsolated { voiceList } }
+
+    // TTSConfigurable (no-op speak to avoid work in Canvas)
+    func setVoiceProfile(_ profile: TTSVoiceProfile) { profiles[profile.id] = profile }
+    func getVoiceProfile(id: String) -> TTSVoiceProfile? { profiles[id] }
+    func setDefaultVoiceProfile(_ profile: TTSVoiceProfile) { defaultProfile = profile }
+    func getDefaultVoiceProfile() -> TTSVoiceProfile? { defaultProfile }
+    func setMasterControl(_ master: TTSMasterControl) { self.master = master }
+    func getMasterControl() -> TTSMasterControl { master }
+    func speak(_ text: String, using voiceID: String?) async {}
+}
+
+// Preview TTS that does NOT provide a voice list, so VM will use SystemVoicesCache.
+@MainActor
+private final class PreviewNoProviderTTS: TTSConfigurable {
+    private var profiles: [String: TTSVoiceProfile] = [:]
+    private var defaultProfile: TTSVoiceProfile?
+    private var master: TTSMasterControl = .init()
+    func setVoiceProfile(_ profile: TTSVoiceProfile) { profiles[profile.id] = profile }
+    func getVoiceProfile(id: String) -> TTSVoiceProfile? { profiles[id] }
+    func setDefaultVoiceProfile(_ profile: TTSVoiceProfile) { defaultProfile = profile }
+    func getDefaultVoiceProfile() -> TTSVoiceProfile? { defaultProfile }
+    func setMasterControl(_ master: TTSMasterControl) { self.master = master }
+    func getMasterControl() -> TTSMasterControl { master }
+    func speak(_ text: String, using voiceID: String?) async { /* no-op for preview */ }
+}
+
 struct VoicePickerView_Previews: PreviewProvider {
-    static var previews: some View { VoicePickerView(tts: RealVoiceIO()) }
+    static var previews: some View {
+        let tts = PreviewNoProviderTTS()
+        let store = VoiceProfilesStore()
+        // Show actual system voices via SystemVoicesCache in previews.
+        // Note: VM has a preview fast path that populates voices asynchronously when no provider is present.
+        VoicePickerView(tts: tts, store: store, allowSystemVoices: true)
+    }
 }
