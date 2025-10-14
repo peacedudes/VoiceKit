@@ -15,7 +15,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, macos-13]
+        include:
+          - os: macos-14
+            xcode: '16.*'
+          - os: macos-13
+            xcode: '15.*'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
 
@@ -23,11 +27,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode (Swift 6)
+      - name: Select Xcode (Swift toolchain)
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          # Allow any 16.x to improve scheduling availability
-          xcode-version: '16.*'
+          xcode-version: ${{ matrix.xcode }}
 
       - name: Tool versions
         run: |
@@ -40,28 +43,27 @@ jobs:
           path: |
             ~/.swiftpm
             .build
-          key: spm-${{ runner.os }}-xcode-16-${{ hashFiles('**/Package.resolved') }}
+          key: spm-${{ runner.os }}-xcode-${{ matrix.xcode }}-${{ hashFiles('**/Package.resolved') }}
           restore-keys: |
-            spm-${{ runner.os }}-xcode-16-
+            spm-${{ runner.os }}-xcode-${{ matrix.xcode }}-
 
       - name: Resolve
-        timeout-minutes: 5
         run: swift package resolve
 
       - name: Build (debug)
-        timeout-minutes: 10
         env:
           NSUnbufferedIO: "YES"
         run: swift build -v
 
       - name: Test
-        timeout-minutes: 12
         env:
           SWIFTPM_TEST_LOG_FORMAT: xcode
           NSUnbufferedIO: "YES"
         run: |
           set -euo pipefail
-          echo "Swift version:"
-          swift --version
-          echo "Running tests (parallel)..."
-          swift test --parallel -v
+          echo "Running tests (parallel if supported)..."
+          if swift test -h 2>/dev/null | grep -q ' --parallel'; then
+            swift test --parallel -v
+          else
+            swift test -v
+          fi
