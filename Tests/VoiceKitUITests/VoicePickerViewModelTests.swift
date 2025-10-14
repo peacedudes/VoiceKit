@@ -21,6 +21,14 @@ import TestSupport
 @MainActor
 final class VoicePickerViewModelTests: TestSupport.QoSNeutralizingTestCase {
 
+    // Avoid speechVoices() to prevent simulator/macOS XPC warnings in tests.
+    private func defaultVoiceID() -> String? {
+        #if os(macOS)
+        return "com.apple.speech.synthesis.voice.Alex"
+        #else
+        return nil
+        #endif
+    }
     private func systemName(for id: String) -> String {
         AVSpeechSynthesisVoice(identifier: id)?.name ?? "Voice"
     }
@@ -59,7 +67,7 @@ final class VoicePickerViewModelTests: TestSupport.QoSNeutralizingTestCase {
         vm.refreshAvailableVoices()
 
         // Choose a voice id for preview (system or synthetic)
-        let voiceID = AVSpeechSynthesisVoice.speechVoices().first?.identifier ?? "com.apple.speech.synthesis.voice.Alex"
+        let voiceID = defaultVoiceID() ?? "com.apple.speech.synthesis.voice.Alex"
 
         // Ensure a profile exists
         let profile = TTSVoiceProfile(id: voiceID, rate: 0.55, pitch: 1.0, volume: 1.0)

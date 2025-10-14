@@ -51,6 +51,10 @@ final class VoicePickerPreviewBehaviorTests: TestSupport.QoSNeutralizingTestCase
 
         // Stop any preview
         vm.stopPreview()
+        // Let background audio callbacks drain to avoid reporter/disconnect noise
+        // and structural concurrency warnings after test completion.
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 10_000_000) // 10 ms
         // If no crash and no hangs, behavior is acceptable for this unit test scope
     }
 
@@ -80,6 +84,10 @@ final class VoicePickerPreviewBehaviorTests: TestSupport.QoSNeutralizingTestCase
 
         try? await Task.sleep(nanoseconds: 150_000_000)
         vm.stopPreview()
+        // Drain background callbacks to avoid reporter/disconnect noise
+        // and structural concurrency warnings after test completion.
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 10_000_000)
     }
 
     func testPreviewReflectsMasterChanges() async throws {
@@ -105,5 +113,9 @@ final class VoicePickerPreviewBehaviorTests: TestSupport.QoSNeutralizingTestCase
 
         try? await Task.sleep(nanoseconds: 200_000_000)
         vm.stopPreview()
+        // Drain background callbacks to avoid reporter/disconnect noise
+        // and structural concurrency warnings after test completion.
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 10_000_000)
     }
 }
