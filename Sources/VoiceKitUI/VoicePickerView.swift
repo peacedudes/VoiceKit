@@ -154,18 +154,33 @@ public final class VoicePickerViewModel: ObservableObject {
     private var allowSystemVoicesEffective: Bool = false
     // True when running inside Xcode Canvas previews; avoid disk/AV work.
     private let isPreview: Bool
+    // True when running tests under XCTest; prefer to avoid system/XPC lookups by default.
+    private let isXCTest: Bool
 
     public init(tts: TTSConfigurable, store: VoiceProfilesStore, allowSystemVoices: Bool? = nil) {
         self.tts = tts
         self.store = store
         self.allowSystemVoicesOverride = allowSystemVoices
-        self.isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+        let env = ProcessInfo.processInfo.environment
+        self.isPreview = env["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+        self.isXCTest = env["XCTestConfigurationFilePath"] != nil
 
         Task { @MainActor in
             if let override = allowSystemVoices {
                 self.allowSystemVoicesEffective = override
             } else {
-                self.allowSystemVoicesEffective = await VoiceKitTestMode.allowSystemVoiceQueries()
+                // Policy:
+                // - In Previews: allow (snappy path elsewhere prevents heavy work).
+                // - Under XCTest: disallow unless test mode explicitly allows.
+                // - Otherwise (app runtime): allow.
+                let testFlag = await VoiceKitTestMode.allowSystemVoiceQueries()
+                if self.isPreview {
+                    self.allowSystemVoicesEffective = true
+                } else if self.isXCTest {
+                    self.allowSystemVoicesEffective = testFlag
+                } else {
+                    self.allowSystemVoicesEffective = true
+                }
             }
             self.refreshAvailableVoices()
             // In previews, avoid disk writes and TTS application to keep Canvas snappy.

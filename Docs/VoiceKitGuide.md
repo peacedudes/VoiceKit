@@ -156,6 +156,45 @@ final class FakeTTS: TTSConfigurable, VoiceListProvider {
 }
 ```
 
+Minimizing system warnings (best practices)
+- Context: on simulators/CI, AVSpeechSynthesisVoice queries may emit logs (XPC/SQLite fallback messages). Also, invoking AV APIs from non-main contexts can trigger “Potential Structural Swift Concurrency Issue” warnings.
+- Goals: keep real AV usage in your app; avoid noisy logs in tests/CI; ensure AV calls occur on @MainActor.
+
+Patterns (no API changes)
+- Avoid enumerating system voices in headless tests by default:
+  - VoicePickerViewModel(tts:store:allowSystemVoices:) lets you force-enable enumeration when desired.
+  - VoiceKitTestMode.setAllowSystemVoiceQueries(_:) can opt-in per test.
+- Keep AV calls on the main actor:
+  - VoicePickerViewModel and RealVoiceIO are @MainActor; interact with them on main or hop to MainActor.
+- App prewarm (on main) to populate the cache:
+```swift
+@MainActor
+func prewarmSystemVoices() {
+    _ = SystemVoicesCache.refresh() // main-actor; stable sort; safe to call at startup
+}
+```
+- Test: quiet list building (no enumeration):
+```swift
+@MainActor
+func testQuietList() async {
+    await VoiceKitTestMode.setAllowSystemVoiceQueries(false)
+    let vm = VoicePickerViewModel(tts: RealVoiceIO(), store: VoiceProfilesStore(), allowSystemVoices: false)
+    vm.refreshAvailableVoices()
+    // Provide a VoiceListProvider if you want deterministic voices instead.
+}
+```
+- Test: opt-in real voice usage (still @MainActor):
+```swift
+@MainActor
+func testRealVoice() async {
+    await VoiceKitTestMode.setAllowSystemVoiceQueries(true)
+    let vm = VoicePickerViewModel(tts: RealVoiceIO(), store: VoiceProfilesStore(), allowSystemVoices: true)
+    let id = "com.apple.speech.synthesis.voice.Alex"
+    let phrase = vm.samplePhrase(for: .init(id: id))
+    XCTAssertTrue(phrase.contains("My name is"))
+}
+```
+
 Name utilities
 - NameMatch.normalizeKey(_:) normalizes ligatures, diacritics, punctuation; unifies dash variants; collapses whitespace.
 - NameResolver resolves transcripts to allowed names via strict normalization (folds case/diacritics, trims punctuation).
@@ -175,4 +214,3 @@ Changelog
 
 License
 - MIT — see LICENSE.
-

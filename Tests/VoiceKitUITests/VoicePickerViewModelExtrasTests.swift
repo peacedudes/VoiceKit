@@ -23,10 +23,14 @@ final class VoicePickerViewModelExtrasTests: XCTestCase {
         defer { cleanup("vm_extras_tests.json") }
 
         let io = RealVoiceIO()
-        let vm = VoicePickerViewModel(tts: io, store: store)
+        // Allow system voice queries just for this test (and pass explicit allow).
+        await VoiceKitTestMode.setAllowSystemVoiceQueries(true)
+        defer { Task { await VoiceKitTestMode.setAllowSystemVoiceQueries(false) } }
+        let vm = VoicePickerViewModel(tts: io, store: store, allowSystemVoices: true)
 
-        // Choose a valid system voice id or fall back to a synthetic
-        let voiceID = AVSpeechSynthesisVoice.speechVoices().first?.identifier ?? "com.apple.speech.synthesis.voice.Alex"
+        // Use a known identifier; avoid enumerating voices to reduce XPC/SQLite logs in tests.
+        // If not present on this runtime, systemDisplayName will fall back to "Voice".
+        let voiceID = "com.apple.speech.synthesis.voice.Alex"
 
         let profile = TTSVoiceProfile(id: voiceID, rate: 0.55, pitch: 1.0, volume: 1.0)
         let phrase = vm.samplePhrase(for: profile)

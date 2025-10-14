@@ -26,12 +26,9 @@ public enum VoiceProfilesStoreBootstrap {
 
     // Returns default voice ID and full list of profiles (sorted by name).
     public static func bootstrap() -> (defaultID: String?, profiles: [VoiceProfileSummary]) {
-        // Enumerate actual system voices
-        let systemVoices = AVSpeechSynthesisVoice.speechVoices()
-
-        // Map to summaries
-        var summaries = systemVoices.map { voice in
-            VoiceProfileSummary(id: voice.identifier, name: voice.name, language: voice.language, isHidden: false)
+        // Use cached system voices (single query per process via SystemVoicesCache).
+        var summaries = SystemVoicesCache.all().map { v in
+            VoiceProfileSummary(id: v.id, name: v.name, language: v.language, isHidden: false)
         }
 
         // Stable sort by name so tests see deterministic order
@@ -44,10 +41,16 @@ public enum VoiceProfilesStoreBootstrap {
         }
         #endif
 
-        // Otherwise prefer a voice for the current locale if present, else first by name
-        if let localeVoice = AVSpeechSynthesisVoice(language: Locale.current.identifier),
-           let match = summaries.first(where: { $0.id == localeVoice.identifier }) {
-            return (match.id, summaries)
+        // Otherwise prefer a voice matching current language prefix (e.g., "en" for en-US), else first by name.
+        let tag = Locale.preferredLanguages.first ?? Locale.current.identifier
+        let baseLang: String = {
+            if let dash = tag.firstIndex(of: "-") {
+                return String(tag[..<dash]).lowercased()
+            }
+            return tag.lowercased()
+        }()
+        if let byLang = summaries.first(where: { $0.language.lowercased().hasPrefix(baseLang) }) {
+            return (byLang.id, summaries)
         }
 
         return (summaries.first?.id, summaries)
