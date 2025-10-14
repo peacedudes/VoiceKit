@@ -730,9 +730,8 @@ private final class PreviewSystemVoicesTTS: TTSConfigurable, VoiceListProvider {
     private var master: TTSMasterControl = .init()
 
     init() {
-        self.voiceList = AVSpeechSynthesisVoice.speechVoices()
-            .map { TTSVoiceInfo(id: $0.identifier, name: $0.name, language: $0.language) }
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        // Use the cached list for predictable, one-time enumeration.
+        self.voiceList = SystemVoicesCache.all()
     }
 
     // VoiceListProvider

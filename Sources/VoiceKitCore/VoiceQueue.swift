@@ -108,11 +108,11 @@ public final class VoiceQueue {
         // Launch a task per channel without mutating the dictionary while iterating it.
         let ids = Array(channels.keys)
         for id in ids {
-            guard var ch = channels[id] else { continue }
-            ch.task = Task { [weak self] in
+            guard var channel = channels[id] else { continue }
+            channel.task = Task { [weak self] in
                 await self?.runChannel(id)
             }
-            channels[id] = ch
+            channels[id] = channel
         }
 
         // Await all channel tasks to finish
@@ -125,9 +125,9 @@ public final class VoiceQueue {
 
     public func cancelAll() {
         cancelled = true
-        for (_, ch) in channels {
-            ch.io.stopAll()
-            ch.task?.cancel()
+        for (_, channel) in channels {
+            channel.io.stopAll()
+            channel.task?.cancel()
         }
     }
 
@@ -139,52 +139,52 @@ public final class VoiceQueue {
             channels[id] = Channel(io: factory(), items: [], task: nil)
         } else {
             // Without a factory we share channel 0 (serial behavior).
-            if let ch0 = channels[0] {
-                channels[id] = Channel(io: ch0.io, items: [], task: nil)
+            if let primary = channels[0] {
+                channels[id] = Channel(io: primary.io, items: [], task: nil)
             }
         }
     }
 
     private func runChannel(_ id: ChannelID) async {
-        guard var ch = channels[id] else { return }
-        var index = 0
+        guard var channel = channels[id] else { return }
+        var itemIndex = 0
 
-        while index < ch.items.count, !cancelled, !Task.isCancelled {
-            let item = ch.items[index]
-            let next = index + 1 < ch.items.count ? ch.items[index + 1] : nil
+        while itemIndex < channel.items.count, !cancelled, !Task.isCancelled {
+            let item = channel.items[itemIndex]
+            let nextItem = itemIndex + 1 < channel.items.count ? channel.items[itemIndex + 1] : nil
 
             switch item {
             case .speak(let text, let voiceID):
                 // Pre-schedule SFX if next is a clip for near-zero gap.
-                if case .sfx(let url, let gain)? = next {
-                    try? await ch.io.prepareClip(url: url, gainDB: gain)
+                if case .sfx(let url, let gain)? = nextItem {
+                    try? await channel.io.prepareClip(url: url, gainDB: gain)
                 }
 
-                if let tts = ch.io as? TTSConfigurable {
+                if let tts = channel.io as? TTSConfigurable {
                     await tts.speak(text, using: voiceID)
                 } else {
-                    await ch.io.speak(text)
+                    await channel.io.speak(text)
                 }
 
-                if case .sfx = next {
+                if case .sfx = nextItem {
                     // Await clip completion; RealVoiceIO auto-starts; others may need start call.
-                    try? await ch.io.startPreparedClip()
-                    index += 1 // consume the next .sfx
+                    try? await channel.io.startPreparedClip()
+                    itemIndex += 1 // consume the next .sfx
                 }
 
             case .sfx(let url, let gain):
-                try? await ch.io.playClip(url: url, gainDB: gain)
+                try? await channel.io.playClip(url: url, gainDB: gain)
 
             case .pause(let seconds):
                 try? await Task.sleep(nanoseconds: UInt64(max(0, seconds) * 1_000_000_000))
             }
 
-            index += 1
+            itemIndex += 1
         }
 
         // Clear consumed items on completion/cancel
-        ch.items.removeAll()
-        channels[id] = ch
+        channel.items.removeAll()
+        channels[id] = channel
     }
 
     // MARK: - Parsing
@@ -200,21 +200,21 @@ public final class VoiceQueue {
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return [.text(text)] }
 
         var parts: [Part] = []
-        var idx = text.startIndex
+        var cursor = text.startIndex
 
         for match in regex.matches(in: text, range: NSRange(text.startIndex..<text.endIndex, in: text)) {
             guard let range = Range(match.range, in: text) else { continue }
-            let before = String(text[idx..<range.lowerBound])
+            let before = String(text[cursor..<range.lowerBound])
             if !before.isEmpty { parts.append(.text(before)) }
 
             if let nameRange = Range(match.range(at: 1), in: text) {
                 parts.append(.sfx(String(text[nameRange])))
             }
 
-            idx = range.upperBound
+            cursor = range.upperBound
         }
 
-        let tail = String(text[idx..<text.endIndex])
+        let tail = String(text[cursor..<text.endIndex])
         if !tail.isEmpty { parts.append(.text(tail)) }
         if parts.isEmpty { parts = [.text(text)] }
         return parts

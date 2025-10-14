@@ -8,7 +8,6 @@
 
 import SwiftUI
 import VoiceKitCore
-import AVFoundation
 
 @MainActor
 struct VoiceChorusPlayground: View {
@@ -92,8 +91,7 @@ struct VoiceChorusPlayground: View {
 
     // Use system voices (RealVoiceIO no longer exposes availableVoices()).
     func availableVoices() -> [TTSVoiceInfo] {
-        AVSpeechSynthesisVoice.speechVoices()
-            .map { TTSVoiceInfo(id: $0.identifier, name: $0.name, language: $0.language) }
+        SystemVoicesCache.all()
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 }

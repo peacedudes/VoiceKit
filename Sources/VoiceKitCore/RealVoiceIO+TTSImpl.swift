@@ -35,14 +35,14 @@ extension RealVoiceIO {
         ensureSynth()
         log(.info, "speak(text:\(text.prefix(48))\(text.count > 48 ? "…" : ""), voiceID:\(voiceID ?? "nil"))")
         guard let synthesizer else { return }
-        let utt = AVSpeechUtterance(string: text)
-        applyProfile(to: utt, voiceID: voiceID ?? defaultProfile?.id)
+        let utterance = AVSpeechUtterance(string: text)
+        applyProfile(to: utterance, voiceID: voiceID ?? defaultProfile?.id)
 
-        let key = ObjectIdentifier(utt)
+        let key = ObjectIdentifier(utterance)
         do {
             try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
                 speakContinuations[key] = cont
-                synthesizer.speak(utt)
+                synthesizer.speak(utterance)
             }
         } catch {
             ttsStopPulse()

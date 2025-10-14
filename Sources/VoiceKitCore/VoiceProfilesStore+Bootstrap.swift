@@ -12,8 +12,6 @@
 //
 
 import Foundation
-@preconcurrency import AVFoundation
-
 public struct VoiceProfileSummary: Equatable, Sendable {
     public let id: String
     public let name: String

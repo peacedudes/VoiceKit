@@ -166,6 +166,7 @@ Patterns (no API changes)
   - VoiceKitTestMode.setAllowSystemVoiceQueries(_:) can opt-in per test.
 - Keep AV calls on the main actor:
   - VoicePickerViewModel and RealVoiceIO are @MainActor; interact with them on main or hop to MainActor.
+  - SystemVoicesCache is also @MainActor. If you prewarm or refresh, do so on the main actor.
 - App prewarm (on main) to populate the cache:
 ```swift
 @MainActor
@@ -187,6 +188,8 @@ func testQuietList() async {
 ```swift
 @MainActor
 func testRealVoice() async {
+    // Note: resolving a specific identifier’s display name may still print benign
+    // system logs on some simulators. This is expected and harmless.
     await VoiceKitTestMode.setAllowSystemVoiceQueries(true)
     let vm = VoicePickerViewModel(tts: RealVoiceIO(), store: VoiceProfilesStore(), allowSystemVoices: true)
     let id = "com.apple.speech.synthesis.voice.Alex"

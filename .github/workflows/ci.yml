@@ -47,4 +47,10 @@ jobs:
         run: swift build -v
 
       - name: Test
-        run: swift test -v
+        env:
+          SWIFTPM_TEST_LOG_FORMAT: xcode
+        run: |
+          # Run tests in parallel to shorten CI time; verbose for Xcode-style logs
+          swift test --parallel -v
+          # Print a short summary of durations (optional)
+          swift test --show-codecov-path >/dev/null 2>&1 || true

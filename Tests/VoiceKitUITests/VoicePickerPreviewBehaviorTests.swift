@@ -36,8 +36,11 @@ final class VoicePickerPreviewBehaviorTests: TestSupport.QoSNeutralizingTestCase
         let vm = VoicePickerViewModel(tts: tts, store: store)
         vm.refreshAvailableVoices()
 
-        // Ensure at least one profile exists
-        let id = AVSpeechSynthesisVoice.speechVoices().first?.identifier ?? "com.apple.speech.synthesis.voice.Alex"
+        // Opt in to system voice queries for this test and avoid full enumeration.
+        await VoiceKitTestMode.setAllowSystemVoiceQueries(true)
+        defer { Task { await VoiceKitTestMode.setAllowSystemVoiceQueries(false) } }
+        // Use a known identifier; display name lookup still exercises AV on main.
+        let id = "com.apple.speech.synthesis.voice.Alex"
         store.setProfile(TTSVoiceProfile(id: id, rate: 0.55, pitch: 1.0, volume: 1.0))
         vm.applyToTTS()
 
@@ -67,8 +70,11 @@ final class VoicePickerPreviewBehaviorTests: TestSupport.QoSNeutralizingTestCase
         let vm = VoicePickerViewModel(tts: tts, store: store)
         vm.refreshAvailableVoices()
 
-        let id = AVSpeechSynthesisVoice.speechVoices().first?.identifier ?? "com.apple.speech.synthesis.voice.Alex"
-        var p = TTSVoiceProfile(id: id, rate: 0.55, pitch: 1.0, volume: 1.0)
+        await VoiceKitTestMode.setAllowSystemVoiceQueries(true)
+        defer { Task { await VoiceKitTestMode.setAllowSystemVoiceQueries(false) } }
+        let id = "com.apple.speech.synthesis.voice.Alex"
+        var p = TTSVoiceProfile(id: id, rate: 0.55,
+                                pitch: 1.0, volume: 1.0)
         store.setProfile(p)
         vm.applyToTTS()
 
@@ -99,8 +105,11 @@ final class VoicePickerPreviewBehaviorTests: TestSupport.QoSNeutralizingTestCase
         let vm = VoicePickerViewModel(tts: tts, store: store)
         vm.refreshAvailableVoices()
 
-        let id = AVSpeechSynthesisVoice.speechVoices().first?.identifier ?? "com.apple.speech.synthesis.voice.Alex"
-        let p = TTSVoiceProfile(id: id, rate: 0.5, pitch: 1.0, volume: 1.0)
+        await VoiceKitTestMode.setAllowSystemVoiceQueries(true)
+        defer { Task { await VoiceKitTestMode.setAllowSystemVoiceQueries(false) } }
+        let id = "com.apple.speech.synthesis.voice.Alex"
+        let p = TTSVoiceProfile(id: id, rate: 0.5,
+                                pitch: 1.0, volume: 1.0)
         store.setProfile(p)
         vm.applyToTTS()
 
