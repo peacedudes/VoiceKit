@@ -12,8 +12,12 @@ concurrency:
 
 jobs:
   build-and-test:
-    runs-on: macos-14
-    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, macos-13]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -41,16 +45,23 @@ jobs:
             spm-${{ runner.os }}-xcode-16-
 
       - name: Resolve
+        timeout-minutes: 5
         run: swift package resolve
 
       - name: Build (debug)
+        timeout-minutes: 10
+        env:
+          NSUnbufferedIO: "YES"
         run: swift build -v
 
       - name: Test
+        timeout-minutes: 12
         env:
           SWIFTPM_TEST_LOG_FORMAT: xcode
+          NSUnbufferedIO: "YES"
         run: |
-          # Run tests in parallel to shorten CI time; verbose for Xcode-style logs
+          set -euo pipefail
+          echo "Swift version:"
+          swift --version
+          echo "Running tests (parallel)..."
           swift test --parallel -v
-          # Print a short summary of durations (optional)
-          swift test --show-codecov-path >/dev/null 2>&1 || true
