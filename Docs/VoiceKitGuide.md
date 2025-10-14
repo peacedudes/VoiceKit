@@ -56,10 +56,10 @@ let result = try await io.listen(timeout: 6, inactivity: 2, record: false,
 // STT shim returns "42" for .number in tests/CI by design
 ```
 
-Short SFX clips (boosted)
+Short SFX clips (clip)
 ```swift
 let url = Bundle.main.url(forResource: "ding", withExtension: "caf")!
-try await io.playBoosted(url: url, gainDB: 6)
+try await io.playClip(url: url, gainDB: 6)
 ```
 
 Sequencing with VoiceQueue

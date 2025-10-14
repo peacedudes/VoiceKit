@@ -33,6 +33,7 @@ extension RealVoiceIO {
 
     public func speak(_ text: String, using voiceID: String?) async {
         ensureSynth()
+        log(.info, "speak(text:\(text.prefix(48))\(text.count > 48 ? "…" : ""), voiceID:\(voiceID ?? "nil"))")
         guard let synthesizer else { return }
         let utt = AVSpeechUtterance(string: text)
         applyProfile(to: utt, voiceID: voiceID ?? defaultProfile?.id)
@@ -45,6 +46,7 @@ extension RealVoiceIO {
             }
         } catch {
             ttsStopPulse()
+            log(.error, "speak(error): \(error.localizedDescription)")
         }
     }
 
@@ -78,6 +80,7 @@ extension RealVoiceIO {
     nonisolated public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
                                               didStart utterance: AVSpeechUtterance) {
         Task { @MainActor in
+            self.log(.info, "tts didStart")
             self.onTTSSpeakingChanged?(true)
             self.ttsStartPulse()
         }
@@ -91,6 +94,7 @@ extension RealVoiceIO {
             if let cont = self.speakContinuations.removeValue(forKey: key) {
                 cont.resume()
             }
+            self.log(.info, "tts didFinish")
             self.onTTSSpeakingChanged?(false)
             self.ttsStopPulse()
         }
@@ -103,6 +107,7 @@ extension RealVoiceIO {
             if let cont = self.speakContinuations.removeValue(forKey: key) {
                 cont.resume()
             }
+            self.log(.warn, "tts didCancel")
             self.onTTSSpeakingChanged?(false)
             self.ttsStopPulse()
         }

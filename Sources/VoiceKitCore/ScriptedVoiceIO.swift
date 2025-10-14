@@ -70,9 +70,9 @@ public final class ScriptedVoiceIO: VoiceIO {
         return VoiceResult(transcript: transcript, recordingURL: nil)
     }
 
-    public func prepareBoosted(url: URL, gainDB: Float) async throws { }
-    public func startPreparedBoosted() async throws { }
-    public func playBoosted(url: URL, gainDB: Float) async throws { }
+    public func prepareClip(url: URL, gainDB: Float) async throws { }
+    public func startPreparedClip() async throws { }
+    public func playClip(url: URL, gainDB: Float) async throws { }
 
     public func stopAll() {
         epoch &+= 1

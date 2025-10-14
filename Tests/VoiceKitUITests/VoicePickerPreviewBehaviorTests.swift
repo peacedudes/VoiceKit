@@ -16,8 +16,9 @@ import AVFoundation
 @testable import VoiceKitUI
 @testable import VoiceKitCore
 
+import TestSupport
 @MainActor
-final class VoicePickerPreviewBehaviorTests: XCTestCase {
+final class VoicePickerPreviewBehaviorTests: TestSupport.QoSNeutralizingTestCase {
 
     private func cleanup(_ filename: String) {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first

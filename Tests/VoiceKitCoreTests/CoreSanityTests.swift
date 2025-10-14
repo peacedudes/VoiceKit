@@ -9,8 +9,9 @@
 import XCTest
 @testable import VoiceKitCore
 
+import TestSupport
 @MainActor
-final class CoreSanityTests: XCTestCase {
+final class CoreSanityTests: TestSupport.QoSNeutralizingTestCase {
 
     func testMakeLiveAndBasicSpeak() async throws {
         // Use VoiceIOConfig directly (no RealVoiceIO.Config)

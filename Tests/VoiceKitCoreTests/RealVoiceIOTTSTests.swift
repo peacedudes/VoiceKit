@@ -8,9 +8,10 @@
 
 import XCTest
 @testable import VoiceKitCore
+import TestSupport
 
 @MainActor
-final class RealVoiceIOTTSTests: XCTestCase {
+final class RealVoiceIOTTSTests: TestSupport.QoSNeutralizingTestCase {
 
     func testApplyProfileAndSpeak() async throws {
         let io = RealVoiceIO()

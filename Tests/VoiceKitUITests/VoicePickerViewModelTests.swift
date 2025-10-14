@@ -16,9 +16,10 @@ import XCTest
 import AVFoundation
 @testable import VoiceKitUI
 @testable import VoiceKitCore
+import TestSupport
 
 @MainActor
-final class VoicePickerViewModelTests: XCTestCase {
+final class VoicePickerViewModelTests: TestSupport.QoSNeutralizingTestCase {
 
     private func systemName(for id: String) -> String {
         AVSpeechSynthesisVoice(identifier: id)?.name ?? "Voice"

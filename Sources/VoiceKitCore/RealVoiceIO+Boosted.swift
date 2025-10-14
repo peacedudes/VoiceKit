@@ -72,6 +72,7 @@ extension RealVoiceIO {
     // MARK: - API
 
     public func prepareClip(url: URL, gainDB: Float) async throws {
+        log(.info, "clip prepare url=\(url.lastPathComponent), gainDB=\(gainDB)")
         _ = (url, gainDB)
         if clipPlayer == nil { clipPlayer = AVAudioPlayerNode() }
         // New clip preparation resets the completion flag and clears any stale waiters.
@@ -79,8 +80,9 @@ extension RealVoiceIO {
         clipWaiters = []
     }
 
-    public func playClip() async throws {
+    public func startPreparedClip() async throws {
         // No-op in tests; real playback can be added later.
+        log(.info, "clip play (noop in tests)")
     }
 
     public func stopClip() {
@@ -89,6 +91,7 @@ extension RealVoiceIO {
         if RealVoiceIO._clipCompletedStorage.contains(key) { return }
         RealVoiceIO._clipCompletedStorage.insert(key)
 
+        log(.info, "clip stop")
         clipPlayer?.stop()
         boostedProvider.reset()
 
@@ -106,18 +109,12 @@ extension RealVoiceIO {
         try await prepareClip(url: url, gainDB: gainDB)
     }
 
-    public func startPreparedBoosted() async throws {
-        try await playClip()
-    }
 
-    public func playBoosted(url: URL, gainDB: Float) async throws {
-        try await prepareClip(url: url, gainDB: gainDB)
-        try await playClip()
-    }
 
     // MARK: - Helpers for future completion/timeout wiring
 
     internal func completeClipSuccessfully() {
+        log(.info, "clip complete ok")
         let key = objID
         if RealVoiceIO._clipCompletedStorage.contains(key) { return }
         RealVoiceIO._clipCompletedStorage.insert(key)
@@ -128,6 +125,7 @@ extension RealVoiceIO {
     }
 
     internal func completeClipWithTimeout() {
+        log(.warn, "clip complete timeout")
         let key = objID
         if RealVoiceIO._clipCompletedStorage.contains(key) { return }
         RealVoiceIO._clipCompletedStorage.insert(key)
@@ -136,4 +134,11 @@ extension RealVoiceIO {
         clipWaiters = []
         for w in waiters { w.resume(throwing: SimpleError("Timed out")) }
     }
+    
+    // One-shot helper: prepare then start the clip
+    public func playClip(url: URL, gainDB: Float) async throws {
+        try await prepareClip(url: url, gainDB: gainDB)
+        try await startPreparedClip()
+    }
 }
+

@@ -47,9 +47,9 @@ final class VoiceQueueTests: XCTestCase {
         }
         func stopSpeakingNow() { log.append("stopSpeakingNow") }
 
-        func prepareBoosted(url: URL, gainDB: Float) async throws { log.append("prepare:\(url.lastPathComponent):\(gainDB)") }
-        func startPreparedBoosted() async throws { log.append("startPrepared") }
-        func playBoosted(url: URL, gainDB: Float) async throws { log.append("play:\(url.lastPathComponent):\(gainDB)") }
+        func prepareClip(url: URL, gainDB: Float) async throws { log.append("prepare:\(url.lastPathComponent):\(gainDB)") }
+        func startPreparedClip() async throws { log.append("startPrepared") }
+        func playClip(url: URL, gainDB: Float) async throws { log.append("play:\(url.lastPathComponent):\(gainDB)") }
 
         func listen(timeout: TimeInterval, inactivity: TimeInterval, record: Bool) async throws -> VoiceResult {
             return VoiceResult(transcript: "", recordingURL: nil)

@@ -47,9 +47,9 @@ final class VoiceChorusTests: XCTestCase {
         func listen(timeout: TimeInterval, inactivity: TimeInterval, record: Bool) async throws -> VoiceResult {
             return VoiceResult(transcript: "", recordingURL: nil)
         }
-        func prepareBoosted(url: URL, gainDB: Float) async throws {}
-        func startPreparedBoosted() async throws {}
-        func playBoosted(url: URL, gainDB: Float) async throws {}
+        func prepareClip(url: URL, gainDB: Float) async throws {}
+        func startPreparedClip() async throws {}
+        func playClip(url: URL, gainDB: Float) async throws {}
         func stopAll() {}
         func hardReset() {}
 

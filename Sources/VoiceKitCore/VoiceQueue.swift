@@ -14,8 +14,8 @@
 //  Notes:
 //  - Uses any VoiceIO; when available, it calls TTSConfigurable.speak(_:using:)
 //    to select specific voices. Otherwise it falls back to VoiceIO.speak(_).
-//  - For near-zero SFX after speech, we pre-call prepareBoosted() when the next
-//    item is .sfx; after speak returns, we await startPreparedBoosted().
+//  - For near-zero SFX after speech, we pre-call prepareClip() when the next
+//    item is .sfx; after speak returns, we await startPreparedClip().
 //  - Parallel playback requires separate channels; by default, channel 0 uses
 //    the provided VoiceIO; additional channels can be provided via factory.
 //
@@ -157,7 +157,7 @@ public final class VoiceQueue {
             case .speak(let text, let voiceID):
                 // Pre-schedule SFX if next is a clip for near-zero gap.
                 if case .sfx(let url, let gain)? = next {
-                    try? await ch.io.prepareBoosted(url: url, gainDB: gain)
+                    try? await ch.io.prepareClip(url: url, gainDB: gain)
                 }
 
                 if let tts = ch.io as? TTSConfigurable {
@@ -168,12 +168,12 @@ public final class VoiceQueue {
 
                 if case .sfx = next {
                     // Await clip completion; RealVoiceIO auto-starts; others may need start call.
-                    try? await ch.io.startPreparedBoosted()
+                    try? await ch.io.startPreparedClip()
                     index += 1 // consume the next .sfx
                 }
 
             case .sfx(let url, let gain):
-                try? await ch.io.playBoosted(url: url, gainDB: gain)
+                try? await ch.io.playClip(url: url, gainDB: gain)
 
             case .pause(let seconds):
                 try? await Task.sleep(nanoseconds: UInt64(max(0, seconds) * 1_000_000_000))

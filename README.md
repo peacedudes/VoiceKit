@@ -51,8 +51,15 @@ struct SettingsView: View {
 ```
 
 Docs
-- Docs/Guide.md (single, comprehensive)
+- Docs/VoiceKitGuide.md (comprehensive reference: API, models, UI, testing)
+- Docs/ProgrammersGuide.md (concise: quick start, sequencing, logging, boosted clips)
 - CHANGELOG.md
+
+Logging (opt-in)
+- Set VOICEKIT_LOG=1 (or true/yes) in your scheme/environment to enable a default print logger in RealVoiceIO.
+- Or, set a custom logger:
+  // @MainActor
+  realIO.logger = { level, msg in print("[VoiceKit][\(level)] \(msg)") }
 
 License
 - MIT — see LICENSE.

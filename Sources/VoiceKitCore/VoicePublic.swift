@@ -44,9 +44,9 @@ public protocol VoiceIO: AnyObject {
     func speak(_ text: String) async
     func listen(timeout: TimeInterval, inactivity: TimeInterval, record: Bool) async throws -> VoiceResult
 
-    func prepareBoosted(url: URL, gainDB: Float) async throws
-    func startPreparedBoosted() async throws
-    func playBoosted(url: URL, gainDB: Float) async throws
+    func prepareClip(url: URL, gainDB: Float) async throws
+    func startPreparedClip() async throws
+    func playClip(url: URL, gainDB: Float) async throws
 
     func stopAll()
     func hardReset()
@@ -54,9 +54,9 @@ public protocol VoiceIO: AnyObject {
 
 @MainActor
 public extension VoiceIO {
-    func prepareBoosted(url: URL) async throws { try await prepareBoosted(url: url, gainDB: 0) }
-    func playBoosted(url: URL) async throws { try await playBoosted(url: url, gainDB: 0) }
-    func queueSFX(url: URL, gainDB: Float = 0) async throws { try await prepareBoosted(url: url, gainDB: gainDB) }
+    func prepareClip(url: URL) async throws { try await prepareClip(url: url, gainDB: 0) }
+    func playClip(url: URL) async throws { try await playClip(url: url, gainDB: 0) }
+    func queueSFX(url: URL, gainDB: Float = 0) async throws { try await prepareClip(url: url, gainDB: gainDB) }
 
     func listen(timeout: TimeInterval,
                 inactivity: TimeInterval,

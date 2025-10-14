@@ -24,6 +24,19 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
     public var onTTSPulse: ((CGFloat) -> Void)?
     public var onStatusMessageChanged: ((String?) -> Void)?
 
+    // MARK: - Debug logging (opt-in)
+    public enum LogLevel: Sendable {
+        case info, warn, error
+    }
+    /// Optional logger. Set from the app to trace VoiceKit events.
+    /// Example:
+    ///   io.logger = { level, msg in print("[VoiceKit][\(level)] \(msg)") }
+    public var logger: ((LogLevel, String) -> Void)?
+    @inline(__always)
+    internal func log(_ level: LogLevel = .info, _ message: @autoclosure () -> String) {
+        logger?(level, message())
+    }
+
     // MARK: - Public config
     public private(set) var config: VoiceIOConfig
 
@@ -59,11 +72,26 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
     public override init() {
         self.config = VoiceIOConfig()
         super.init()
+        // Opt-in default logger via env flag
+        let env = ProcessInfo.processInfo.environment
+        if let v = env["VOICEKIT_LOG"]?.lowercased(),
+           v == "1" || v == "true" || v == "yes" {
+            self.logger = { level, msg in
+                print("[VoiceKit][\(level)] \(msg)")
+            }
+        }
     }
 
     public init(config: VoiceIOConfig) {
         self.config = config
         super.init()
+        let env = ProcessInfo.processInfo.environment
+        if let v = env["VOICEKIT_LOG"]?.lowercased(),
+           v == "1" || v == "true" || v == "yes" {
+            self.logger = { level, msg in
+                print("[VoiceKit][\(level)] \(msg)")
+            }
+        }
     }
 
     // Convenience init used by tests (accepts seam instances; STT is stubbed)
@@ -98,6 +126,7 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
     // Minimal listen shim to satisfy current tests (no real STT wiring yet).
     // If the recognition context expects a number, synthesize "42".
     public func listen(timeout: TimeInterval, inactivity: TimeInterval, record: Bool) async throws -> VoiceResult {
+        log(.info, "listen(start) timeout=\(timeout), inactivity=\(inactivity), record=\(record)")
         onListeningChanged?(true)
         defer { onListeningChanged?(false) }
 
@@ -110,13 +139,16 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
         // If context expects a number, synthesize a final "42"
         if recognitionContext.expectNumber {
             let transcript = "42"
+            log(.info, "listen(result) synthesized numeric: \(transcript)")
             latestTranscript = transcript
             onTranscriptChanged?(transcript)
             return VoiceResult(transcript: transcript, recordingURL: nil)
         }
 
         // Otherwise, return whatever has been set externally (default empty)
-        return VoiceResult(transcript: latestTranscript, recordingURL: nil)
+        let res = VoiceResult(transcript: latestTranscript, recordingURL: nil)
+        log(.info, "listen(result) transcript='\(res.transcript)' record=\(record)")
+        return res
     }
 
     // Called by tests; store context for listen shim
