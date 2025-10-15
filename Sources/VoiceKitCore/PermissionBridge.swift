@@ -14,7 +14,11 @@ import Foundation
 enum PermissionBridge {
 
     nonisolated static func awaitSpeechAuth() async -> SFSpeechRecognizerAuthorizationStatus {
-        await withCheckedContinuation { (continuation: CheckedContinuation<SFSpeechRecognizerAuthorizationStatus, Never>) in
+        // In CI, avoid system prompts that can hang headless runners.
+        if IsCI.running {
+            return .authorized
+        }
+        return await withCheckedContinuation { (continuation: CheckedContinuation<SFSpeechRecognizerAuthorizationStatus, Never>) in
             SFSpeechRecognizer.requestAuthorization { status in
                 continuation.resume(returning: status)
             }
@@ -23,7 +27,10 @@ enum PermissionBridge {
 
     #if os(iOS)
     nonisolated static func awaitMicPermission() async -> Bool {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+        if IsCI.running {
+            return true
+        }
+        return await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
             AVAudioApplication.requestRecordPermission { granted in
                 continuation.resume(returning: granted)
             }
@@ -31,7 +38,10 @@ enum PermissionBridge {
     }
     #elseif os(macOS)
     nonisolated static func awaitMicPermission() async -> Bool {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+        if IsCI.running {
+            return true
+        }
+        return await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
             AVCaptureDevice.requestAccess(for: .audio) { granted in
                 continuation.resume(returning: granted)
             }
