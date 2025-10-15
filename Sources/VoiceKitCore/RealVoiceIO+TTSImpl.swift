@@ -32,6 +32,17 @@ extension RealVoiceIO {
     }
 
     public func speak(_ text: String, using voiceID: String?) async {
+        // CI fast-path: avoid AVSpeech on headless runners where delegate callbacks can stall.
+        if IsCI.running {
+            log(.info, "speak(ci-fast-path, voiceID:\(voiceID ?? "nil"))")
+            onTTSSpeakingChanged?(true)
+            ttsStartPulse()
+            await Task.yield()
+            onTTSSpeakingChanged?(false)
+            ttsStopPulse()
+            return
+        }
+
         ensureSynth()
         log(.info, "speak(text:\(text.prefix(48))\(text.count > 48 ? "…" : ""), voiceID:\(voiceID ?? "nil"))")
         guard let synthesizer else { return }
