@@ -87,6 +87,31 @@ public struct VoiceTunerView: View {
         self._selectedIDBinding = selectedID
     }
 
+    // Convenience: ephemeral store (no persistence). Keeps API simple for apps that don't need a store.
+    public init(tts: TTSConfigurable) {
+        self.tts = tts
+        // Create a local store instance for this view
+        let store = VoiceProfilesStore()
+        self._store = ObservedObject(initialValue: store)
+        self.onChoose = nil
+        self.onCancel = nil
+        self._selectedIDBinding = .constant(nil)
+    }
+
+    // Convenience chooser: ephemeral store + binding for selection.
+    public init(
+        tts: TTSConfigurable,
+        selectedID: Binding<String?>,
+        onChoose: (() -> Void)? = nil,
+        onCancel: (() -> Void)? = nil
+    ) {
+        self.tts = tts
+        let store = VoiceProfilesStore()
+        self._store = ObservedObject(initialValue: store)
+        self.onChoose = onChoose; self.onCancel = onCancel
+        self._selectedIDBinding = selectedID
+    }
+
     public var body: some View {
         NavigationStack {
             VStack(spacing: 10) {
@@ -509,13 +534,11 @@ struct VoiceTunerView_Previews: PreviewProvider {
 private struct VoiceTunerPreviewContainer: View {
     @State private var pickedVoiceID: String? = nil
     private let tts: TTSConfigurable = RealVoiceIO()
-    private let store = VoiceProfilesStore()
 
     var body: some View {
         #if os(macOS)
         VoiceTunerView(
             tts: tts,
-            store: store,
             selectedID: $pickedVoiceID,
             onChoose: {},
             onCancel: {}
@@ -524,7 +547,6 @@ private struct VoiceTunerPreviewContainer: View {
         #else
         VoiceTunerView(
             tts: tts,
-            store: store,
             selectedID: $pickedVoiceID,
             onChoose: {},
             onCancel: {}
