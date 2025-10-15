@@ -40,11 +40,13 @@ jobs:
             spm-${{ runner.os }}-xcode-16-
 
       - name: Resolve
+        timeout-minutes: 5
         run: swift package resolve
 
       - name: Build (debug)
         env:
           NSUnbufferedIO: "YES"
+        timeout-minutes: 10
         run: swift build -v
 
       - name: Test
@@ -52,6 +54,7 @@ jobs:
         env:
           SWIFTPM_TEST_LOG_FORMAT: xcode
           NSUnbufferedIO: "YES"
+          VOICEKIT_FORCE_CI: "true"
         run: |
           set -euo pipefail
           if swift test -h 2>/dev/null | grep -q ' --parallel'; then
