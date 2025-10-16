@@ -98,6 +98,17 @@ struct VoiceChorusPlayground: View {
                 }
                 .disabled(selectedProfiles.isEmpty)
 
+                // Rate A/B proof: measure durations at min vs max rate and print results.
+                HStack {
+                    Button {
+                        Task { await runRateABProof() }
+                    } label: {
+                        Label("Rate A/B proof", systemImage: "timer")
+                    }
+                    .disabled(selectedProfiles.isEmpty)
+                    Spacer()
+                }
+
                 // Global adjustments (labels on left; applied to all voices)
                 VStack(spacing: 8) {
                     HStack {
@@ -127,10 +138,20 @@ struct VoiceChorusPlayground: View {
                 }
 
                 Section(header: Text("Custom Text")) {
-                    TextEditor(text: $customText)
-                        .frame(height: 100)
-                        .border(Color.gray, width: 0.5)
+                    ZStack(alignment: .topLeading) {
+                        if customText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text("Type chorus text…")
+                                .foregroundStyle(.secondary)
+                                .padding(.top, 8)
+                                .padding(.leading, 6)
+                                .allowsHitTesting(false)
+                        }
+                        TextEditor(text: $customText)
+                            .frame(height: 100)
+                            .border(Color.gray, width: 0.5)
+                    }
                 }
+
                 if isCalibrating {
                     HStack {
                         ProgressView().controlSize(.small)
@@ -204,7 +225,9 @@ struct VoiceChorusPlayground: View {
                         }
                         .buttonStyle(.bordered)
                         Button(role: .destructive) {
-                            selectedProfiles.remove(at: index)
+                            // Remove from the effective list and sync baseline so
+                            // future global adjustments don’t resurrect this row.
+                            selectedProfiles.remove(at: index); baseProfiles = selectedProfiles
                         } label: {
                             Label("Remove", systemImage: "trash")
                         }
@@ -272,6 +295,31 @@ struct VoiceChorusPlayground: View {
         }
     }
 
+    // Measure the same phrase at very slow and very fast rates for the first selected voice.
+    // Prints timings to the console and updates the list's per-voice duration display.
+    private func runRateABProof() async {
+        guard let first = selectedProfiles.first else { return }
+        let voiceID = first.id
+        let phrase = customText.isEmpty ? "This is a rate test to measure speed." : customText
+
+        // Use a dedicated engine so we don't interfere with the chorus engine.
+        let io = RealVoiceIO()
+
+        // Slow
+        io.setVoiceProfile(.init(id: voiceID, rate: 0.05, pitch: 1.0, volume: 1.0))
+        var slow = await io.speakAndMeasure(phrase, using: voiceID)
+        if slow <= 0 { slow = 0 } // fallback when duration not available
+
+        // Fast
+        io.setVoiceProfile(.init(id: voiceID, rate: 0.95, pitch: 1.0, volume: 1.0))
+        var fast = await io.speakAndMeasure(phrase, using: voiceID)
+        if fast <= 0 { fast = 0 }
+
+        print("[VoiceChorusPlayground] Rate A/B (\(voiceID)): slow=\(String(format: "%.2f", slow))s, fast=\(String(format: "%.2f", fast))s")
+        // Update the UI’s per-voice duration readout with the fast value so it’s visible in the list.
+        lastDurationByID[voiceID] = fast
+    }
+
     // Cancel any in-flight calibration and stop the chorus immediately.
     private func stopAll() {
         // Cancel calibration if running
@@ -289,9 +337,22 @@ struct VoiceChorusPlayground: View {
     }
 
     /// Seed initial voices so users can play the chorus immediately.
-    /// Picks `count` random distinct system voices and nudges pitch to differentiate.
+    /// Picks `count` random distinct system voices from the current language and nudges pitch to differentiate.
     private func seedInitialVoices(count: Int = 2) {
-        let list = availableVoices()
+        // Filter to current language base code (e.g., "en").
+        let baseLang: String = {
+            let tag = Locale.preferredLanguages.first ?? Locale.current.identifier
+            if let dash = tag.firstIndex(of: "-") { return String(tag[..<dash]).lowercased() }
+            return tag.lowercased()
+        }()
+        let list = availableVoices().filter {
+            let lang = $0.language
+            let code: String = {
+                if let dash = lang.firstIndex(of: "-") { return String(lang[..<dash]).lowercased() }
+                return lang.lowercased()
+            }()
+            return code == baseLang
+        }
         guard !list.isEmpty else { return }
 
         // Random without replacement
@@ -377,10 +438,10 @@ struct VoiceChorusPlayground: View {
     private func applyGlobalAdjustments() {
         guard !baseProfiles.isEmpty else { return }
         selectedProfiles = baseProfiles.map { base in
-            var p = base
-            p.rate = (p.rate * rateScale).clamped(to: 0.0...1.0)
-            p.pitch = (p.pitch + Float(pitchOffset)).clamped(to: 0.5...2.0)
-            return p
+            var profile = base
+            profile.rate = (profile.rate * rateScale).clamped(to: 0.0...1.0)
+            profile.pitch = (profile.pitch + Float(pitchOffset)).clamped(to: 0.5...2.0)
+            return profile
         }
     }
 }

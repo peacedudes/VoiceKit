@@ -332,6 +332,11 @@ public struct VoiceTunerView: View {
     private func applyLanguage(_ newFilter: LanguageFilter) {
         languageFilter = newFilter
         let filtered = applyLanguageFilter(allVoices)
+        // If selection is unset but binding exists and is known in the full list, adopt it first.
+        if selectedID == nil, let bound = selectedIDBinding,
+           allVoices.contains(where: { $0.id == bound }) {
+            selectedID = bound
+        }
         // Keep current selection; if it’s not in filtered but exists in allVoices,
         // pin it into the visible list so Picker shows the correct row.
         var shown = filtered
@@ -362,8 +367,9 @@ public struct VoiceTunerView: View {
             let filtered = applyLanguageFilter(list)
             self.languageOptions = computeLanguageOptions(from: list)
             // Skip enhanced voice detection in the seed path to avoid extra AV/XPC work.
-            // Initialize selection from external binding if valid
-            if self.selectedID == nil, let bound = self.selectedIDBinding, filtered.contains(where: { $0.id == bound }) {
+            // Initialize selection from external binding if valid (check full list, not filtered)
+            if self.selectedID == nil, let bound = self.selectedIDBinding,
+               list.contains(where: { $0.id == bound }) {
                 self.selectedID = bound
             }
             if self.selectedID == nil {
@@ -381,6 +387,7 @@ public struct VoiceTunerView: View {
                 shown.insert(pinned, at: 0)
             }
             self.voices = shown
+            // Ensure the selected ID is visible even if the filter would exclude it.
             self.selectedIDString = self.selectedID ?? ""
             self.loadWorkingProfile()
         }
@@ -411,7 +418,8 @@ public struct VoiceTunerView: View {
             let filtered = applyLanguageFilter(list)
             self.languageOptions = computeLanguageOptions(from: list)
             // Preserve/reflect selection; pin if needed.
-            if self.selectedID == nil, let bound = self.selectedIDBinding, filtered.contains(where: { $0.id == bound }) {
+            if self.selectedID == nil, let bound = self.selectedIDBinding,
+               list.contains(where: { $0.id == bound }) {
                 self.selectedID = bound
             }
             var shown = filtered
@@ -421,11 +429,7 @@ public struct VoiceTunerView: View {
                 shown.insert(pinned, at: 0)
             }
             self.voices = shown
-            // Initialize selection from external binding if valid
-            if self.selectedID == nil, let bound = self.selectedIDBinding, filtered.contains(where: { $0.id == bound }) {
-                self.selectedID = bound
-                self.selectedIDString = bound
-            }
+            // Selection already considered above; just mirror it to the Picker string below.
             if self.selectedID == nil {
                 if let def = store.defaultVoiceID, filtered.contains(where: { $0.id == def }) {
                     self.selectedID = def

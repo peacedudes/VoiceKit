@@ -89,17 +89,38 @@ extension RealVoiceIO {
         }
 
         let control = master
-        utterance.rate = Float((defaultProfile?.rate ?? 0.5).clamped(to: 0...1))
-        utterance.pitchMultiplier = (defaultProfile?.pitch ?? 1.0) + .random(in: -control.pitchVariation...control.pitchVariation)
-        utterance.volume = defaultProfile?.volume ?? 1.0
-
-        if let id = voiceID, let profile = profilesByID[id] {
-            utterance.rate = Float(profile.rate.clamped(to: 0...1))
-            utterance.pitchMultiplier = profile.pitch + .random(in: -control.pitchVariation...control.pitchVariation)
-            utterance.volume = profile.volume
+        // Map normalized 0…1 rate into AVSpeechUtterance native range for audibly stronger effect.
+        let sysMin = AVSpeechUtteranceMinimumSpeechRate
+        let sysMax = AVSpeechUtteranceMaximumSpeechRate
+        let sysSpan = sysMax - sysMin
+        func mapRate(_ normalized: Double) -> Float {
+            let t = Float(normalized.clamped(to: 0.0...1.0))
+            return (sysMin + t * sysSpan).clamped(to: sysMin...sysMax)
         }
 
-        utterance.rate += .random(in: -control.rateVariation...control.rateVariation)
+        // Defaults
+        let baseNormRate = (defaultProfile?.rate ?? 0.5).clamped(to: 0.0...1.0)
+        var mappedRate = mapRate(baseNormRate)
+        // Apply per-utterance random rate variation in system units (preserving semantics of master.rateVariation as normalized fraction).
+        let rateDelta = Float.random(in: -control.rateVariation...control.rateVariation) * sysSpan
+        utterance.rate = (mappedRate + rateDelta).clamped(to: sysMin...sysMax)
+
+        // Pitch and volume with gentle randomization and clamping to valid ranges.
+        let basePitch = (defaultProfile?.pitch ?? 1.0)
+        utterance.pitchMultiplier = (basePitch + .random(in: -control.pitchVariation...control.pitchVariation)).clamped(to: 0.5...2.0)
+        utterance.volume = (defaultProfile?.volume ?? 1.0).clamped(to: 0.0...1.0)
+
+        if let id = voiceID, let profile = profilesByID[id] {
+            let norm = profile.rate.clamped(to: 0.0...1.0)
+            mappedRate = mapRate(norm)
+            let delta = Float.random(in: -control.rateVariation...control.rateVariation) * sysSpan
+            utterance.rate = (mappedRate + delta).clamped(to: sysMin...sysMax)
+
+            let p = profile.pitch + .random(in: -control.pitchVariation...control.pitchVariation)
+            utterance.pitchMultiplier = p.clamped(to: 0.5...2.0)
+            utterance.volume = profile.volume.clamped(to: 0.0...1.0)
+        }
+        // Note: rate variation already applied above relative to system span.
     }
 
     internal func ttsStartPulse() {}
