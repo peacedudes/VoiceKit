@@ -65,7 +65,7 @@ struct VoiceChorusPlayground: View {
                     .disabled(selectedProfiles.isEmpty || isCalibrating)
 
                     Button(role: .destructive) {
-                        chorus.stop()
+                        stopAll()
                     } label: {
                         Label("Stop", systemImage: "stop.fill")
                     }
@@ -159,6 +159,14 @@ struct VoiceChorusPlayground: View {
                 }
             )
             .frame(minWidth: 420, minHeight: 520)
+        }
+        .onAppear {
+            // Pre-seed two voices so the chorus is playable immediately.
+            // Seed only once on first appear.
+            if selectedProfiles.isEmpty {
+                seedInitialVoices(count: 2)
+                applyGlobalAdjustments()
+            }
         }
     }
 
@@ -264,10 +272,43 @@ struct VoiceChorusPlayground: View {
         }
     }
 
+    // Cancel any in-flight calibration and stop the chorus immediately.
+    private func stopAll() {
+        // Cancel calibration if running
+        calibrationTask?.cancel()
+        calibrationTask = nil
+        isCalibrating = false
+        // Stop any ongoing chorus playback
+        chorus.stop()
+    }
+
     // Use system voices (RealVoiceIO no longer exposes availableVoices()).
     func availableVoices() -> [TTSVoiceInfo] {
         SystemVoicesCache.all()
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    /// Seed initial voices so users can play the chorus immediately.
+    /// Picks `count` random distinct system voices and nudges pitch to differentiate.
+    private func seedInitialVoices(count: Int = 2) {
+        let list = availableVoices()
+        guard !list.isEmpty else { return }
+
+        // Random without replacement
+        let slice = Array(list.shuffled().prefix(max(0, count)))
+        var picks: [TTSVoiceProfile] = []
+        let pitchOffsets: [Float] = [-0.05, 0.05, 0.1, -0.1]
+
+        for (i, v) in slice.enumerated() {
+            var p = TTSVoiceProfile(id: v.id, rate: 0.55, pitch: 1.0, volume: 1.0)
+            if i < pitchOffsets.count {
+                p.pitch = (p.pitch + pitchOffsets[i]).clamped(to: 0.5...2.0)
+            }
+            picks.append(p)
+        }
+        // Establish baseline and effective selections
+        baseProfiles = picks
+        selectedProfiles = picks
     }
 
     // MARK: - Tuner integration

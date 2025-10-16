@@ -332,12 +332,17 @@ public struct VoiceTunerView: View {
     private func applyLanguage(_ newFilter: LanguageFilter) {
         languageFilter = newFilter
         let filtered = applyLanguageFilter(allVoices)
-        voices = filtered
-        if let sel = selectedID, !filtered.contains(where: { $0.id == sel }) {
-            selectedID = filtered.first?.id
-            selectedIDString = selectedID ?? ""
-            loadWorkingProfile()
+        // Keep current selection; if it’s not in filtered but exists in allVoices,
+        // pin it into the visible list so Picker shows the correct row.
+        var shown = filtered
+        if let sel = selectedID,
+           !filtered.contains(where: { $0.id == sel }),
+           let pinned = allVoices.first(where: { $0.id == sel }) {
+            shown.insert(pinned, at: 0)
         }
+        voices = shown
+        selectedIDString = selectedID ?? ""
+        loadWorkingProfile()
     }
 
     // Seed quickly from AVFoundation so the UI is interactive immediately,
@@ -355,7 +360,6 @@ public struct VoiceTunerView: View {
             guard !list.isEmpty else { return }
             self.allVoices = list
             let filtered = applyLanguageFilter(list)
-            self.voices = filtered
             self.languageOptions = computeLanguageOptions(from: list)
             // Skip enhanced voice detection in the seed path to avoid extra AV/XPC work.
             // Initialize selection from external binding if valid
@@ -369,6 +373,14 @@ public struct VoiceTunerView: View {
                     self.selectedID = filtered.first?.id
                 }
             }
+            // Ensure the selected ID is visible even if the filter would exclude it.
+            var shown = filtered
+            if let sel = self.selectedID,
+               !filtered.contains(where: { $0.id == sel }),
+               let pinned = list.first(where: { $0.id == sel }) {
+                shown.insert(pinned, at: 0)
+            }
+            self.voices = shown
             self.selectedIDString = self.selectedID ?? ""
             self.loadWorkingProfile()
         }
@@ -397,8 +409,18 @@ public struct VoiceTunerView: View {
                 self.enhancedVoiceIDs = []
             }
             let filtered = applyLanguageFilter(list)
-            self.voices = filtered
             self.languageOptions = computeLanguageOptions(from: list)
+            // Preserve/reflect selection; pin if needed.
+            if self.selectedID == nil, let bound = self.selectedIDBinding, filtered.contains(where: { $0.id == bound }) {
+                self.selectedID = bound
+            }
+            var shown = filtered
+            if let sel = self.selectedID,
+               !filtered.contains(where: { $0.id == sel }),
+               let pinned = list.first(where: { $0.id == sel }) {
+                shown.insert(pinned, at: 0)
+            }
+            self.voices = shown
             // Initialize selection from external binding if valid
             if self.selectedID == nil, let bound = self.selectedIDBinding, filtered.contains(where: { $0.id == bound }) {
                 self.selectedID = bound
