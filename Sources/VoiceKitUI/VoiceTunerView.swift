@@ -422,7 +422,16 @@ public struct VoiceTunerView: View {
             workingProfile = nil
             return
         }
-        workingProfile = store.profile(for: info)
+        // Start with any stored profile…
+        var profile = store.profile(for: info)
+        // …but prefer a profile that was already seeded in the TTS engine for this ID
+        if let seeded = tts.getVoiceProfile(id: id) {
+            profile = seeded
+        } else if let def = tts.getDefaultVoiceProfile() {
+            // …or fall back to the engine default with the selected id
+            profile = TTSVoiceProfile(id: id, rate: def.rate, pitch: def.pitch, volume: def.volume)
+        }
+        workingProfile = profile
     }
 
     private func commitChanges() {

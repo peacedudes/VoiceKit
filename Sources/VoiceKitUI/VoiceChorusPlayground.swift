@@ -14,7 +14,21 @@ struct VoiceChorusPlayground: View {
     @State private var selectedProfiles: [TTSVoiceProfile] = []
     @State private var pitch: Float = 1.0
     @State private var rate: Float = 0.55
-    @State private var customText: String = "God in his wisdom made the fly\nAnd then forgot to tell us why."
+    @State private var customText: String = "Six swift ships."
+    @State private var targetSeconds: Double = 5.0
+    @State private var isCalibrating: Bool = false
+    @State private var calibrationTask: Task<Void, Never>? = nil
+    @State private var lastDurationByID: [String: TimeInterval] = [:]
+    // Baseline profiles and global adjustments for chorus-wide tweaks
+    @State private var baseProfiles: [TTSVoiceProfile] = []
+    @State private var rateScale: Double = 1.0       // Multiplies baseline rate
+    @State private var pitchOffset: Double = 0.0     // Adds to baseline pitch
+
+    // Tuner presentation
+    @State private var showTuner = false
+    @State private var tunerSelection: String? = nil
+    @State private var tunerEngine = RealVoiceIO()
+    @State private var editingIndex: Int? = nil
 
     // VoiceChorus.Engine == any TTSConfigurable & VoiceIO.
     // Some toolchains require an explicit local to help existential inference.
@@ -27,8 +41,52 @@ struct VoiceChorusPlayground: View {
         VStack {
             // Fixed control area
             VStack {
+                // Title
                 Text("Voice Chorus Playground")
                     .font(.largeTitle)
+
+                HStack(spacing: 12) {
+                    Button {
+                        presentAddVoice()
+                    } label: {
+                        Label("Add voice…", systemImage: "plus")
+                    }
+
+                    Button {
+                        synchronizeRates()
+                    } label: {
+                        Label("Synchronize rates", systemImage: "metronome.fill")
+                    }
+                    .disabled(selectedProfiles.isEmpty || isCalibrating)
+
+                    Button(role: .none, action: startChorus) {
+                        Label("Play Chorus", systemImage: "play.fill")
+                    }
+                    .disabled(selectedProfiles.isEmpty || isCalibrating)
+
+                    Button(role: .destructive) {
+                        chorus.stop()
+                    } label: {
+                        Label("Stop", systemImage: "stop.fill")
+                    }
+                }
+                .buttonStyle(.bordered)
+                .padding(.bottom, 4)
+
+                // Target duration control
+                HStack(spacing: 12) {
+                    Text("Target duration")
+                    Spacer()
+                    Text(String(format: "%.2f s", targetSeconds))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                    Stepper(value: $targetSeconds, in: 1.0...20.0, step: 0.25) {
+                        EmptyView()
+                    }
+                    .labelsHidden()
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 4)
 
                 Button(action: startChorus) {
                     Text("Play Chorus")
@@ -40,45 +98,162 @@ struct VoiceChorusPlayground: View {
                 }
                 .disabled(selectedProfiles.isEmpty)
 
-                SliderView(title: "Pitch", value: $pitch, range: 0.5...2.0)
-                SliderView(title: "Rate", value: $rate, range: 0.0...1.0)
+                // Global adjustments (labels on left; applied to all voices)
+                VStack(spacing: 8) {
+                    HStack {
+                        Text("Global rate")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("\(rateScale, specifier: "%.2f")×")
+                            .font(.caption2)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                    Slider(value: $rateScale, in: 0.25...2.0, step: 0.01)
+                        .onChange(of: rateScale) { _, _ in applyGlobalAdjustments() }
+                    HStack {
+                        Text("Global pitch")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text((pitchOffset >= 0 ? "+" : "") + String(format: "%.2f", pitchOffset))
+                            .font(.caption2)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                    Slider(value: $pitchOffset, in: -0.9...0.9, step: 0.01)
+                        .onChange(of: pitchOffset) { _, _ in applyGlobalAdjustments() }
+                }
 
                 Section(header: Text("Custom Text")) {
                     TextEditor(text: $customText)
                         .frame(height: 100)
                         .border(Color.gray, width: 0.5)
                 }
+                if isCalibrating {
+                    HStack {
+                        ProgressView().controlSize(.small)
+                        Text("Calibrating…").foregroundStyle(.secondary)
+                    }
+                }
             }
             .padding()
 
             // Scrolling list area
             ScrollView {
-                voiceSelectionSection()
+                selectedVoicesSection()
+            }
+        }
+        .sheet(isPresented: $showTuner) {
+            // Present a self-contained VoiceTuner that edits/chooses a single voice.
+            VoiceTunerView(
+                tts: tunerEngine,
+                selectedID: $tunerSelection,
+                onChoose: {
+                    applyTunerSelection()
+                    showTuner = false
+                },
+                onCancel: {
+                    showTuner = false
+                }
+            )
+            .frame(minWidth: 420, minHeight: 520)
+        }
+    }
+
+    // New: Selected voices section with edit/remove
+    @ViewBuilder
+    private func selectedVoicesSection() -> some View {
+        Section(header: Text("Selected Voices")) {
+            if selectedProfiles.isEmpty {
+                Text("Tap “Add voice…” to choose voices and tune pitch/volume.")
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 8)
+            } else {
+                ForEach(Array(selectedProfiles.enumerated()), id: \.offset) { index, profile in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(resolvedName(for: profile.id))
+                                .font(.headline)
+                            Text(String(format: "Pitch %.2f · Volume %.2f · Rate %.2f", profile.pitch, profile.volume, profile.rate))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            if let d = lastDurationByID[profile.id] {
+                                let s = String(format: "%.2f", d)
+                                let delta = d - targetSeconds
+                                let deltaStr = String(format: "%.2f", abs(delta))
+                                Text("≈ \(s)s (\(delta >= 0 ? "+" : "−")\(deltaStr)s)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        Button {
+                            presentEditVoice(index: index)
+                        } label: {
+                            Label("Edit", systemImage: "slider.horizontal.3")
+                        }
+                        .buttonStyle(.bordered)
+                        Button(role: .destructive) {
+                            selectedProfiles.remove(at: index)
+                        } label: {
+                            Label("Remove", systemImage: "trash")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .padding(.horizontal)
+                    Divider()
+                }
             }
         }
     }
 
-    @ViewBuilder
-    private func voiceSelectionSection() -> some View {
-        Section(header: Text("Voices")) {
-            ForEach(availableVoices(), id: \.id) { voice in
-                Toggle(voice.name, isOn: Binding(
-                    get: { selectedProfiles.contains(where: { $0.id == voice.id }) },
-                    set: { isSelected in
-                        if isSelected {
-                            selectedProfiles.append(
-                                TTSVoiceProfile(
-                                    id: voice.id,
-                                    rate: Double(rate),  // public API uses Double
-                                    pitch: pitch,
-                                    volume: 1.0
-                                )
-                            )
-                        } else {
-                            selectedProfiles.removeAll { $0.id == voice.id }
-                        }
-                    }
-                ))
+    // MARK: - Calibration (synchronize rates)
+    private func synchronizeRates() {
+        guard !selectedProfiles.isEmpty else { return }
+        isCalibrating = true
+        let phrase = customText
+        // Cancel any in-flight calibration task
+        calibrationTask?.cancel()
+        calibrationTask = Task { @MainActor in
+            // Use a dedicated engine for measurement to avoid interfering with the chorus engine
+            let io = RealVoiceIO()
+            defer {
+                isCalibrating = false
+                calibrationTask = nil
+                // After calibration, refresh selectedProfiles from baseline with current global sliders
+                // First, ensure baseline reflects any calibrated rate changes:
+                baseProfiles = selectedProfiles
+                // Apply global scaling/offset to produce effective profiles:
+                var updated: [TTSVoiceProfile] = []
+                updated.reserveCapacity(baseProfiles.count)
+                for var p in baseProfiles {
+                    p.rate = (p.rate * rateScale).clamped(to: 0.0...1.0)
+                    p.pitch = (p.pitch + Float(pitchOffset)).clamped(to: 0.5...2.0)
+                    updated.append(p)
+                }
+                selectedProfiles = updated
+            }
+
+            for i in selectedProfiles.indices {
+                if Task.isCancelled { return }
+                // Ensure the IO has the current profile before measuring
+                io.setVoiceProfile(selectedProfiles[i])
+                let voiceID = selectedProfiles[i].id
+
+                // Calibrate this voice to the target duration
+                let result = await VoiceTempoCalibrator.fitRate(
+                    io: io,
+                    voiceID: voiceID,
+                    phrase: phrase,
+                    targetSeconds: targetSeconds,
+                    tolerance: 0.05,
+                    maxIterations: 3
+                )
+                // Update the stored and baseline profile with the new rate and last measured duration
+                selectedProfiles[i].rate = result.finalRate
+                lastDurationByID[voiceID] = result.measured
             }
         }
     }
@@ -93,6 +268,79 @@ struct VoiceChorusPlayground: View {
     func availableVoices() -> [TTSVoiceInfo] {
         SystemVoicesCache.all()
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    // MARK: - Tuner integration
+    private func presentAddVoice() {
+        editingIndex = nil
+        tunerEngine = RealVoiceIO()
+        if let pick = availableVoices().randomElement() {
+            tunerSelection = pick.id
+            let seed = TTSVoiceProfile(id: pick.id, rate: 0.55, pitch: 1.0, volume: 1.0)
+            tunerEngine.setVoiceProfile(seed)
+            tunerEngine.setDefaultVoiceProfile(seed)
+        } else {
+            tunerSelection = nil
+        }
+        showTuner = true
+    }
+
+    private func presentEditVoice(index: Int) {
+        guard selectedProfiles.indices.contains(index) else { return }
+        editingIndex = index
+        tunerEngine = RealVoiceIO()
+        // Seed tuner with current profile
+        let prof = selectedProfiles[index]
+        tunerEngine.setVoiceProfile(prof)
+        tunerEngine.setDefaultVoiceProfile(prof) // ensure sliders reflect the current row exactly
+        tunerSelection = prof.id
+        showTuner = true
+    }
+
+    private func applyTunerSelection() {
+        guard let id = tunerSelection else { return }
+        // Prefer the specific profile returned by the tuner engine; fall back to its default;
+        // finally, seed a mid profile if neither is available yet.
+        var tuned: TTSVoiceProfile? = tunerEngine.getVoiceProfile(id: id)
+        if tuned == nil, let def = tunerEngine.getDefaultVoiceProfile() {
+            tuned = TTSVoiceProfile(id: id, rate: def.rate, pitch: def.pitch, volume: def.volume)
+        }
+        if tuned == nil {
+            tuned = TTSVoiceProfile(id: id, rate: 0.55, pitch: 1.0, volume: 1.0)
+        }
+        guard let tuned else { return }
+        if let idx = editingIndex, selectedProfiles.indices.contains(idx) {
+            // Editing an existing row updates only that row
+            selectedProfiles[idx] = tuned
+        } else {
+            // Always allow duplicates when adding
+            selectedProfiles.append(tuned)
+        }
+        // Clear edit state
+        editingIndex = nil
+        tunerSelection = nil
+        // Keep baseline aligned to effective list, then re-apply globals
+        baseProfiles = selectedProfiles
+        // Re-apply global adjustments so effective profiles reflect sliders
+        applyGlobalAdjustments()
+    }
+
+    private func resolvedName(for id: String) -> String {
+        if let v = availableVoices().first(where: { $0.id == id }) {
+            return v.name
+        }
+        return "Voice"
+    }
+
+    // Apply global sliders to baseline -> effective profiles
+    private func applyGlobalAdjustments() {
+        guard !baseProfiles.isEmpty else { return }
+        selectedProfiles = baseProfiles.map { base in
+            var p = base
+            p.rate = (p.rate * rateScale).clamped(to: 0.0...1.0)
+            p.pitch = (p.pitch + Float(pitchOffset)).clamped(to: 0.5...2.0)
+            return p
+        }
     }
 }
 
@@ -120,5 +368,12 @@ struct SliderView_Previews: PreviewProvider {
     static var previews: some View {
         SliderView(title: "Test Slider", value: .constant(1.0), range: 0.5...2.0)
             .previewLayout(.sizeThatFits)
+    }
+}
+
+// Clamp helper for global adjustments
+private extension Comparable {
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        min(max(self, range.lowerBound), range.upperBound)
     }
 }

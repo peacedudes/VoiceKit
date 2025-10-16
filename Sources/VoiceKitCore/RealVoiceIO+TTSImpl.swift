@@ -31,6 +31,28 @@ extension RealVoiceIO {
         await speak(text, using: defaultProfile?.id)
     }
 
+    /// Speak and return measured wall-clock duration from didStart to didFinish for this utterance.
+    /// In CI mode, we avoid AVSpeech and return a tiny synthetic duration.
+    public func speakAndMeasure(_ text: String, using voiceID: String?) async -> TimeInterval {
+        // CI fast-path: avoid AVSpeech on headless runners.
+        if IsCI.running {
+            await speak(text, using: voiceID)
+            return 0.0
+        }
+
+        ensureSynth()
+        guard let synthesizer else { return 0.0 }
+        let utterance = AVSpeechUtterance(string: text)
+        applyProfile(to: utterance, voiceID: voiceID ?? defaultProfile?.id)
+
+        let key = ObjectIdentifier(utterance)
+        return await withCheckedContinuation { (cont: CheckedContinuation<TimeInterval, Never>) in
+            // Store continuation; didFinish will compute and resume
+            measureContinuations[key] = cont
+            synthesizer.speak(utterance)
+        }
+    }
+
     public func speak(_ text: String, using voiceID: String?) async {
         // CI fast-path: avoid AVSpeech on headless runners where delegate callbacks can stall.
         if IsCI.running {
@@ -90,10 +112,14 @@ extension RealVoiceIO {
 
     nonisolated public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
                                               didStart utterance: AVSpeechUtterance) {
+        let key = ObjectIdentifier(utterance)
         Task { @MainActor in
             self.log(.info, "tts didStart")
             self.onTTSSpeakingChanged?(true)
             self.ttsStartPulse()
+            // Record start time for this utterance (used by speakAndMeasure)
+            let now = ProcessInfo.processInfo.systemUptime
+            self.ttsStartTimes[key] = now
         }
     }
 
@@ -104,6 +130,16 @@ extension RealVoiceIO {
         Task { @MainActor in
             if let cont = self.speakContinuations.removeValue(forKey: key) {
                 cont.resume()
+            }
+            // If measuring, compute duration and resume continuation
+            if let start = self.ttsStartTimes.removeValue(forKey: key),
+               let mCont = self.measureContinuations.removeValue(forKey: key) {
+                let now = ProcessInfo.processInfo.systemUptime
+                let duration = max(0, now - start)
+                mCont.resume(returning: duration)
+            } else if let mCont = self.measureContinuations.removeValue(forKey: key) {
+                // Fallback: no start captured; return 0
+                mCont.resume(returning: 0.0)
             }
             self.log(.info, "tts didFinish")
             self.onTTSSpeakingChanged?(false)
@@ -117,6 +153,15 @@ extension RealVoiceIO {
         Task { @MainActor in
             if let cont = self.speakContinuations.removeValue(forKey: key) {
                 cont.resume()
+            }
+            // Cancel measurement if any; resume with 0
+            if let _ = self.ttsStartTimes.removeValue(forKey: key),
+               let mCont = self.measureContinuations.removeValue(forKey: key) {
+                mCont.resume(returning: 0.0)
+            } else if let mCont = self.measureContinuations.removeValue(forKey: key) {
+                mCont.resume(returning: 0.0)
+            } else {
+                // no-op
             }
             self.log(.warn, "tts didCancel")
             self.onTTSSpeakingChanged?(false)

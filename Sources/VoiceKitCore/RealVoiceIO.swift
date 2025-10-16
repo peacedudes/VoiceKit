@@ -51,6 +51,11 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
     // Continuations keyed by utterance
     internal var speakContinuations: [ObjectIdentifier: CheckedContinuation<Void, Error>] = [:]
 
+    // Per-utterance timing (for duration measurement/calibration)
+    internal var ttsStartTimes: [ObjectIdentifier: TimeInterval] = [:]
+    internal var measureContinuations: [ObjectIdentifier: CheckedContinuation<TimeInterval, Never>] = [:]
+
+
     // Simple pulse animation state
     internal var ttsPhase: CGFloat = 0
     internal var ttsGlow: CGFloat = 0
@@ -163,6 +168,8 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
     public func hardReset() {
         stopAll()
         speakContinuations.removeAll()
+        ttsStartTimes.removeAll()
+        measureContinuations.removeAll()
     }
 }
 
