@@ -23,6 +23,7 @@ let package = Package(
     dependencies: [
     ],
     targets: [
+        .target(name: "TestSupport", path: "Sources/TestSupport"),
         .target(
             name: "VoiceKitCore",
             path: "Sources/VoiceKitCore"
@@ -34,14 +35,9 @@ let package = Package(
         ),
         .testTarget(
             name: "VoiceKitCoreTests",
-            dependencies: ["VoiceKitCore"],
+            dependencies: ["VoiceKitCore", "TestSupport"],
             path: "Tests/VoiceKitCoreTests"
         ),
-        .testTarget(
-            name: "VoiceKitUITests",
-            dependencies: ["VoiceKitCore", "VoiceKitUI"],
-            path: "Tests/VoiceKitUITests"
-        )
     ],
     swiftLanguageModes: [
         .v6
