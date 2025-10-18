@@ -15,10 +15,12 @@ struct VoiceChorusPlayground: View {
     @State private var pitch: Float = 1.0
     @State private var rate: Float = 0.55
     @State private var customText: String = "Six swift ships."
-    @State private var targetSeconds: Double = 5.0
+    @State private var targetSeconds: Double = 3.0
     @State private var isCalibrating: Bool = false
     @State private var calibrationTask: Task<Void, Never>? = nil
     @State private var lastDurationByID: [String: TimeInterval] = [:]
+    @State private var lastChorusSeconds: Double? = nil
+    @State private var isPlaying: Bool = false
     // Baseline profiles and global adjustments for chorus-wide tweaks
     @State private var baseProfiles: [TTSVoiceProfile] = []
     @State private var rateScale: Double = 1.0       // Multiplies baseline rate
@@ -42,28 +44,72 @@ struct VoiceChorusPlayground: View {
             // Fixed control area
             VStack {
                 // Title
-                Text("Voice Chorus Playground")
+                Text("Chorus Playground")
                     .font(.largeTitle)
 
-                HStack(spacing: 12) {
-                    Button {
-                        presentAddVoice()
-                    } label: {
-                        Label("Add voice…", systemImage: "plus")
+                // Text input moved to the top
+                ZStack(alignment: .topLeading) {
+                    ZStack(alignment: .topLeading) {
+                        if customText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text("Add voices with +\nPress Play to hear your chorus\nTune Goal, Rate, and Pitch to match")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.leading)
+                                .lineLimit(nil)
+                                .padding(.top, 8)
+                                .padding(.leading, 6)
+                                .padding(.trailing, 8)
+                                .allowsHitTesting(false)
+                        }
+                        TextEditor(text: $customText)
+                            .frame(height: 72, alignment: .topLeading) // ~3 lines, fixed
+                            .scrollIndicators(.automatic)
+                            .border(Color.gray, width: 0.5)
                     }
+                }
 
+                // Target duration control
+                HStack(spacing: 8) {
+                    Text("Target Time")
+                        .font(.footnote)
+                        .lineLimit(1)
+                        .layoutPriority(1)
+                    Text(String(format: "%.2fs", targetSeconds))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                    Stepper(value: $targetSeconds, in: 1.0...20.0, step: 0.25) {
+                        EmptyView()
+                    }
+                    .labelsHidden()
+                    .controlSize(.mini)
+                    Spacer()
+                    HStack(spacing: 4) {
+                        // Tiny in-place spinner when remeasuring
+                        if isPlaying {
+                            ProgressView()
+                                .controlSize(.mini)
+                                .frame(width: 12, height: 12)
+                        } else {
+                            Color.clear.frame(width: 12, height: 12)
+                        }
+                        Text(lastChorusSeconds.map { String(format: "%.2fs", $0) } ?? "—s")
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    .frame(minWidth: 60, alignment: .trailing)
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 4)
+
+                HStack(spacing: 12) {
                     Button {
                         synchronizeRates()
                     } label: {
                         Label("Synchronize rates", systemImage: "metronome.fill")
                     }
                     .disabled(selectedProfiles.isEmpty || isCalibrating)
-
-                    Button(role: .none, action: startChorus) {
-                        Label("Play Chorus", systemImage: "play.fill")
-                    }
-                    .disabled(selectedProfiles.isEmpty || isCalibrating)
-
+                    Spacer()
                     Button(role: .destructive) {
                         stopAll()
                     } label: {
@@ -72,103 +118,108 @@ struct VoiceChorusPlayground: View {
                 }
                 .buttonStyle(.bordered)
                 .padding(.bottom, 4)
-
-                // Target duration control
-                HStack(spacing: 12) {
-                    Text("Target duration")
-                    Spacer()
-                    Text(String(format: "%.2f s", targetSeconds))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                    Stepper(value: $targetSeconds, in: 1.0...20.0, step: 0.25) {
-                        EmptyView()
-                    }
-                    .labelsHidden()
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 4)
-
-                Button(action: startChorus) {
-                    Text("Play Chorus")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
-                }
-                .disabled(selectedProfiles.isEmpty)
-
-                // Global adjustments (labels on left; applied to all voices)
-                VStack(spacing: 8) {
-                    HStack {
-                        Text("Global rate")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text("\(rateScale, specifier: "%.2f")×")
-                            .font(.caption2)
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                    }
-                    Slider(value: $rateScale, in: 0.25...2.0, step: 0.01)
-                        .onChange(of: rateScale) { _, _ in applyGlobalAdjustments() }
-                    HStack {
-                        Text("Global pitch")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text((pitchOffset >= 0 ? "+" : "") + String(format: "%.2f", pitchOffset))
-                            .font(.caption2)
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                    }
-                    Slider(value: $pitchOffset, in: -0.9...0.9, step: 0.01)
-                        .onChange(of: pitchOffset) { _, _ in applyGlobalAdjustments() }
-                }
-
-                Section(header: Text("Custom Text")) {
-                    ZStack(alignment: .topLeading) {
-                        if customText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            Text("Type chorus text…")
-                                .foregroundStyle(.secondary)
-                                .padding(.top, 8)
-                                .padding(.leading, 6)
-                                .allowsHitTesting(false)
-                        }
-                        TextEditor(text: $customText)
-                            .frame(height: 100)
-                            .border(Color.gray, width: 0.5)
-                    }
-                }
-
+                // (text input moved above the button row)
                 if isCalibrating {
                     HStack {
                         ProgressView().controlSize(.small)
                         Text("Calibrating…").foregroundStyle(.secondary)
                     }
                 }
+
+                Button(action: startChorus) {
+                    Label("Play Chorus", systemImage: "play.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
+                .controlSize(.regular)
+                .disabled(selectedProfiles.isEmpty)
+
+                // Global adjustments (labels on left; applied to all voices)
+                VStack(spacing: 8) {
+                    // Rate: label left, slider, value right (match VoiceTunerView)
+                    HStack(spacing: 8) {
+                        Text("Rate")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 50, alignment: .leading)
+                        Slider(value: $rateScale, in: 0.05...2.0, step: 0.01)
+                            .onChange(of: rateScale) { _, _ in applyGlobalAdjustments() }
+                        Text("\(rateScale, specifier: "%.2f")×")
+                            .font(.caption2)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 44, alignment: .trailing)
+                    }
+                    if rateScale < 0.1 {
+                        HStack {
+                            Spacer().frame(width: 50)
+                            Text("very slow")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                            Spacer()
+                        }
+                    }
+                    // Pitch: label left, slider, value right
+                    HStack(spacing: 8) {
+                        Text("Pitch")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 50, alignment: .leading)
+                        Slider(value: $pitchOffset, in: -0.9...0.9, step: 0.01)
+                            .onChange(of: pitchOffset) { _, _ in applyGlobalAdjustments() }
+                        Text((pitchOffset >= 0 ? "+" : "") + String(format: "%.2f", pitchOffset))
+                            .font(.caption2)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 44, alignment: .trailing)
+                    }
+                }
             }
             .padding()
 
-            // Scrolling list area
-            ScrollView {
+            // Pinned header for the voices list (does not scroll)
+            ZStack {
+                // Centered title, slightly lighter than main header
+                Text("Selected Voices")
+                    .font(.title3).fontWeight(.semibold)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                // Plus button aligned to trailing side
+                HStack {
+                    Spacer()
+                    Button(action: presentAddVoice) {
+                        Image(systemName: "plus.circle.fill").font(.title)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 0)
+            // List area (enables swipe actions)
+            List {
                 selectedVoicesSection()
             }
+            .listStyle(.plain)
+            .padding(.top, -6)
         }
         .sheet(isPresented: $showTuner) {
-            // Present a self-contained VoiceTuner that edits/chooses a single voice.
-            VoiceTunerView(
-                tts: tunerEngine,
-                selectedID: $tunerSelection,
-                onChoose: {
-                    applyTunerSelection()
-                    showTuner = false
-                },
-                onCancel: {
-                    showTuner = false
-                }
-            )
+            // Wrap in a padded container so margins are guaranteed even if VoiceTunerView is edge-to-edge.
+            VStack {
+                VoiceTunerView(
+                    tts: tunerEngine,
+                    selectedID: $tunerSelection,
+                    onChoose: {
+                        applyTunerSelection()
+                        showTuner = false
+                    },
+                    onCancel: {
+                        showTuner = false
+                    }
+                )
+            }
+            .padding(.horizontal, 16)
             .frame(minWidth: 420, minHeight: 520)
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
         .onAppear {
             // Keep baseline in sync on first load.
@@ -192,7 +243,7 @@ struct VoiceChorusPlayground: View {
     // New: Selected voices section with edit/remove
     @ViewBuilder
     private func selectedVoicesSection() -> some View {
-        Section(header: Text("Selected Voices")) {
+        Group {
             if selectedProfiles.isEmpty {
                 Text("Tap “Add voice…” to choose voices and tune pitch/volume.")
                     .foregroundStyle(.secondary)
@@ -201,38 +252,42 @@ struct VoiceChorusPlayground: View {
                 ForEach(Array(selectedProfiles.enumerated()), id: \.offset) { index, profile in
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(resolvedName(for: profile.id))
-                                .font(.headline)
+                            // First line: Voice name (left), last time (right)
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(resolvedName(for: profile.id))
+                                    .font(.headline)
+                                Spacer()
+                                if let d = lastDurationByID[profile.id] {
+                                    Text(String(format: "≈ %.2fs", d))
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            // Second line: small details
                             Text(String(format: "Pitch %.2f · Volume %.2f · Rate %.2f", profile.pitch, profile.volume, profile.rate))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
-                            if let d = lastDurationByID[profile.id] {
-                                let s = String(format: "%.2f", d)
-                                let delta = d - targetSeconds
-                                let deltaStr = String(format: "%.2f", abs(delta))
-                                Text("≈ \(s)s (\(delta >= 0 ? "+" : "−")\(deltaStr)s)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
                         }
-                        Spacer()
-                        Button {
-                            presentEditVoice(index: index)
-                        } label: {
-                            Label("Edit", systemImage: "slider.horizontal.3")
-                        }
-                        .buttonStyle(.bordered)
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture { presentEditVoice(index: index) }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         Button(role: .destructive) {
                             // Remove from the effective list and sync baseline so
                             // future global adjustments don’t resurrect this row.
-                            selectedProfiles.remove(at: index); baseProfiles = selectedProfiles; applyGlobalAdjustments()
+                            let removedID = selectedProfiles[index].id
+                            selectedProfiles.remove(at: index)
+                            lastDurationByID.removeValue(forKey: removedID)
+                            baseProfiles = selectedProfiles
+                            applyGlobalAdjustments()
                         } label: {
                             Label("Remove", systemImage: "trash")
                         }
-                        .buttonStyle(.bordered)
                     }
-                    .padding(.horizontal)
-                    Divider()
                 }
             }
         }
@@ -302,7 +357,13 @@ struct VoiceChorusPlayground: View {
 
     private func startChorus() {
         Task {
+            isPlaying = true
+            let t0 = Date()
             await chorus.sing(customText, withVoiceProfiles: selectedProfiles)
+            let elapsed = Date().timeIntervalSince(t0)
+            // Update actual duration shown next to the target stepper
+            self.lastChorusSeconds = elapsed
+            isPlaying = false
         }
     }
 
@@ -362,7 +423,22 @@ struct VoiceChorusPlayground: View {
     private func presentAddVoice() {
         editingIndex = nil
         tunerEngine = RealVoiceIO()
-        if let pick = availableVoices().randomElement() {
+        // Prefer a random voice from the user’s preferred language; fall back to any.
+        let baseLang: String = {
+            let tag = Locale.preferredLanguages.first ?? Locale.current.identifier
+            if let dash = tag.firstIndex(of: "-") { return String(tag[..<dash]).lowercased() }
+            return tag.lowercased()
+        }()
+        let sameLang = availableVoices().filter {
+            let lang = $0.language
+            let code: String = {
+                if let dash = lang.firstIndex(of: "-") { return String(lang[..<dash]).lowercased() }
+                return lang.lowercased()
+            }()
+            return code == baseLang
+        }
+        let pool = sameLang.isEmpty ? availableVoices() : sameLang
+        if let pick = pool.randomElement() {
             tunerSelection = pick.id
             let seed = TTSVoiceProfile(id: pick.id, rate: 0.55, pitch: 1.0, volume: 1.0)
             tunerEngine.setVoiceProfile(seed)
@@ -461,7 +537,16 @@ struct SliderView: View {
 
 struct VoiceChorusPlayground_Previews: PreviewProvider {
     static var previews: some View {
-        VoiceChorusPlayground()
+        Group {
+            #if os(macOS)
+            VoiceChorusPlayground()
+                .frame(width: 520, height: 820) // taller, narrower for Mac preview
+                .previewDisplayName("macOS")
+            #else
+            VoiceChorusPlayground()
+                .previewDisplayName("iOS")
+            #endif
+        }
     }
 }
 
