@@ -2,9 +2,9 @@
 Building for debugging...
 [0/2] Write sources
 [1/2] Write swift-version-39B54973F684ADAB.txt
-[3/4] Compiling VoiceKitUI VoiceChorusPlayground.swift
-[4/4] Emitting module VoiceKitUI
-Build complete! (1.53s)
+[3/4] Emitting module VoiceKitUI
+[4/4] Compiling VoiceKitUI VoiceChorusPlayground.swift
+Build complete! (1.48s)
 Planning build
 Building for debugging...
 Write auxiliary file /Users/rdoggett/Developer/Tests/VoiceKit/.build/arm64-apple-macosx/debug/swift-version-39B54973F684ADAB.txt
@@ -17,40 +17,40 @@ Target: arm64-apple-macosx14.0
 /Applications/Xcode-beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name VoiceKitUI -emit-dependencies -emit-module -emit-module-path /Users/rdoggett/Developer/Tests/VoiceKit/.build/arm64-apple-macosx/debug/Modules/VoiceKitUI.swiftmodule -output-file-map /Users/rdoggett/Developer/Tests/VoiceKit/.build/arm64-apple-macosx/debug/VoiceKitUI.build/output-file-map.json -parse-as-library -incremental -c @/Users/rdoggett/Developer/Tests/VoiceKit/.build/arm64-apple-macosx/debug/VoiceKitUI.build/sources -I /Users/rdoggett/Developer/Tests/VoiceKit/.build/arm64-apple-macosx/debug/Modules -target arm64-apple-macosx14.0 -v -incremental -enable-batch-mode -serialize-diagnostics -index-store-path /Users/rdoggett/Developer/Tests/VoiceKit/.build/arm64-apple-macosx/debug/index/store -Onone -enable-testing -j8 -DSWIFT_PACKAGE -DDEBUG -DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE -module-cache-path /Users/rdoggett/Developer/Tests/VoiceKit/.build/arm64-apple-macosx/debug/ModuleCache -parseable-output -parse-as-library -emit-objc-header -emit-objc-header-path /Users/rdoggett/Developer/Tests/VoiceKit/.build/arm64-apple-macosx/debug/VoiceKitUI.build/VoiceKitUI-Swift.h -swift-version 6 -plugin-path /Applications/Xcode-beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -sdk /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk -F /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks -F /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks -I /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib -L /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib -g -Xcc -isysroot -Xcc /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk -Xcc -F -Xcc /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks -Xcc -F -Xcc /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks -Xcc -fPIC -Xcc -g -package-name voicekit
 Apple Swift version 6.2 (swiftlang-6.2.0.9.909 clang-1700.3.9.907)
 Target: arm64-apple-macosx14.0
-Build complete! (0.36s)
-Test Suite 'All tests' started at 2025-10-16 05:13:44.374.
-Test Suite 'VoiceKitPackageTests.xctest' started at 2025-10-16 05:13:44.377.
-Test Suite 'BoostedSchedulingSeamTests' started at 2025-10-16 05:13:44.377.
+Build complete! (0.35s)
+Test Suite 'All tests' started at 2025-10-17 22:46:20.700.
+Test Suite 'VoiceKitPackageTests.xctest' started at 2025-10-17 22:46:20.701.
+Test Suite 'BoostedSchedulingSeamTests' started at 2025-10-17 22:46:20.701.
 Test Case '-[VoiceKitCoreTests.BoostedSchedulingSeamTests testClipTimeoutConfigIsRespected]' started.
 Test Case '-[VoiceKitCoreTests.BoostedSchedulingSeamTests testClipTimeoutConfigIsRespected]' passed (0.002 seconds).
 Test Case '-[VoiceKitCoreTests.BoostedSchedulingSeamTests testResetCalledOnStopClip]' started.
 Test Case '-[VoiceKitCoreTests.BoostedSchedulingSeamTests testResetCalledOnStopClip]' passed (0.000 seconds).
-Test Suite 'BoostedSchedulingSeamTests' passed at 2025-10-16 05:13:44.379.
-	 Executed 2 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
-Test Suite 'CoreSanityTests' started at 2025-10-16 05:13:44.379.
+Test Suite 'BoostedSchedulingSeamTests' passed at 2025-10-17 22:46:20.704.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.003 (0.003) seconds
+Test Suite 'CoreSanityTests' started at 2025-10-17 22:46:20.704.
 Test Case '-[VoiceKitCoreTests.CoreSanityTests testMakeLiveAndBasicSpeak]' started.
-Test Case '-[VoiceKitCoreTests.CoreSanityTests testMakeLiveAndBasicSpeak]' passed (1.394 seconds).
-Test Suite 'CoreSanityTests' passed at 2025-10-16 05:13:45.773.
-	 Executed 1 test, with 0 failures (0 unexpected) in 1.394 (1.394) seconds
-Test Suite 'IsCITests' started at 2025-10-16 05:13:45.773.
+Test Case '-[VoiceKitCoreTests.CoreSanityTests testMakeLiveAndBasicSpeak]' passed (1.426 seconds).
+Test Suite 'CoreSanityTests' passed at 2025-10-17 22:46:22.132.
+	 Executed 1 test, with 0 failures (0 unexpected) in 1.426 (1.428) seconds
+Test Suite 'IsCITests' started at 2025-10-17 22:46:22.132.
 Test Case '-[VoiceKitCoreTests.IsCITests testOverrideFalse]' started.
 Test Case '-[VoiceKitCoreTests.IsCITests testOverrideFalse]' passed (0.001 seconds).
 Test Case '-[VoiceKitCoreTests.IsCITests testOverrideOne]' started.
 Test Case '-[VoiceKitCoreTests.IsCITests testOverrideOne]' passed (0.000 seconds).
 Test Case '-[VoiceKitCoreTests.IsCITests testOverrideTrue]' started.
-Test Case '-[VoiceKitCoreTests.IsCITests testOverrideTrue]' passed (0.000 seconds).
+Test Case '-[VoiceKitCoreTests.IsCITests testOverrideTrue]' passed (0.001 seconds).
 Test Case '-[VoiceKitCoreTests.IsCITests testRunningFalseByDefault]' started.
-Test Case '-[VoiceKitCoreTests.IsCITests testRunningFalseByDefault]' passed (0.001 seconds).
-Test Suite 'IsCITests' passed at 2025-10-16 05:13:45.776.
-	 Executed 4 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
-Test Suite 'ListenFlowSeamTests' started at 2025-10-16 05:13:45.776.
+Test Case '-[VoiceKitCoreTests.IsCITests testRunningFalseByDefault]' passed (0.002 seconds).
+Test Suite 'IsCITests' passed at 2025-10-17 22:46:22.136.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.003 (0.004) seconds
+Test Suite 'ListenFlowSeamTests' started at 2025-10-17 22:46:22.136.
 Test Case '-[VoiceKitCoreTests.ListenFlowSeamTests testListenEmitsTranscriptAndFinishesOnFinal]' started.
 Test Case '-[VoiceKitCoreTests.ListenFlowSeamTests testListenEmitsTranscriptAndFinishesOnFinal]' passed (0.056 seconds).
 Test Case '-[VoiceKitCoreTests.ListenFlowSeamTests testListenInactivityTimerFinishes]' started.
-Test Case '-[VoiceKitCoreTests.ListenFlowSeamTests testListenInactivityTimerFinishes]' passed (0.055 seconds).
-Test Suite 'ListenFlowSeamTests' passed at 2025-10-16 05:13:45.888.
-	 Executed 2 tests, with 0 failures (0 unexpected) in 0.111 (0.112) seconds
-Test Suite 'NameMatchMoreTests' started at 2025-10-16 05:13:45.888.
+Test Case '-[VoiceKitCoreTests.ListenFlowSeamTests testListenInactivityTimerFinishes]' passed (0.056 seconds).
+Test Suite 'ListenFlowSeamTests' passed at 2025-10-17 22:46:22.249.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.112 (0.113) seconds
+Test Suite 'NameMatchMoreTests' started at 2025-10-17 22:46:22.249.
 Test Case '-[VoiceKitCoreTests.NameMatchMoreTests testCloseSpellingAndDifferentTokens]' started.
 Test Case '-[VoiceKitCoreTests.NameMatchMoreTests testCloseSpellingAndDifferentTokens]' passed (0.002 seconds).
 Test Case '-[VoiceKitCoreTests.NameMatchMoreTests testDistanceEmptyAndIdentity]' started.
@@ -61,171 +61,173 @@ Test Case '-[VoiceKitCoreTests.NameMatchMoreTests testNormalizeRemovesInvisibles
 Test Case '-[VoiceKitCoreTests.NameMatchMoreTests testNormalizeRemovesInvisiblesAndUnifiesDashes]' passed (0.001 seconds).
 Test Case '-[VoiceKitCoreTests.NameMatchMoreTests testTokenPenaltyForMissingTokens]' started.
 Test Case '-[VoiceKitCoreTests.NameMatchMoreTests testTokenPenaltyForMissingTokens]' passed (0.000 seconds).
-Test Suite 'NameMatchMoreTests' passed at 2025-10-16 05:13:45.892.
+Test Suite 'NameMatchMoreTests' passed at 2025-10-17 22:46:22.254.
 	 Executed 5 tests, with 0 failures (0 unexpected) in 0.004 (0.005) seconds
-Test Suite 'NameMatchTests' started at 2025-10-16 05:13:45.892.
+Test Suite 'NameMatchTests' started at 2025-10-17 22:46:22.254.
 Test Case '-[VoiceKitCoreTests.NameMatchTests testNormalizeKeyHandlesDiacriticsLigaturesApostrophes]' started.
-Test Case '-[VoiceKitCoreTests.NameMatchTests testNormalizeKeyHandlesDiacriticsLigaturesApostrophes]' passed (0.001 seconds).
+Test Case '-[VoiceKitCoreTests.NameMatchTests testNormalizeKeyHandlesDiacriticsLigaturesApostrophes]' passed (0.000 seconds).
 Test Case '-[VoiceKitCoreTests.NameMatchTests testStringDistanceScoreTokenAware]' started.
-Test Case '-[VoiceKitCoreTests.NameMatchTests testStringDistanceScoreTokenAware]' passed (0.001 seconds).
-Test Suite 'NameMatchTests' passed at 2025-10-16 05:13:45.894.
-	 Executed 2 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
-Test Suite 'NameMatchTokenDistanceTests' started at 2025-10-16 05:13:45.894.
+Test Case '-[VoiceKitCoreTests.NameMatchTests testStringDistanceScoreTokenAware]' passed (0.000 seconds).
+Test Suite 'NameMatchTests' passed at 2025-10-17 22:46:22.255.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'NameMatchTokenDistanceTests' started at 2025-10-17 22:46:22.255.
 Test Case '-[VoiceKitCoreTests.NameMatchTokenDistanceTests testCrossTokenMatchingPicksBestPairs]' started.
-Test Case '-[VoiceKitCoreTests.NameMatchTokenDistanceTests testCrossTokenMatchingPicksBestPairs]' passed (0.001 seconds).
+Test Case '-[VoiceKitCoreTests.NameMatchTokenDistanceTests testCrossTokenMatchingPicksBestPairs]' passed (0.000 seconds).
 Test Case '-[VoiceKitCoreTests.NameMatchTokenDistanceTests testIdenticalIsZero]' started.
 Test Case '-[VoiceKitCoreTests.NameMatchTokenDistanceTests testIdenticalIsZero]' passed (0.000 seconds).
 Test Case '-[VoiceKitCoreTests.NameMatchTokenDistanceTests testMissingTokenPenalizedButNotMax]' started.
 Test Case '-[VoiceKitCoreTests.NameMatchTokenDistanceTests testMissingTokenPenalizedButNotMax]' passed (0.000 seconds).
-Test Suite 'NameMatchTokenDistanceTests' passed at 2025-10-16 05:13:45.896.
-	 Executed 3 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
-Test Suite 'NameMatchUnicodeEdgeTests' started at 2025-10-16 05:13:45.897.
+Test Suite 'NameMatchTokenDistanceTests' passed at 2025-10-17 22:46:22.256.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'NameMatchUnicodeEdgeTests' started at 2025-10-17 22:46:22.256.
 Test Case '-[VoiceKitCoreTests.NameMatchUnicodeEdgeTests testApostrophesRemovedAndLowercased]' started.
 Test Case '-[VoiceKitCoreTests.NameMatchUnicodeEdgeTests testApostrophesRemovedAndLowercased]' passed (0.000 seconds).
 Test Case '-[VoiceKitCoreTests.NameMatchUnicodeEdgeTests testDashVariantsUnifyToAsciiHyphenAndSpacingCollapses]' started.
 Test Case '-[VoiceKitCoreTests.NameMatchUnicodeEdgeTests testDashVariantsUnifyToAsciiHyphenAndSpacingCollapses]' passed (0.000 seconds).
 Test Case '-[VoiceKitCoreTests.NameMatchUnicodeEdgeTests testZeroWidthAndSoftHyphenAreRemoved]' started.
 Test Case '-[VoiceKitCoreTests.NameMatchUnicodeEdgeTests testZeroWidthAndSoftHyphenAreRemoved]' passed (0.000 seconds).
-Test Suite 'NameMatchUnicodeEdgeTests' passed at 2025-10-16 05:13:45.897.
-	 Executed 3 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
-Test Suite 'NameResolverMoreTests' started at 2025-10-16 05:13:45.897.
+Test Suite 'NameMatchUnicodeEdgeTests' passed at 2025-10-17 22:46:22.257.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'NameResolverMoreTests' started at 2025-10-17 22:46:22.257.
 Test Case '-[VoiceKitCoreTests.NameResolverMoreTests testDiacriticsAndCaseFold]' started.
 Test Case '-[VoiceKitCoreTests.NameResolverMoreTests testDiacriticsAndCaseFold]' passed (0.000 seconds).
 Test Case '-[VoiceKitCoreTests.NameResolverMoreTests testEmptyAndPunctuationOnlyReturnsEmptyWhenNoAllowed]' started.
 Test Case '-[VoiceKitCoreTests.NameResolverMoreTests testEmptyAndPunctuationOnlyReturnsEmptyWhenNoAllowed]' passed (0.000 seconds).
 Test Case '-[VoiceKitCoreTests.NameResolverMoreTests testVariousDashesAndSpacesMatch]' started.
 Test Case '-[VoiceKitCoreTests.NameResolverMoreTests testVariousDashesAndSpacesMatch]' passed (0.000 seconds).
-Test Suite 'NameResolverMoreTests' passed at 2025-10-16 05:13:45.898.
+Test Suite 'NameResolverMoreTests' passed at 2025-10-17 22:46:22.258.
 	 Executed 3 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
-Test Suite 'NameResolverTests' started at 2025-10-16 05:13:45.898.
+Test Suite 'NameResolverTests' started at 2025-10-17 22:46:22.258.
 Test Case '-[VoiceKitCoreTests.NameResolverTests testPunctuationAndWhitespaceAreCollapsed]' started.
 Test Case '-[VoiceKitCoreTests.NameResolverTests testPunctuationAndWhitespaceAreCollapsed]' passed (0.000 seconds).
 Test Case '-[VoiceKitCoreTests.NameResolverTests testReturnsCleanedRawWhenNoAllowedList]' started.
 Test Case '-[VoiceKitCoreTests.NameResolverTests testReturnsCleanedRawWhenNoAllowedList]' passed (0.000 seconds).
 Test Case '-[VoiceKitCoreTests.NameResolverTests testStrictExactMatchesWithDiacriticsAndCase]' started.
 Test Case '-[VoiceKitCoreTests.NameResolverTests testStrictExactMatchesWithDiacriticsAndCase]' passed (0.000 seconds).
-Test Suite 'NameResolverTests' passed at 2025-10-16 05:13:45.899.
+Test Suite 'NameResolverTests' passed at 2025-10-17 22:46:22.259.
 	 Executed 3 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
-Test Suite 'PermissionBridgeCITests' started at 2025-10-16 05:13:45.899.
+Test Suite 'PermissionBridgeCITests' started at 2025-10-17 22:46:22.259.
 Test Case '-[VoiceKitCoreTests.PermissionBridgeCITests testAwaitMicPermissionTrueInCI]' started.
-Test Case '-[VoiceKitCoreTests.PermissionBridgeCITests testAwaitMicPermissionTrueInCI]' passed (0.001 seconds).
+Test Case '-[VoiceKitCoreTests.PermissionBridgeCITests testAwaitMicPermissionTrueInCI]' passed (0.000 seconds).
 Test Case '-[VoiceKitCoreTests.PermissionBridgeCITests testAwaitSpeechAuthAuthorizedInCI]' started.
-Test Case '-[VoiceKitCoreTests.PermissionBridgeCITests testAwaitSpeechAuthAuthorizedInCI]' passed (0.001 seconds).
-Test Suite 'PermissionBridgeCITests' passed at 2025-10-16 05:13:45.900.
-	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
-Test Suite 'PermissionBridgeTests' started at 2025-10-16 05:13:45.900.
+Test Case '-[VoiceKitCoreTests.PermissionBridgeCITests testAwaitSpeechAuthAuthorizedInCI]' passed (0.000 seconds).
+Test Suite 'PermissionBridgeCITests' passed at 2025-10-17 22:46:22.259.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'PermissionBridgeTests' started at 2025-10-17 22:46:22.259.
 Test Case '-[VoiceKitCoreTests.PermissionBridgeTests testAwaitMicPermissionReturnsBool]' started.
-Test Case '-[VoiceKitCoreTests.PermissionBridgeTests testAwaitMicPermissionReturnsBool]' passed (0.013 seconds).
+Test Case '-[VoiceKitCoreTests.PermissionBridgeTests testAwaitMicPermissionReturnsBool]' passed (0.006 seconds).
 Test Case '-[VoiceKitCoreTests.PermissionBridgeTests testAwaitSpeechAuthReturnsStatus]' started.
-Test Case '-[VoiceKitCoreTests.PermissionBridgeTests testAwaitSpeechAuthReturnsStatus]' passed (0.011 seconds).
-Test Suite 'PermissionBridgeTests' passed at 2025-10-16 05:13:45.924.
-	 Executed 2 tests, with 0 failures (0 unexpected) in 0.023 (0.024) seconds
-Test Suite 'RealVoiceIOBoostedTests' started at 2025-10-16 05:13:45.924.
+Test Case '-[VoiceKitCoreTests.PermissionBridgeTests testAwaitSpeechAuthReturnsStatus]' passed (0.006 seconds).
+Test Suite 'PermissionBridgeTests' passed at 2025-10-17 22:46:22.272.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.013 (0.013) seconds
+Test Suite 'RealVoiceIOBoostedTests' started at 2025-10-17 22:46:22.272.
 Test Case '-[VoiceKitCoreTests.RealVoiceIOBoostedTests testNewlyAddedWaitersAreImmediatelyResumedAndNotRetained]' started.
 Test Case '-[VoiceKitCoreTests.RealVoiceIOBoostedTests testNewlyAddedWaitersAreImmediatelyResumedAndNotRetained]' passed (0.000 seconds).
 Test Case '-[VoiceKitCoreTests.RealVoiceIOBoostedTests testPrepareResetsCompletionFlagAndClearsStaleWaiters]' started.
-Test Case '-[VoiceKitCoreTests.RealVoiceIOBoostedTests testPrepareResetsCompletionFlagAndClearsStaleWaiters]' passed (0.001 seconds).
+Test Case '-[VoiceKitCoreTests.RealVoiceIOBoostedTests testPrepareResetsCompletionFlagAndClearsStaleWaiters]' passed (0.002 seconds).
 Test Case '-[VoiceKitCoreTests.RealVoiceIOBoostedTests testStopClipIsIdempotentAndClearsWaiters]' started.
 Test Case '-[VoiceKitCoreTests.RealVoiceIOBoostedTests testStopClipIsIdempotentAndClearsWaiters]' passed (0.000 seconds).
-Test Suite 'RealVoiceIOBoostedTests' passed at 2025-10-16 05:13:45.926.
-	 Executed 3 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
-Test Suite 'RealVoiceIOSTTTests' started at 2025-10-16 05:13:45.926.
+Test Suite 'RealVoiceIOBoostedTests' passed at 2025-10-17 22:46:22.275.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.003 (0.003) seconds
+Test Suite 'RealVoiceIOSTTTests' started at 2025-10-17 22:46:22.275.
 Test Case '-[VoiceKitCoreTests.RealVoiceIOSTTTests testFinishRecognitionIsIdempotent]' started.
 Test Case '-[VoiceKitCoreTests.RealVoiceIOSTTTests testFinishRecognitionIsIdempotent]' passed (0.000 seconds).
 Test Case '-[VoiceKitCoreTests.RealVoiceIOSTTTests testNormalizeNumeric]' started.
 Test Case '-[VoiceKitCoreTests.RealVoiceIOSTTTests testNormalizeNumeric]' passed (0.000 seconds).
-Test Suite 'RealVoiceIOSTTTests' passed at 2025-10-16 05:13:45.927.
-	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
-Test Suite 'RealVoiceIOTTSCIFastPathTests' started at 2025-10-16 05:13:45.927.
+Test Suite 'RealVoiceIOSTTTests' passed at 2025-10-17 22:46:22.275.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'RealVoiceIOTTSCIFastPathTests' started at 2025-10-17 22:46:22.275.
 Test Case '-[VoiceKitCoreTests.RealVoiceIOTTSCIFastPathTests testSpeakFastPathTogglesCallbacks]' started.
-Test Case '-[VoiceKitCoreTests.RealVoiceIOTTSCIFastPathTests testSpeakFastPathTogglesCallbacks]' passed (0.001 seconds).
-Test Suite 'RealVoiceIOTTSCIFastPathTests' passed at 2025-10-16 05:13:45.928.
-	 Executed 1 test, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
-Test Suite 'RealVoiceIOTTSTests' started at 2025-10-16 05:13:45.928.
+Test Case '-[VoiceKitCoreTests.RealVoiceIOTTSCIFastPathTests testSpeakFastPathTogglesCallbacks]' passed (0.000 seconds).
+Test Suite 'RealVoiceIOTTSCIFastPathTests' passed at 2025-10-17 22:46:22.276.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'RealVoiceIOTTSTests' started at 2025-10-17 22:46:22.276.
 Test Case '-[VoiceKitCoreTests.RealVoiceIOTTSTests testApplyProfileAndSpeak]' started.
-Test Case '-[VoiceKitCoreTests.RealVoiceIOTTSTests testApplyProfileAndSpeak]' passed (1.424 seconds).
-Test Suite 'RealVoiceIOTTSTests' passed at 2025-10-16 05:13:47.352.
-	 Executed 1 test, with 0 failures (0 unexpected) in 1.424 (1.424) seconds
-Test Suite 'RealVoiceIOTrimmingTests' started at 2025-10-16 05:13:47.352.
+Test Case '-[VoiceKitCoreTests.RealVoiceIOTTSTests testApplyProfileAndSpeak]' passed (1.400 seconds).
+Test Suite 'RealVoiceIOTTSTests' passed at 2025-10-17 22:46:23.676.
+	 Executed 1 test, with 0 failures (0 unexpected) in 1.400 (1.400) seconds
+Test Suite 'RealVoiceIOTrimmingTests' started at 2025-10-17 22:46:23.676.
 Test Case '-[VoiceKitCoreTests.RealVoiceIOTrimmingTests testTrimAudioRespectsPadsAndBounds]' started.
 Test Case '-[VoiceKitCoreTests.RealVoiceIOTrimmingTests testTrimAudioRespectsPadsAndBounds]' passed (0.010 seconds).
 Test Case '-[VoiceKitCoreTests.RealVoiceIOTrimmingTests testTrimAudioSmartWithFallbackEnergy]' started.
-Test Case '-[VoiceKitCoreTests.RealVoiceIOTrimmingTests testTrimAudioSmartWithFallbackEnergy]' passed (0.007 seconds).
-Test Suite 'RealVoiceIOTrimmingTests' passed at 2025-10-16 05:13:47.370.
-	 Executed 2 tests, with 0 failures (0 unexpected) in 0.017 (0.018) seconds
-Test Suite 'RecognitionContextTests' started at 2025-10-16 05:13:47.370.
+Test Case '-[VoiceKitCoreTests.RealVoiceIOTrimmingTests testTrimAudioSmartWithFallbackEnergy]' passed (0.003 seconds).
+Test Suite 'RealVoiceIOTrimmingTests' passed at 2025-10-17 22:46:23.690.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.014 (0.014) seconds
+Test Suite 'RecognitionContextTests' started at 2025-10-17 22:46:23.690.
 Test Case '-[VoiceKitCoreTests.RecognitionContextTests testNumericContextualStringsContainDigitsAndWords]' started.
 Test Case '-[VoiceKitCoreTests.RecognitionContextTests testNumericContextualStringsContainDigitsAndWords]' passed (0.000 seconds).
-Test Suite 'RecognitionContextTests' passed at 2025-10-16 05:13:47.370.
-	 Executed 1 test, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
-Test Suite 'ScriptedVoiceIOBehaviorTests' started at 2025-10-16 05:13:47.370.
+Test Suite 'RecognitionContextTests' passed at 2025-10-17 22:46:23.690.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'ScriptedVoiceIOBehaviorTests' started at 2025-10-17 22:46:23.690.
 Test Case '-[VoiceKitCoreTests.ScriptedVoiceIOBehaviorTests testListenDequeuesAndFiresCallbacks]' started.
-Test Case '-[VoiceKitCoreTests.ScriptedVoiceIOBehaviorTests testListenDequeuesAndFiresCallbacks]' passed (0.168 seconds).
+Test Case '-[VoiceKitCoreTests.ScriptedVoiceIOBehaviorTests testListenDequeuesAndFiresCallbacks]' passed (0.167 seconds).
 Test Case '-[VoiceKitCoreTests.ScriptedVoiceIOBehaviorTests testSpeakEmitsPulseAndTogglesSpeaking]' started.
-Test Case '-[VoiceKitCoreTests.ScriptedVoiceIOBehaviorTests testSpeakEmitsPulseAndTogglesSpeaking]' passed (0.314 seconds).
+Test Case '-[VoiceKitCoreTests.ScriptedVoiceIOBehaviorTests testSpeakEmitsPulseAndTogglesSpeaking]' passed (0.322 seconds).
 Test Case '-[VoiceKitCoreTests.ScriptedVoiceIOBehaviorTests testStopAllCancelsInFlightListenEpoch]' started.
-Test Case '-[VoiceKitCoreTests.ScriptedVoiceIOBehaviorTests testStopAllCancelsInFlightListenEpoch]' passed (0.128 seconds).
-Test Suite 'ScriptedVoiceIOBehaviorTests' passed at 2025-10-16 05:13:47.980.
-	 Executed 3 tests, with 0 failures (0 unexpected) in 0.609 (0.610) seconds
-Test Suite 'ScriptedVoiceIOEdgeTests' started at 2025-10-16 05:13:47.980.
+Test Case '-[VoiceKitCoreTests.ScriptedVoiceIOBehaviorTests testStopAllCancelsInFlightListenEpoch]' passed (0.122 seconds).
+Test Suite 'ScriptedVoiceIOBehaviorTests' passed at 2025-10-17 22:46:24.301.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.610 (0.611) seconds
+Test Suite 'ScriptedVoiceIOEdgeTests' started at 2025-10-17 22:46:24.301.
 Test Case '-[VoiceKitCoreTests.ScriptedVoiceIOEdgeTests testListenReturnsEmptyWhenQueueEmpty]' started.
-Test Case '-[VoiceKitCoreTests.ScriptedVoiceIOEdgeTests testListenReturnsEmptyWhenQueueEmpty]' passed (0.172 seconds).
+Test Case '-[VoiceKitCoreTests.ScriptedVoiceIOEdgeTests testListenReturnsEmptyWhenQueueEmpty]' passed (0.169 seconds).
 Test Case '-[VoiceKitCoreTests.ScriptedVoiceIOEdgeTests testTwoSpeaksToggleSpeakingAndEmitPulse]' started.
-Test Case '-[VoiceKitCoreTests.ScriptedVoiceIOEdgeTests testTwoSpeaksToggleSpeakingAndEmitPulse]' passed (0.642 seconds).
-Test Suite 'ScriptedVoiceIOEdgeTests' passed at 2025-10-16 05:13:48.794.
-	 Executed 2 tests, with 0 failures (0 unexpected) in 0.814 (0.814) seconds
-Test Suite 'ScriptedVoiceIOPackageTests' started at 2025-10-16 05:13:48.795.
+Test Case '-[VoiceKitCoreTests.ScriptedVoiceIOEdgeTests testTwoSpeaksToggleSpeakingAndEmitPulse]' passed (0.638 seconds).
+Test Suite 'ScriptedVoiceIOEdgeTests' passed at 2025-10-17 22:46:25.110.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.808 (0.809) seconds
+Test Suite 'ScriptedVoiceIOPackageTests' started at 2025-10-17 22:46:25.110.
 Test Case '-[VoiceKitCoreTests.ScriptedVoiceIOPackageTests testInitFromBase64]' started.
-Test Case '-[VoiceKitCoreTests.ScriptedVoiceIOPackageTests testInitFromBase64]' passed (0.001 seconds).
+Test Case '-[VoiceKitCoreTests.ScriptedVoiceIOPackageTests testInitFromBase64]' passed (0.000 seconds).
 Test Case '-[VoiceKitCoreTests.ScriptedVoiceIOPackageTests testListenDequeuesInOrder]' started.
-Test Case '-[VoiceKitCoreTests.ScriptedVoiceIOPackageTests testListenDequeuesInOrder]' passed (0.342 seconds).
-Test Suite 'ScriptedVoiceIOPackageTests' passed at 2025-10-16 05:13:49.138.
-	 Executed 2 tests, with 0 failures (0 unexpected) in 0.343 (0.343) seconds
-Test Suite 'VoiceChorusTests' started at 2025-10-16 05:13:49.138.
+Test Case '-[VoiceKitCoreTests.ScriptedVoiceIOPackageTests testListenDequeuesInOrder]' passed (0.336 seconds).
+Test Suite 'ScriptedVoiceIOPackageTests' passed at 2025-10-17 22:46:25.447.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.336 (0.337) seconds
+Test Suite 'VoiceChorusTests' started at 2025-10-17 22:46:25.447.
 Test Case '-[VoiceKitCoreTests.VoiceChorusTests testChorusAppliesDefaultAndOverridesPerUtterance]' started.
 Test Case '-[VoiceKitCoreTests.VoiceChorusTests testChorusAppliesDefaultAndOverridesPerUtterance]' passed (0.001 seconds).
 Test Case '-[VoiceKitCoreTests.VoiceChorusTests testChorusHandlesEmptyProfilesGracefully]' started.
 Test Case '-[VoiceKitCoreTests.VoiceChorusTests testChorusHandlesEmptyProfilesGracefully]' passed (0.001 seconds).
 Test Case '-[VoiceKitCoreTests.VoiceChorusTests testChorusSpeaksAllProfilesInOrder]' started.
 Test Case '-[VoiceKitCoreTests.VoiceChorusTests testChorusSpeaksAllProfilesInOrder]' passed (0.001 seconds).
-Test Suite 'VoiceChorusTests' passed at 2025-10-16 05:13:49.141.
+Test Suite 'VoiceChorusTests' passed at 2025-10-17 22:46:25.449.
 	 Executed 3 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
-Test Suite 'VoiceKitInfoTests' started at 2025-10-16 05:13:49.141.
+Test Suite 'VoiceKitInfoTests' started at 2025-10-17 22:46:25.449.
 Test Case '-[VoiceKitCoreTests.VoiceKitInfoTests testBuildTimestampIsISO8601]' started.
 Test Case '-[VoiceKitCoreTests.VoiceKitInfoTests testBuildTimestampIsISO8601]' passed (0.003 seconds).
 Test Case '-[VoiceKitCoreTests.VoiceKitInfoTests testVersionNonEmpty]' started.
-Test Case '-[VoiceKitCoreTests.VoiceKitInfoTests testVersionNonEmpty]' passed (0.000 seconds).
-Test Suite 'VoiceKitInfoTests' passed at 2025-10-16 05:13:49.145.
-	 Executed 2 tests, with 0 failures (0 unexpected) in 0.004 (0.004) seconds
-Test Suite 'VoiceOpGateForceClearTests' started at 2025-10-16 05:13:49.145.
+Test Case '-[VoiceKitCoreTests.VoiceKitInfoTests testVersionNonEmpty]' passed (0.001 seconds).
+Test Suite 'VoiceKitInfoTests' passed at 2025-10-17 22:46:25.454.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.004 (0.005) seconds
+Test Suite 'VoiceOpGateForceClearTests' started at 2025-10-17 22:46:25.454.
 Test Case '-[VoiceKitCoreTests.VoiceOpGateForceClearTests testForceClearAllowsImmediateAcquire]' started.
-Test Case '-[VoiceKitCoreTests.VoiceOpGateForceClearTests testForceClearAllowsImmediateAcquire]' passed (0.000 seconds).
-Test Suite 'VoiceOpGateForceClearTests' passed at 2025-10-16 05:13:49.146.
-	 Executed 1 test, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
-Test Suite 'VoiceOpGateTests' started at 2025-10-16 05:13:49.146.
+Test Case '-[VoiceKitCoreTests.VoiceOpGateForceClearTests testForceClearAllowsImmediateAcquire]' passed (0.001 seconds).
+Test Suite 'VoiceOpGateForceClearTests' passed at 2025-10-17 22:46:25.455.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'VoiceOpGateTests' started at 2025-10-17 22:46:25.455.
 Test Case '-[VoiceKitCoreTests.VoiceOpGateTests testGateSerializesAccess]' started.
-Test Case '-[VoiceKitCoreTests.VoiceOpGateTests testGateSerializesAccess]' passed (0.123 seconds).
-Test Suite 'VoiceOpGateTests' passed at 2025-10-16 05:13:49.269.
-	 Executed 1 test, with 0 failures (0 unexpected) in 0.123 (0.123) seconds
-Test Suite 'VoiceQueueTests' started at 2025-10-16 05:13:49.269.
+Test Case '-[VoiceKitCoreTests.VoiceOpGateTests testGateSerializesAccess]' passed (0.122 seconds).
+Test Suite 'VoiceOpGateTests' passed at 2025-10-17 22:46:25.577.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.122 (0.122) seconds
+Test Suite 'VoiceQueueTests' started at 2025-10-17 22:46:25.577.
 Test Case '-[VoiceKitCoreTests.VoiceQueueTests testCancelAllStopsFurtherProcessing]' started.
-Test Case '-[VoiceKitCoreTests.VoiceQueueTests testCancelAllStopsFurtherProcessing]' passed (0.104 seconds).
+Test Case '-[VoiceKitCoreTests.VoiceQueueTests testCancelAllStopsFurtherProcessing]' passed (0.112 seconds).
 Test Case '-[VoiceKitCoreTests.VoiceQueueTests testEmbeddedSFXParsingQueuesParts]' started.
-Test Case '-[VoiceKitCoreTests.VoiceQueueTests testEmbeddedSFXParsingQueuesParts]' passed (0.084 seconds).
+Test Case '-[VoiceKitCoreTests.VoiceQueueTests testEmbeddedSFXParsingQueuesParts]' passed (0.085 seconds).
 Test Case '-[VoiceKitCoreTests.VoiceQueueTests testMultiChannelRunsConcurrentlyWhenFactoryProvided]' started.
-Test Case '-[VoiceKitCoreTests.VoiceQueueTests testMultiChannelRunsConcurrentlyWhenFactoryProvided]' passed (0.090 seconds).
+Test Case '-[VoiceKitCoreTests.VoiceQueueTests testMultiChannelRunsConcurrentlyWhenFactoryProvided]' passed (0.091 seconds).
 Test Case '-[VoiceKitCoreTests.VoiceQueueTests testPauseWaitsBetweenItems]' started.
-Test Case '-[VoiceKitCoreTests.VoiceQueueTests testPauseWaitsBetweenItems]' passed (0.171 seconds).
+Test Case '-[VoiceKitCoreTests.VoiceQueueTests testPauseWaitsBetweenItems]' passed (0.172 seconds).
 Test Case '-[VoiceKitCoreTests.VoiceQueueTests testSFXWithoutPriorSpeakUsesPlayBoosted]' started.
-Test Case '-[VoiceKitCoreTests.VoiceQueueTests testSFXWithoutPriorSpeakUsesPlayBoosted]' passed (0.002 seconds).
+Test Case '-[VoiceKitCoreTests.VoiceQueueTests testSFXWithoutPriorSpeakUsesPlayBoosted]' passed (0.001 seconds).
 Test Case '-[VoiceKitCoreTests.VoiceQueueTests testSpeakThenSFXIsPreScheduledAndStarted]' started.
-Test Case '-[VoiceKitCoreTests.VoiceQueueTests testSpeakThenSFXIsPreScheduledAndStarted]' passed (0.043 seconds).
-Test Suite 'VoiceQueueTests' passed at 2025-10-16 05:13:49.764.
-	 Executed 6 tests, with 0 failures (0 unexpected) in 0.494 (0.495) seconds
-Test Suite 'VoiceKitPackageTests.xctest' passed at 2025-10-16 05:13:49.765.
-	 Executed 62 tests, with 0 failures (0 unexpected) in 5.375 (5.388) seconds
-Test Suite 'All tests' passed at 2025-10-16 05:13:49.765.
-	 Executed 62 tests, with 0 failures (0 unexpected) in 5.375 (5.391) seconds
+Test Case '-[VoiceKitCoreTests.VoiceQueueTests testSpeakThenSFXIsPreScheduledAndStarted]' passed (0.046 seconds).
+Test Suite 'VoiceQueueTests' passed at 2025-10-17 22:46:26.084.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.506 (0.507) seconds
+Test Suite 'VoiceKitPackageTests.xctest' passed at 2025-10-17 22:46:26.084.
+	 Executed 62 tests, with 0 failures (0 unexpected) in 5.372 (5.384) seconds
+Test Suite 'All tests' passed at 2025-10-17 22:46:26.085.
+	 Executed 62 tests, with 0 failures (0 unexpected) in 5.372 (5.385) seconds
+[VoiceKit] applyProfile[profile] id=com.apple.speech.synthesis.voice.Alex name=system-default norm=0.550 avRate=0.550 pitch=1.000 vol=1.00
+[VoiceKit] applyProfile[profile] id=com.apple.speech.synthesis.voice.Alex name=system-default norm=0.600 avRate=0.610 pitch=1.041 vol=1.00
 􀟈  Test run started.
 􀄵  Swift Version: 6.2.0
 􀄵  Testing Library Version: 1070

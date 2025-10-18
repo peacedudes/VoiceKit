@@ -98,17 +98,6 @@ struct VoiceChorusPlayground: View {
                 }
                 .disabled(selectedProfiles.isEmpty)
 
-                // Rate A/B proof: measure durations at min vs max rate and print results.
-                HStack {
-                    Button {
-                        Task { await runRateABProof() }
-                    } label: {
-                        Label("Rate A/B proof", systemImage: "timer")
-                    }
-                    .disabled(selectedProfiles.isEmpty)
-                    Spacer()
-                }
-
                 // Global adjustments (labels on left; applied to all voices)
                 VStack(spacing: 8) {
                     HStack {
@@ -182,12 +171,21 @@ struct VoiceChorusPlayground: View {
             .frame(minWidth: 420, minHeight: 520)
         }
         .onAppear {
+            // Keep baseline in sync on first load.
+            if baseProfiles.isEmpty, !selectedProfiles.isEmpty {
+                baseProfiles = selectedProfiles
+            }
             // Pre-seed two voices so the chorus is playable immediately.
             // Seed only once on first appear.
             if selectedProfiles.isEmpty {
                 seedInitialVoices(count: 2)
                 applyGlobalAdjustments()
             }
+        }
+        // Safety net: when rows are added/removed, realign baseline and re-apply.
+        .onChange(of: selectedProfiles.count) { _, _ in
+            baseProfiles = selectedProfiles
+            applyGlobalAdjustments()
         }
     }
 
@@ -227,7 +225,7 @@ struct VoiceChorusPlayground: View {
                         Button(role: .destructive) {
                             // Remove from the effective list and sync baseline so
                             // future global adjustments don’t resurrect this row.
-                            selectedProfiles.remove(at: index); baseProfiles = selectedProfiles
+                            selectedProfiles.remove(at: index); baseProfiles = selectedProfiles; applyGlobalAdjustments()
                         } label: {
                             Label("Remove", systemImage: "trash")
                         }
@@ -260,7 +258,20 @@ struct VoiceChorusPlayground: View {
                 var updated: [TTSVoiceProfile] = []
                 updated.reserveCapacity(baseProfiles.count)
                 for var p in baseProfiles {
-                    p.rate = (p.rate * rateScale).clamped(to: 0.0...1.0)
+                    // Amplified relative mapping (all Double to match TTSVoiceProfile.rate):
+                    // - If rateScale > 1, move toward 1.0 by a fraction of headroom.
+                    // - If rateScale < 1, move toward 0.0 by a fraction of current value.
+                    let base: Double = p.rate
+                    let newRate: Double = {
+                        if rateScale >= 1.0 {
+                            let t = max(0.0, min(1.0, rateScale - 1.0)) // 1.0→2.0 maps to 0…1
+                            return (base + (1.0 - base) * t).clamped(to: 0.0...1.0)
+                        } else {
+                            let t = max(0.0, min(1.0, (1.0 - rateScale) / 0.75)) // 1.0→0.25 maps to 0…1
+                            return (base - base * t).clamped(to: 0.0...1.0)
+                        }
+                    }()
+                    p.rate = newRate
                     p.pitch = (p.pitch + Float(pitchOffset)).clamped(to: 0.5...2.0)
                     updated.append(p)
                 }
@@ -293,31 +304,6 @@ struct VoiceChorusPlayground: View {
         Task {
             await chorus.sing(customText, withVoiceProfiles: selectedProfiles)
         }
-    }
-
-    // Measure the same phrase at very slow and very fast rates for the first selected voice.
-    // Prints timings to the console and updates the list's per-voice duration display.
-    private func runRateABProof() async {
-        guard let first = selectedProfiles.first else { return }
-        let voiceID = first.id
-        let phrase = customText.isEmpty ? "This is a rate test to measure speed." : customText
-
-        // Use a dedicated engine so we don't interfere with the chorus engine.
-        let io = RealVoiceIO()
-
-        // Slow
-        io.setVoiceProfile(.init(id: voiceID, rate: 0.05, pitch: 1.0, volume: 1.0))
-        var slow = await io.speakAndMeasure(phrase, using: voiceID)
-        if slow <= 0 { slow = 0 } // fallback when duration not available
-
-        // Fast
-        io.setVoiceProfile(.init(id: voiceID, rate: 0.95, pitch: 1.0, volume: 1.0))
-        var fast = await io.speakAndMeasure(phrase, using: voiceID)
-        if fast <= 0 { fast = 0 }
-
-        print("[VoiceChorusPlayground] Rate A/B (\(voiceID)): slow=\(String(format: "%.2f", slow))s, fast=\(String(format: "%.2f", fast))s")
-        // Update the UI’s per-voice duration readout with the fast value so it’s visible in the list.
-        lastDurationByID[voiceID] = fast
     }
 
     // Cancel any in-flight calibration and stop the chorus immediately.
@@ -439,7 +425,20 @@ struct VoiceChorusPlayground: View {
         guard !baseProfiles.isEmpty else { return }
         selectedProfiles = baseProfiles.map { base in
             var profile = base
-            profile.rate = (profile.rate * rateScale).clamped(to: 0.0...1.0)
+            // Amplified relative mapping (Double)
+            let baseRate: Double = profile.rate
+            let newRate: Double = {
+                if rateScale >= 1.0 {
+                    // 1.0→2.0 maps to t: 0…1, push toward 1.0 by headroom
+                    let t = max(0.0, min(1.0, rateScale - 1.0))
+                    return (baseRate + (1.0 - baseRate) * t).clamped(to: 0.0...1.0)
+                } else {
+                    // 1.0→0.25 maps to t: 0…1, pull toward 0.0 by fraction of current
+                    let t = max(0.0, min(1.0, (1.0 - rateScale) / 0.75))
+                    return (baseRate - baseRate * t).clamped(to: 0.0...1.0)
+                }
+            }()
+            profile.rate = newRate
             profile.pitch = (profile.pitch + Float(pitchOffset)).clamped(to: 0.5...2.0)
             return profile
         }

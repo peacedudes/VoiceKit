@@ -101,6 +101,8 @@ extension RealVoiceIO {
         // Defaults
         let baseNormRate = (defaultProfile?.rate ?? 0.5).clamped(to: 0.0...1.0)
         var mappedRate = mapRate(baseNormRate)
+        var usedNormRate = baseNormRate
+        var source = "default"
         // Apply per-utterance random rate variation in system units (preserving semantics of master.rateVariation as normalized fraction).
         let rateDelta = Float.random(in: -control.rateVariation...control.rateVariation) * sysSpan
         utterance.rate = (mappedRate + rateDelta).clamped(to: sysMin...sysMax)
@@ -115,12 +117,21 @@ extension RealVoiceIO {
             mappedRate = mapRate(norm)
             let delta = Float.random(in: -control.rateVariation...control.rateVariation) * sysSpan
             utterance.rate = (mappedRate + delta).clamped(to: sysMin...sysMax)
+            usedNormRate = norm
+            source = "profile"
 
-            let p = profile.pitch + .random(in: -control.pitchVariation...control.pitchVariation)
-            utterance.pitchMultiplier = p.clamped(to: 0.5...2.0)
+            let pitchValue = profile.pitch + .random(in: -control.pitchVariation...control.pitchVariation)
+            utterance.pitchMultiplier = pitchValue.clamped(to: 0.5...2.0)
             utterance.volume = profile.volume.clamped(to: 0.0...1.0)
         }
         // Note: rate variation already applied above relative to system span.
+
+        // Unconditional trace for debugging (visible in Xcode Previews too).
+        let vname = utterance.voice?.name ?? "system-default"
+        let trace = "applyProfile[\(source)] id=\(voiceID ?? "nil") name=\(vname) norm=\(String(format: "%.3f", usedNormRate)) avRate=\(String(format: "%.3f", utterance.rate)) pitch=\(String(format: "%.3f", utterance.pitchMultiplier)) vol=\(String(format: "%.2f", utterance.volume))"
+        log(.info, trace)
+        // Also print so Xcode Previews shows it even if the logger is muted
+        print("[VoiceKit]", trace)
     }
 
     internal func ttsStartPulse() {}
