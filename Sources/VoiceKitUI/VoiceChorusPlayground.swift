@@ -21,6 +21,7 @@ struct VoiceChorusPlayground: View {
     @State private var lastDurationByID: [String: TimeInterval] = [:]
     @State private var lastChorusSeconds: Double? = nil
     @State private var isPlaying: Bool = false
+    @State private var calibratingVoiceID: String? = nil
     // Baseline profiles and global adjustments for chorus-wide tweaks
     @State private var baseProfiles: [TTSVoiceProfile] = []
     @State private var rateScale: Double = 1.0       // Multiplies baseline rate
@@ -32,6 +33,7 @@ struct VoiceChorusPlayground: View {
     @State private var tunerEngine = RealVoiceIO()
     @State private var editingIndex: Int? = nil
 
+    @Environment(\.editMode) private var editMode
     // VoiceChorus.Engine == any TTSConfigurable & VoiceIO.
     // Some toolchains require an explicit local to help existential inference.
     let chorus = VoiceChorus(makeEngine: {
@@ -68,129 +70,46 @@ struct VoiceChorusPlayground: View {
                     }
                 }
 
-                // Target duration control
-                HStack(spacing: 8) {
-                    Text("Target Time")
-                        .font(.footnote)
-                        .lineLimit(1)
-                        .layoutPriority(1)
-                    Text(String(format: "%.2fs", targetSeconds))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                    Stepper(value: $targetSeconds, in: 1.0...20.0, step: 0.25) {
-                        EmptyView()
-                    }
-                    .labelsHidden()
-                    .controlSize(.mini)
-                    Spacer()
-                    HStack(spacing: 4) {
-                        // Tiny in-place spinner when remeasuring
-                        if isPlaying {
-                            ProgressView()
-                                .controlSize(.mini)
-                                .frame(width: 12, height: 12)
-                        } else {
-                            Color.clear.frame(width: 12, height: 12)
-                        }
-                        Text(lastChorusSeconds.map { String(format: "%.2fs", $0) } ?? "—s")
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    .frame(minWidth: 60, alignment: .trailing)
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 4)
-
-                HStack(spacing: 12) {
-                    Button {
-                        synchronizeRates()
-                    } label: {
-                        Label("Synchronize rates", systemImage: "metronome.fill")
-                    }
-                    .disabled(selectedProfiles.isEmpty || isCalibrating)
-                    Spacer()
-                    Button(role: .destructive) {
-                        stopAll()
-                    } label: {
-                        Label("Stop", systemImage: "stop.fill")
-                    }
-                }
-                .buttonStyle(.bordered)
-                .padding(.bottom, 4)
-                // (text input moved above the button row)
-                if isCalibrating {
-                    HStack {
-                        ProgressView().controlSize(.small)
-                        Text("Calibrating…").foregroundStyle(.secondary)
-                    }
-                }
-
-                Button(action: startChorus) {
-                    Label("Play Chorus", systemImage: "play.fill")
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.blue)
-                .controlSize(.regular)
-                .disabled(selectedProfiles.isEmpty)
-
-                // Global adjustments (labels on left; applied to all voices)
-                VStack(spacing: 8) {
-                    // Rate: label left, slider, value right (match VoiceTunerView)
-                    HStack(spacing: 8) {
-                        Text("Rate")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 50, alignment: .leading)
-                        Slider(value: $rateScale, in: 0.05...2.0, step: 0.01)
-                            .onChange(of: rateScale) { _, _ in applyGlobalAdjustments() }
-                        Text("\(rateScale, specifier: "%.2f")×")
-                            .font(.caption2)
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                            .frame(width: 44, alignment: .trailing)
-                    }
-                    if rateScale < 0.1 {
-                        HStack {
-                            Spacer().frame(width: 50)
-                            Text("very slow")
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                            Spacer()
-                        }
-                    }
-                    // Pitch: label left, slider, value right
-                    HStack(spacing: 8) {
-                        Text("Pitch")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 50, alignment: .leading)
-                        Slider(value: $pitchOffset, in: -0.9...0.9, step: 0.01)
-                            .onChange(of: pitchOffset) { _, _ in applyGlobalAdjustments() }
-                        Text((pitchOffset >= 0 ? "+" : "") + String(format: "%.2f", pitchOffset))
-                            .font(.caption2)
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                            .frame(width: 44, alignment: .trailing)
-                    }
-                }
+                targetTimeRow()
+                actionButtonsRow()
+                globalAdjustmentsSection()
             }
             .padding()
 
             // Pinned header for the voices list (does not scroll)
-            ZStack {
-                // Centered title, slightly lighter than main header
-                Text("Selected Voices")
-                    .font(.title3).fontWeight(.semibold)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                // Plus button aligned to trailing side
-                HStack {
-                    Spacer()
-                    Button(action: presentAddVoice) {
-                        Image(systemName: "plus.circle.fill").font(.title)
+            HStack {
+                // Left-aligned header over the name column
+                Text("Voices")
+                    .font(.title3)
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                // Trailing actions in a single hamburger menu
+                Menu {
+                    Button {
+                        presentAddVoice()
+                    } label: {
+                        Label("Add Voice…", systemImage: "plus.circle")
                     }
-                    .buttonStyle(.plain)
+                    Button {
+                        synchronizeRates()
+                    } label: {
+                        Label("Synchronize Now", systemImage: "metronome.fill")
+                    }
+                    Divider()
+                    Button {
+                        withAnimation {
+                            editMode?.wrappedValue = (editMode?.wrappedValue == .active) ? .inactive : .active
+                        }
+                    } label: {
+                        Label((editMode?.wrappedValue == .active) ? "Done Reordering" : "Reorder",
+                              systemImage: "arrow.up.arrow.down")
+                    }
+                } label: {
+                    Image(systemName: "line.3.horizontal.circle")
+                        .font(.title3)
                 }
+                .buttonStyle(.plain)
             }
             .padding(.horizontal)
             .padding(.bottom, 0)
@@ -243,52 +162,96 @@ struct VoiceChorusPlayground: View {
     // New: Selected voices section with edit/remove
     @ViewBuilder
     private func selectedVoicesSection() -> some View {
-        Group {
-            if selectedProfiles.isEmpty {
-                Text("Tap “Add voice…” to choose voices and tune pitch/volume.")
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 8)
-            } else {
-                ForEach(Array(selectedProfiles.enumerated()), id: \.offset) { index, profile in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            // First line: Voice name (left), last time (right)
-                            HStack(alignment: .firstTextBaseline) {
-                                Text(resolvedName(for: profile.id))
-                                    .font(.headline)
-                                Spacer()
-                                if let d = lastDurationByID[profile.id] {
-                                    Text(String(format: "≈ %.2fs", d))
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
+        if selectedProfiles.isEmpty {
+            Text("Tap “Add voice…” to choose voices and tune pitch/volume.")
+                .foregroundStyle(.secondary)
+                .padding(.vertical, 8)
+        } else {
+            ForEach(selectedProfiles, id: \.id) { profile in
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    // Name (left)
+                    Text(resolvedName(for: profile.id))
+                        .font(.subheadline)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.9)        // allow slight shrink on tight fits
+                        .allowsTightening(true)
+                        .truncationMode(.tail)
+                        .layoutPriority(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Spacer(minLength: 0)
+                    // Details (middle)
+                    Text(String(format: "Speed %.2f · Pitch %.2f · Vol %.2f",
+                                profile.rate, profile.pitch, profile.volume))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.9)        // allow slight shrink before truncation
+                        .allowsTightening(true)
+                        .truncationMode(.tail)
+                        .frame(width: 190, alignment: .trailing)
+
+                    // Timing (right, fixed width for column alignment)
+                    if let d = lastDurationByID[profile.id] {
+                        Text(String(format: "%.2fs", d))
+                            .font(.footnote)
+                            .monospacedDigit()
+                            .foregroundStyle(.primary)
+                            .frame(width: 40, alignment: .trailing)
+                            .padding(.vertical, 2)
+                            .background {
+                                if calibratingVoiceID == profile.id {
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color.yellow.opacity(0.30))
                                 }
                             }
-                            // Second line: small details
-                            Text(String(format: "Pitch %.2f · Volume %.2f · Rate %.2f", profile.pitch, profile.volume, profile.rate))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 0)
-                        Image(systemName: "chevron.right")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                            .animation(.easeInOut(duration: 0.2), value: calibratingVoiceID)
+                    } else {
+                        Text("—")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 40, alignment: .trailing)
+                            .padding(.vertical, 2)
+                            .background {
+                                if calibratingVoiceID == profile.id {
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color.yellow.opacity(0.30))
+                                }
+                            }
+                            .animation(.easeInOut(duration: 0.2), value: calibratingVoiceID)
                     }
-                    .contentShape(Rectangle())
-                    .onTapGesture { presentEditVoice(index: index) }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                        Button(role: .destructive) {
-                            // Remove from the effective list and sync baseline so
-                            // future global adjustments don’t resurrect this row.
-                            let removedID = selectedProfiles[index].id
-                            selectedProfiles.remove(at: index)
-                            lastDurationByID.removeValue(forKey: removedID)
-                            baseProfiles = selectedProfiles
-                            applyGlobalAdjustments()
-                        } label: {
-                            Label("Remove", systemImage: "trash")
-                        }
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 6, alignment: .trailing)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if let idx = selectedProfiles.firstIndex(where: { $0.id == profile.id }) {
+                        presentEditVoice(index: idx)
                     }
                 }
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    Button(role: .destructive) {
+                        // Remove from the effective list and sync baseline so
+                        // future global adjustments don’t resurrect this row.
+                        let removedID = profile.id
+                        if let idx = selectedProfiles.firstIndex(where: { $0.id == removedID }) {
+                            selectedProfiles.remove(at: idx)
+                        }
+                        lastDurationByID.removeValue(forKey: removedID)
+                        baseProfiles = selectedProfiles
+                        applyGlobalAdjustments()
+                    } label: {
+                        Label("Remove", systemImage: "trash")
+                    }
+                }
+            }
+            // Attach reordering to the ForEach so it works on all platforms.
+            .onMove { indices, newOffset in
+                selectedProfiles.move(fromOffsets: indices, toOffset: newOffset)
+                baseProfiles = selectedProfiles
+                applyGlobalAdjustments()
             }
         }
     }
@@ -336,8 +299,10 @@ struct VoiceChorusPlayground: View {
             for i in selectedProfiles.indices {
                 if Task.isCancelled { return }
                 // Ensure the IO has the current profile before measuring
-                io.setVoiceProfile(selectedProfiles[i])
                 let voiceID = selectedProfiles[i].id
+                calibratingVoiceID = voiceID
+                await Task.yield()
+                io.setVoiceProfile(selectedProfiles[i])
 
                 // Calibrate this voice to the target duration
                 let result = await VoiceTempoCalibrator.fitRate(
@@ -351,7 +316,115 @@ struct VoiceChorusPlayground: View {
                 // Update the stored and baseline profile with the new rate and last measured duration
                 selectedProfiles[i].rate = result.finalRate
                 lastDurationByID[voiceID] = result.measured
+                // Reflect progress live in the header “actual time” display
+                lastChorusSeconds = result.measured
+                // Give the UI a chance to refresh during calibration
+                await Task.yield()
             }
+            calibratingVoiceID = nil
+        }
+    }
+
+    // MARK: - Header row components
+    @ViewBuilder
+    private func targetTimeRow() -> some View {
+        HStack(spacing: 8) {
+            Text("Target Time")
+                .font(.footnote)
+                .lineLimit(1)
+                .layoutPriority(1)
+            Text(String(format: "%.2fs", targetSeconds))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+            Stepper(value: $targetSeconds, in: 1.0...20.0, step: 0.25) {
+                EmptyView()
+            }
+            .labelsHidden()
+            .controlSize(.mini)
+            Spacer()
+            HStack(spacing: 6) {
+                if isPlaying {
+                    ProgressView().controlSize(.mini)
+                }
+                Text(lastChorusSeconds.map { String(format: "%.2fs", $0) } ?? "—s")
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .frame(minWidth: 60, alignment: .trailing)
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 4)
+    }
+
+    @ViewBuilder
+    private func actionButtonsRow() -> some View {
+        VStack(spacing: 6) {
+            // Secondary action row: Synchronize or Stop (when calibrating/playing)
+            HStack(spacing: 12) {
+                Button {
+                    if isCalibrating || isPlaying {
+                        stopAll()
+                    } else {
+                        synchronizeRates()
+                    }
+                } label: {
+                    Label(isCalibrating || isPlaying ? "Stop" : "Synchronize",
+                          systemImage: isCalibrating || isPlaying ? "stop.fill" : "metronome.fill")
+                }
+                .buttonStyle(.bordered)
+                .tint(isCalibrating || isPlaying ? .red : .secondary)
+                .controlSize(.small)
+                .disabled(selectedProfiles.isEmpty && !(isCalibrating || isPlaying))
+
+                Spacer()
+
+                if isCalibrating {
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.small)
+                        Text("Calibrating…").foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            // Primary action: Play or Stop
+            Button {
+                if isPlaying {
+                    stopAll()
+                } else {
+                    startChorus()
+                }
+            } label: {
+                Label(isPlaying ? "Stop" : "Play Chorus",
+                      systemImage: isPlaying ? "stop.fill" : "play.fill")
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(isPlaying ? .red : .blue)
+            .controlSize(.regular)
+            .disabled(selectedProfiles.isEmpty && !isPlaying)
+        }
+        .padding(.bottom, 4)
+    }
+
+    @ViewBuilder
+    private func globalAdjustmentsSection() -> some View {
+        VStack(spacing: 8) {
+            TunerSliderRow(
+                title: "Speed",
+                systemImage: "speedometer",
+                value: $rateScale,
+                range: 0.05...2.0,
+                step: 0.01,
+                formatted: { v in String(format: "%.2f×", Double(v)) }
+            )
+            .onChange(of: rateScale) { _, _ in applyGlobalAdjustments() }
+            if rateScale < 0.1 {
+                HStack { Spacer().frame(width: 50); Text("very slow").font(.caption2).foregroundStyle(.tertiary); Spacer() }
+            }
+            TunerSliderRow(title: "Pitch", systemImage: "waveform.path.ecg", value: $pitchOffset, range: -0.9...0.9, step: 0.01, formatted: { off in
+                let absPitch = 1.0 + Double(off)
+                return String(format: "%.2f", absPitch)
+            }).onChange(of: pitchOffset) { _, _ in applyGlobalAdjustments() }
         }
     }
 
@@ -375,10 +448,14 @@ struct VoiceChorusPlayground: View {
         isCalibrating = false
         // Stop any ongoing chorus playback
         chorus.stop()
+        // Reflect stop in UI immediately; the sing task will return shortly.
+        if isPlaying {
+            isPlaying = false
+        }
     }
 
     // Use system voices (RealVoiceIO no longer exposes availableVoices()).
-    func availableVoices() -> [TTSVoiceInfo] {
+    @MainActor func availableVoices() -> [TTSVoiceInfo] {
         SystemVoicesCache.all()
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
@@ -521,20 +598,6 @@ struct VoiceChorusPlayground: View {
     }
 }
 
-struct SliderView: View {
-    var title: String
-    @Binding var value: Float
-    var range: ClosedRange<Float>
-
-    var body: some View {
-        VStack {
-            Text("\(title): \(value, specifier: "%.2f")")
-            Slider(value: $value, in: range)
-                .padding()
-        }
-    }
-}
-
 struct VoiceChorusPlayground_Previews: PreviewProvider {
     static var previews: some View {
         Group {
@@ -550,12 +613,6 @@ struct VoiceChorusPlayground_Previews: PreviewProvider {
     }
 }
 
-struct SliderView_Previews: PreviewProvider {
-    static var previews: some View {
-        SliderView(title: "Test Slider", value: .constant(1.0), range: 0.5...2.0)
-            .previewLayout(.sizeThatFits)
-    }
-}
 
 // Clamp helper for global adjustments
 private extension Comparable {

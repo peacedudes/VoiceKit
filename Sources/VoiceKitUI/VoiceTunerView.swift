@@ -31,6 +31,8 @@ public struct VoiceTunerView: View {
     @State private var selectedIDString: String = ""
     @State private var isLoadingVoices: Bool = false
     @State private var hasAppliedProfile: Bool = false
+    @State private var lastPreviewSeconds: Double? = nil
+    @State private var isPreviewing: Bool = false
     
     private enum SliderKind { case speed, pitch, volume }
     @State private var activeSlider: SliderKind?
@@ -185,6 +187,14 @@ public struct VoiceTunerView: View {
                     } label: {
                         Label("Sample", systemImage: "play.fill")
                     }
+                    // Live preview duration badge
+                    if let secs = lastPreviewSeconds {
+                        Text(String(format: "%.2fs", secs))
+                            .font(.footnote)
+                            .monospacedDigit()
+                            .foregroundStyle(.primary)
+                            .padding(.leading, 8)
+                    }
                     Spacer()
                 }
 
@@ -198,41 +208,38 @@ public struct VoiceTunerView: View {
                 // Single set of sliders for the selected voice
                 if let profile = workingProfile {
                     VStack(spacing: 14) {
-                        sliderRow(
-                            icon: "speedometer", label: "Speed",
-                            kind: .speed,
+                        TunerSliderRow(
+                            title: "Speed",
+                            systemImage: "speedometer",
                             value: Binding(
                                 get: { Double(profile.rate) },
-                                set: { val in
-                                    workingProfile?.rate = .init(val)
-                                }
+                                set: { workingProfile?.rate = .init($0) }
                             ),
                             range: 0.0...1.0,
-                            textFormat: "%.2g" // 0.20 -> 0.2
+                            step: 0.01,
+                            formatted: { String(format: "%.2f×", $0) }
                         )
-                        sliderRow(
-                            icon: "waveform", label: "Pitch",
-                            kind: .pitch,
+                        TunerSliderRow(
+                            title: "Pitch",
+                            systemImage: "waveform",
                             value: Binding(
                                 get: { Double(profile.pitch) },
-                                set: { val in
-                                    workingProfile?.pitch = .init(val)
-                                }
+                                set: { workingProfile?.pitch = .init($0) }
                             ),
                             range: 0.5...2.0,
-                            textFormat: "%.2g"
+                            step: 0.01,
+                            formatted: { String(format: "%.2f", $0) }
                         )
-                        sliderRow(
-                            icon: "speaker.wave.2.fill", label: "Volume",
-                            kind: .volume,
+                        TunerSliderRow(
+                            title: "Volume",
+                            systemImage: "speaker.wave.2.fill",
                             value: Binding(
                                 get: { Double(profile.volume) },
-                                set: { val in
-                                    workingProfile?.volume = .init(val)
-                                }
+                                set: { workingProfile?.volume = .init($0) }
                             ),
                             range: 0.0...1.0,
-                            textFormat: "%.2g"
+                            step: 0.01,
+                            formatted: { String(format: "%.2f", $0) }
                         )
 
                         // Chooser actions (only when callbacks are provided)
@@ -478,68 +485,16 @@ public struct VoiceTunerView: View {
         guard let id = selectedID else { return }
         if let io = tts as? VoiceIO { io.stopAll() }
         speakTask?.cancel()
+        isPreviewing = true
         speakTask = Task { [tts] in
             if Task.isCancelled { return }
+            let t0 = Date()
             await tts.speak(text, using: id)
-        }
-    }
-
-    // MARK: - UI helpers
-    @ViewBuilder
-    private func sliderRow(
-        icon: String,
-        label: String,
-        kind: SliderKind,
-        value: Binding<Double>,
-        range: ClosedRange<Double>,
-        textFormat: String
-    ) -> some View {
-        HStack(spacing: 6) {
-            VStack(spacing: 2) {
-                Image(systemName: icon)
-                    .imageScale(.medium)
-                Text(label)
-                    .font(.caption2)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                Text(String(format: textFormat, value.wrappedValue))
-                    .font(.caption2)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+            let elapsed = Date().timeIntervalSince(t0)
+            await MainActor.run {
+                lastPreviewSeconds = elapsed
+                isPreviewing = false
             }
-            .frame(width: 44, alignment: .center)
-            Slider(
-                value: value,
-                in: range,
-                step: 0.01,
-                onEditingChanged: { editing in
-                    if editing {
-                        activeSlider = kind
-                        didAnnounceLabelForActiveDrag = false
-                    } else {
-                        activeSlider = nil
-                        let number = String(format: textFormat, value.wrappedValue)
-                        if let p = workingProfile { tts.setVoiceProfile(p) }
-                        previewSpeak(number)
-                    }
-                }
-            )
-            #if os(macOS)
-            .controlSize(.mini)
-            #endif
-        }
-        .onChange(of: value.wrappedValue) { _, newVal in
-            guard activeSlider == kind else { return }
-            let number = String(format: textFormat, newVal)
-            if didAnnounceLabelForActiveDrag == false {
-                didAnnounceLabelForActiveDrag = true
-                if let p = workingProfile { tts.setVoiceProfile(p) }
-                previewSpeak("\(label) \(number)")
-                return
-            }
-            if let p = workingProfile { tts.setVoiceProfile(p) }
-            previewSpeak(number)
         }
     }
 
