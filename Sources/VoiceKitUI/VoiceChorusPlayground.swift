@@ -33,7 +33,10 @@ struct VoiceChorusPlayground: View {
     @State private var tunerEngine = RealVoiceIO()
     @State private var editingIndex: Int? = nil
 
+    // iOS-only: edit mode toggling for List reordering
+    #if os(iOS)
     @Environment(\.editMode) private var editMode
+    #endif
     // VoiceChorus.Engine == any TTSConfigurable & VoiceIO.
     // Some toolchains require an explicit local to help existential inference.
     let chorus = VoiceChorus(makeEngine: {
@@ -71,8 +74,9 @@ struct VoiceChorusPlayground: View {
                 }
 
                 targetTimeRow()
-                actionButtonsRow()
                 globalAdjustmentsSection()
+                // Place Play/Stop (and Synchronize all) below sliders and above the Voices section.
+                actionButtonsRow()
             }
             .padding()
 
@@ -84,41 +88,38 @@ struct VoiceChorusPlayground: View {
                     .fontWeight(.semibold)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                // Trailing actions in a single hamburger menu
-                Menu {
-                    Button {
-                        presentAddVoice()
-                    } label: {
-                        Label("Add Voice…", systemImage: "plus.circle")
-                    }
-                    Button {
-                        synchronizeRates()
-                    } label: {
-                        Label("Synchronize Now", systemImage: "metronome.fill")
-                    }
-                    Divider()
-                    Button {
-                        withAnimation {
-                            editMode?.wrappedValue = (editMode?.wrappedValue == .active) ? .inactive : .active
-                        }
-                    } label: {
-                        Label((editMode?.wrappedValue == .active) ? "Done Reordering" : "Reorder",
-                              systemImage: "arrow.up.arrow.down")
-                    }
+                // Trailing action: simple Add button
+                Button {
+                    presentAddVoice()
                 } label: {
-                    Image(systemName: "line.3.horizontal.circle")
-                        .font(.title3)
+                    // Professionals commonly use an icon-only + in toolbars/headers
+                    Image(systemName: "plus")
                 }
+                #if os(macOS)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Add")
+                #else
                 .buttonStyle(.plain)
+                #endif
             }
-            .padding(.horizontal)
+            .padding(.vertical, 4)
+            #if os(macOS)
+            // On macOS, give the "Voices" header comparable horizontal margins to the control area.
+            .padding(.horizontal, 32)
+            #else
+            .padding(.horizontal, 16)
+            #endif
             .padding(.bottom, 0)
             // List area (enables swipe actions)
             List {
                 selectedVoicesSection()
             }
             .listStyle(.plain)
-            .padding(.top, -6)
+            #if os(macOS)
+            // On macOS, add horizontal padding so the list aligns with the rest of the view.
+            .padding(.horizontal, 32)
+            #endif
         }
         .sheet(isPresented: $showTuner) {
             // Wrap in a padded container so margins are guaranteed even if VoiceTunerView is edge-to-edge.
@@ -137,8 +138,11 @@ struct VoiceChorusPlayground: View {
             }
             .padding(.horizontal, 16)
             .frame(minWidth: 420, minHeight: 520)
+            // iOS-only sheet presentation tweaks
+            #if os(iOS)
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
+            #endif
         }
         .onAppear {
             // Keep baseline in sync on first load.
@@ -232,6 +236,16 @@ struct VoiceChorusPlayground: View {
                     }
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    // Put Sync first so full-swipe defaults to Sync (safer than Delete).
+                    Button {
+                        if let idx = selectedProfiles.firstIndex(where: { $0.id == profile.id }) {
+                            synchronizeVoice(at: idx)
+                        }
+                    } label: {
+                        Label("Sync", systemImage: "arrow.clockwise")
+                    }
+                    .tint(.blue)
+
                     Button(role: .destructive) {
                         // Remove from the effective list and sync baseline so
                         // future global adjustments don’t resurrect this row.
@@ -242,17 +256,10 @@ struct VoiceChorusPlayground: View {
                         lastDurationByID.removeValue(forKey: removedID)
                         baseProfiles = selectedProfiles
                         applyGlobalAdjustments()
-                    } label: {
-                        Label("Remove", systemImage: "trash")
-                    }
+                    } label: { Label("Delete", systemImage: "trash") }
                 }
             }
             // Attach reordering to the ForEach so it works on all platforms.
-            .onMove { indices, newOffset in
-                selectedProfiles.move(fromOffsets: indices, toOffset: newOffset)
-                baseProfiles = selectedProfiles
-                applyGlobalAdjustments()
-            }
         }
     }
 
@@ -261,6 +268,7 @@ struct VoiceChorusPlayground: View {
         guard !selectedProfiles.isEmpty else { return }
         isCalibrating = true
         let phrase = customText
+        let prevScale = rateScale
         // Cancel any in-flight calibration task
         calibrationTask?.cancel()
         calibrationTask = Task { @MainActor in
@@ -270,7 +278,8 @@ struct VoiceChorusPlayground: View {
                 isCalibrating = false
                 calibrationTask = nil
                 // After calibration, refresh selectedProfiles from baseline with current global sliders
-                // First, ensure baseline reflects any calibrated rate changes:
+                // First, restore the user's speed scale and ensure baseline reflects any calibrated rate changes:
+                rateScale = prevScale
                 baseProfiles = selectedProfiles
                 // Apply global scaling/offset to produce effective profiles:
                 var updated: [TTSVoiceProfile] = []
@@ -295,6 +304,8 @@ struct VoiceChorusPlayground: View {
                 }
                 selectedProfiles = updated
             }
+            // Normalize global speed during calibration to avoid compounding while fitting
+            rateScale = 1.0
 
             for i in selectedProfiles.indices {
                 if Task.isCancelled { return }
@@ -360,48 +371,53 @@ struct VoiceChorusPlayground: View {
     @ViewBuilder
     private func actionButtonsRow() -> some View {
         VStack(spacing: 6) {
-            // Secondary action row: Synchronize or Stop (when calibrating/playing)
+            // Single row: Stop/Play on the left; either Synchronize or Calibrating… to its right
             HStack(spacing: 12) {
                 Button {
-                    if isCalibrating || isPlaying {
-                        stopAll()
-                    } else {
-                        synchronizeRates()
-                    }
+                    if isPlaying || isCalibrating { stopAll() } else { startChorus() }
                 } label: {
-                    Label(isCalibrating || isPlaying ? "Stop" : "Synchronize",
-                          systemImage: isCalibrating || isPlaying ? "stop.fill" : "metronome.fill")
+                    // Keep width stable by layering both icon states and both titles
+                    HStack(spacing: 6) {
+                        ZStack {
+                            Image(systemName: "stop.fill")
+                                .opacity((isPlaying || isCalibrating) ? 1 : 0)
+                            Image(systemName: "play.fill")
+                                .opacity((isPlaying || isCalibrating) ? 0 : 1)
+                        }
+                        ZStack {
+                            Text("Stop")
+                                .opacity((isPlaying || isCalibrating) ? 1 : 0)
+                            Text("Play Chorus")
+                                .opacity((isPlaying || isCalibrating) ? 0 : 1)
+                        }
+                        .frame(minWidth: 100, alignment: .leading) // stabilize text width
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 4)
                 }
-                .buttonStyle(.bordered)
-                .tint(isCalibrating || isPlaying ? .red : .secondary)
-                .controlSize(.small)
-                .disabled(selectedProfiles.isEmpty && !(isCalibrating || isPlaying))
-
-                Spacer()
-
+                .buttonStyle(.borderedProminent)
+                .tint((isPlaying || isCalibrating) ? .red : .blue)
+                .controlSize(.regular)
+                .disabled(selectedProfiles.isEmpty && !(isPlaying || isCalibrating))
+                // Right-side: Synchronize (idle) or Calibrating… (busy), kept on the same line for smoother transitions
                 if isCalibrating {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.small)
                         Text("Calibrating…").foregroundStyle(.secondary)
                     }
+                } else if !isPlaying {
+                    Button {
+                        synchronizeRates()
+                    } label: {
+                        Label("Synchronize", systemImage: "metronome.fill")
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.secondary)
+                    .controlSize(.small)
+                    .disabled(selectedProfiles.isEmpty)
                 }
+                Spacer()
             }
-
-            // Primary action: Play or Stop
-            Button {
-                if isPlaying {
-                    stopAll()
-                } else {
-                    startChorus()
-                }
-            } label: {
-                Label(isPlaying ? "Stop" : "Play Chorus",
-                      systemImage: isPlaying ? "stop.fill" : "play.fill")
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(isPlaying ? .red : .blue)
-            .controlSize(.regular)
-            .disabled(selectedProfiles.isEmpty && !isPlaying)
         }
         .padding(.bottom, 4)
     }
@@ -425,6 +441,62 @@ struct VoiceChorusPlayground: View {
                 let absPitch = 1.0 + Double(off)
                 return String(format: "%.2f", absPitch)
             }).onChange(of: pitchOffset) { _, _ in applyGlobalAdjustments() }
+        }
+    }
+
+    // Synchronize a single voice (row-level). Runs a focused calibration for that index.
+    private func synchronizeVoice(at index: Int) {
+        guard selectedProfiles.indices.contains(index) else { return }
+        // Avoid overlapping with any in-flight calibration or playback.
+        if isCalibrating || isPlaying { return }
+
+        isCalibrating = true
+        let phrase = customText
+        let voiceID = selectedProfiles[index].id
+        let prevScale = rateScale
+
+        calibrationTask?.cancel()
+        calibrationTask = Task { @MainActor in
+            let io = RealVoiceIO()
+            defer {
+                isCalibrating = false
+                calibratingVoiceID = nil
+                calibrationTask = nil
+                // Refresh baseline and re-apply global adjustments
+                rateScale = prevScale
+                baseProfiles = selectedProfiles
+                var updated: [TTSVoiceProfile] = []
+                updated.reserveCapacity(baseProfiles.count)
+                for var p in baseProfiles {
+                    let base: Double = p.rate
+                    let newRate: Double = {
+                        if rateScale >= 1.0 {
+                            let t = max(0.0, min(1.0, rateScale - 1.0))
+                            return (base + (1.0 - base) * t).clamped(to: 0.0...1.0)
+                        } else {
+                            let t = max(0.0, min(1.0, (1.0 - rateScale) / 0.75))
+                            return (base - base * t).clamped(to: 0.0...1.0)
+                        }
+                    }()
+                    p.rate = newRate
+                    p.pitch = (p.pitch + Float(pitchOffset)).clamped(to: 0.5...2.0)
+                    updated.append(p)
+                }
+                selectedProfiles = updated
+            }
+
+            // Normalize global speed during calibration to avoid compounding while fitting
+            rateScale = 1.0
+            calibratingVoiceID = voiceID
+            await Task.yield()
+            io.setVoiceProfile(selectedProfiles[index])
+            let result = await VoiceTempoCalibrator.fitRate(
+                io: io, voiceID: voiceID, phrase: phrase,
+                targetSeconds: targetSeconds, tolerance: 0.05, maxIterations: 3
+            )
+            selectedProfiles[index].rate = result.finalRate
+            lastDurationByID[voiceID] = result.measured
+            lastChorusSeconds = result.measured
         }
     }
 
