@@ -370,56 +370,75 @@ struct VoiceChorusPlayground: View {
 
     @ViewBuilder
     private func actionButtonsRow() -> some View {
-        VStack(spacing: 6) {
-            // Single row: Stop/Play on the left; either Synchronize or Calibrating… to its right
-            HStack(spacing: 12) {
-                Button {
-                    if isPlaying || isCalibrating { stopAll() } else { startChorus() }
-                } label: {
-                    // Keep width stable by layering both icon states and both titles
-                    HStack(spacing: 6) {
-                        ZStack {
-                            Image(systemName: "stop.fill")
-                                .opacity((isPlaying || isCalibrating) ? 1 : 0)
-                            Image(systemName: "play.fill")
-                                .opacity((isPlaying || isCalibrating) ? 0 : 1)
-                        }
-                        ZStack {
-                            Text("Stop")
-                                .opacity((isPlaying || isCalibrating) ? 1 : 0)
-                            Text("Play Chorus")
-                                .opacity((isPlaying || isCalibrating) ? 0 : 1)
-                        }
-                        .frame(minWidth: 100, alignment: .leading) // stabilize text width
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 4)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint((isPlaying || isCalibrating) ? .red : .blue)
-                .controlSize(.regular)
-                .disabled(selectedProfiles.isEmpty && !(isPlaying || isCalibrating))
-                // Right-side: Synchronize (idle) or Calibrating… (busy), kept on the same line for smoother transitions
-                if isCalibrating {
-                    HStack(spacing: 6) {
-                        ProgressView().controlSize(.small)
-                        Text("Calibrating…").foregroundStyle(.secondary)
-                    }
-                } else if !isPlaying {
+        ActionRowView(
+            isPlaying: $isPlaying,
+            isCalibrating: $isCalibrating,
+            hasSelection: !selectedProfiles.isEmpty,
+            onPlay: { startChorus() },
+            onStop: { stopAll() },
+            onSync: { synchronizeRates() }
+        )
+        .padding(.bottom, 4)
+    }
+
+    // MARK: - Extracted components
+    private struct ActionRowView: View {
+        @Binding var isPlaying: Bool
+        @Binding var isCalibrating: Bool
+        var hasSelection: Bool
+        var onPlay: () -> Void
+        var onStop: () -> Void
+        var onSync: () -> Void
+
+        var body: some View {
+            VStack(spacing: 6) {
+                // Single row: Stop/Play on the left; either Synchronize or Calibrating… to its right
+                HStack(spacing: 12) {
                     Button {
-                        synchronizeRates()
+                        if isPlaying || isCalibrating { onStop() } else { onPlay() }
                     } label: {
-                        Label("Synchronize", systemImage: "metronome.fill")
+                        // Keep width stable by layering both icon states and both titles
+                        HStack(spacing: 6) {
+                            ZStack {
+                                Image(systemName: "stop.fill")
+                                    .opacity((isPlaying || isCalibrating) ? 1 : 0)
+                                Image(systemName: "play.fill")
+                                    .opacity((isPlaying || isCalibrating) ? 0 : 1)
+                            }
+                            ZStack {
+                                Text("Stop")
+                                    .opacity((isPlaying || isCalibrating) ? 1 : 0)
+                                Text("Play Chorus")
+                                    .opacity((isPlaying || isCalibrating) ? 0 : 1)
+                            }
+                            .frame(minWidth: 100, alignment: .leading) // stabilize text width
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 4)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(.secondary)
-                    .controlSize(.small)
-                    .disabled(selectedProfiles.isEmpty)
+                    .buttonStyle(.borderedProminent)
+                    .tint((isPlaying || isCalibrating) ? .red : .blue)
+                    .controlSize(.regular)
+                    .disabled(!hasSelection && !(isPlaying || isCalibrating))
+                    // Right-side: Synchronize (idle) or Calibrating… (busy), kept on the same line for smoother transitions
+                    if isCalibrating {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.small)
+                            Text("Calibrating…").foregroundStyle(.secondary)
+                        }
+                    } else if !isPlaying {
+                        Button { onSync() } label: {
+                            Label("Synchronize", systemImage: "metronome.fill")
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.secondary)
+                        .controlSize(.small)
+                        .disabled(!hasSelection)
+                    }
+                    Spacer()
                 }
-                Spacer()
             }
         }
-        .padding(.bottom, 4)
     }
 
     @ViewBuilder
