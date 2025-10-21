@@ -1,3 +1,4 @@
+
 //
 //  TunerSliderRow.swift
 //  VoiceKit
@@ -60,4 +61,42 @@ public struct TunerSliderRow: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+}
+
+// MARK: - Previews
+private struct TunerSliderRowPreviewContainer: View {
+    @State private var speed: Double = 0.6
+    @State private var pitch: Double = 1.1
+    @State private var volume: Double = 0.9
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            TunerSliderRow(
+                title: "Speed",
+                systemImage: "speedometer",
+                value: $speed,
+                range: 0.0...1.0,
+                step: 0.01,
+                formatted: { String(format: "%.2f×", $0) }
+            )
+            TunerSliderRow(
+                title: "Pitch",
+                systemImage: "waveform.path.ecg",
+                value: $pitch,
+                range: 0.5...2.0,
+                step: 0.01,
+                formatted: { String(format: "%.2f", $0) }
+            )
+            TunerSliderRow(
+                title: "Volume",
+                systemImage: "speaker.wave.2.fill",
+                value: $volume, range: 0.0...1.0)
+        }
+        .padding()
+        .frame(width: 360)
+    }
+}
+
+struct TunerSliderRow_Previews: PreviewProvider {
+    static var previews: some View { TunerSliderRowPreviewContainer() }
 }
