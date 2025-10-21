@@ -8,9 +8,53 @@
 
 import SwiftUI
 import VoiceKitCore
-
+// MARK: - Design tokens
+private enum Metrics {
+    enum Padding {
+        static let headerV: CGFloat = 4
+        static let iosH: CGFloat = 16
+        static let macH: CGFloat = 32
+    }
+    enum Layout {
+        static let inlineHintSpacer: CGFloat = 50
+        static let actualTimeMinWidth: CGFloat = 60
+        static let timingCellWidth: CGFloat = 40
+    }
+    enum Controls {
+        static let sliderStep: Double = 0.01
+    }
+    enum Defaults {
+        // Match initializer types: rate is Double; pitch/volume are Float
+        static let rate: Double = 0.55
+        static let pitch: Float = 1.0
+        static let volume: Float = 1.0
+    }
+    enum Buttons {
+        // Stabilize Play/Stop label swap
+        static let playTextMinWidth: CGFloat = 100
+        static let horizontalPad: CGFloat = 14
+        static let verticalPad: CGFloat = 4
+    }
+    enum Calibration {
+        static let tolerance: Double = 0.05
+        static let maxIterations: Int = 3
+    }
+    enum Timing {
+        static let targetSecondsRange: ClosedRange<Double> = 1.0...20.0
+        static let targetSecondsStep: Double = 0.25
+    }
+    enum Adjustments {
+        static let slowRange: Double = 0.75
+        static let speedRange: ClosedRange<Double> = 0.05...2.0
+        static let pitchOffsetRange: ClosedRange<Double> = -0.9...0.9
+    }
+    enum Pitch {
+        static let clampLo: Float = 0.5
+        static let clampHi: Float = 2.0
+    }
+}
 @MainActor
-struct VoiceChorusPlayground: View {
+struct ChorusLabView: View {
     @State private var selectedProfiles: [TTSVoiceProfile] = []
     @State private var pitch: Float = 1.0
     @State private var rate: Float = 0.55
@@ -37,19 +81,35 @@ struct VoiceChorusPlayground: View {
     #if os(iOS)
     @Environment(\.editMode) private var editMode
     #endif
-    // VoiceChorus.Engine == any TTSConfigurable & VoiceIO.
-    // Some toolchains require an explicit local to help existential inference.
-    let chorus = VoiceChorus(makeEngine: {
-        let engine = RealVoiceIO()
-        return engine as (any TTSConfigurable & VoiceIO)
-    })
+    // Dependencies for testability and reuse:
+    // - voicesProvider: supplies available system voices
+    // - engineFactory: creates RealVoiceIO instances for chorus engines, calibration, and tuner
+    let voicesProvider: any SystemVoicesProvider
+    let engineFactory: () -> RealVoiceIO
+    let chorus: VoiceChorus
+
+    /// Create the Chorus Lab view with injectable dependencies.
+    /// - Parameters:
+    ///   - voicesProvider: Source of system voices (defaults to SystemVoicesCache).
+    ///   - engineFactory: Factory for engines (defaults to RealVoiceIO()).
+    init(
+        voicesProvider: any SystemVoicesProvider = DefaultSystemVoicesProvider(),
+        engineFactory: @escaping () -> RealVoiceIO = { RealVoiceIO() }
+    ) {
+        self.voicesProvider = voicesProvider
+        self.engineFactory = engineFactory
+        // VoiceChorus.Engine == any TTSConfigurable & VoiceIO.
+        self.chorus = VoiceChorus(makeEngine: {
+            engineFactory() as (any TTSConfigurable & VoiceIO)
+        })
+    }
 
     var body: some View {
         VStack {
             // Fixed control area
             VStack {
                 // Title
-                Text("Chorus Playground")
+                Text("Chorus Lab")
                     .font(.largeTitle)
 
                 // Text input moved to the top
@@ -70,6 +130,10 @@ struct VoiceChorusPlayground: View {
                             .frame(height: 72, alignment: .topLeading) // ~3 lines, fixed
                             .scrollIndicators(.automatic)
                             .border(Color.gray, width: 0.5)
+                            .accessibilityLabel("Chorus text")
+                            .accessibilityHint("Enter the phrase the chorus will speak")
+                            // VoiceOver will read the text content by default; the hint clarifies purpose.
+                            .accessibilityAddTraits(.isStaticText)
                     }
                 }
 
@@ -95,6 +159,7 @@ struct VoiceChorusPlayground: View {
                     // Professionals commonly use an icon-only + in toolbars/headers
                     Image(systemName: "plus")
                 }
+                .accessibilityLabel("Add voice")
                 #if os(macOS)
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -106,9 +171,9 @@ struct VoiceChorusPlayground: View {
             .padding(.vertical, 4)
             #if os(macOS)
             // On macOS, give the "Voices" header comparable horizontal margins to the control area.
-            .padding(.horizontal, 32)
+            .padding(.horizontal, Metrics.Padding.macH)
             #else
-            .padding(.horizontal, 16)
+            .padding(.horizontal, Metrics.Padding.iosH)
             #endif
             .padding(.bottom, 0)
             // List area (enables swipe actions)
@@ -116,9 +181,11 @@ struct VoiceChorusPlayground: View {
                 selectedVoicesSection()
             }
             .listStyle(.plain)
+            // Subtle animation for row add/remove or reordering
+            .animation(.easeInOut(duration: 0.20), value: selectedProfiles.count)
             #if os(macOS)
             // On macOS, add horizontal padding so the list aligns with the rest of the view.
-            .padding(.horizontal, 32)
+            .padding(.horizontal, Metrics.Padding.macH)
             #endif
         }
         .sheet(isPresented: $showTuner) {
@@ -171,85 +238,41 @@ struct VoiceChorusPlayground: View {
                 .foregroundStyle(.secondary)
                 .padding(.vertical, 8)
         } else {
-            ForEach(selectedProfiles, id: \.id) { profile in
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    // Name (left)
-                    Text(resolvedName(for: profile.id))
-                        .font(.subheadline)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.9)        // allow slight shrink on tight fits
-                        .allowsTightening(true)
-                        .truncationMode(.tail)
-                        .layoutPriority(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            ForEach($selectedProfiles, id: \.id) { profile in
+                // Unwrap binding element for read-only UI usage in this row
+                let profileValue = profile.wrappedValue
 
-                    Spacer(minLength: 0)
-                    // Details (middle)
-                    Text(String(format: "Speed %.2f · Pitch %.2f · Vol %.2f",
-                                profile.rate, profile.pitch, profile.volume))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.9)        // allow slight shrink before truncation
-                        .allowsTightening(true)
-                        .truncationMode(.tail)
-                        .frame(width: 190, alignment: .trailing)
-
-                    // Timing (right, fixed width for column alignment)
-                    if let d = lastDurationByID[profile.id] {
-                        Text(String(format: "%.2fs", d))
-                            .font(.footnote)
-                            .monospacedDigit()
-                            .foregroundStyle(.primary)
-                            .frame(width: 40, alignment: .trailing)
-                            .padding(.vertical, 2)
-                            .background {
-                                if calibratingVoiceID == profile.id {
-                                    RoundedRectangle(cornerRadius: 4)
-                                        .fill(Color.yellow.opacity(0.30))
-                                }
-                            }
-                            .animation(.easeInOut(duration: 0.2), value: calibratingVoiceID)
-                    } else {
-                        Text("—")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 40, alignment: .trailing)
-                            .padding(.vertical, 2)
-                            .background {
-                                if calibratingVoiceID == profile.id {
-                                    RoundedRectangle(cornerRadius: 4)
-                                        .fill(Color.yellow.opacity(0.30))
-                                }
-                            }
-                            .animation(.easeInOut(duration: 0.2), value: calibratingVoiceID)
-                    }
-                    Image(systemName: "chevron.right")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .frame(width: 6, alignment: .trailing)
-                }
+                SelectedVoiceRow(
+                    name: resolvedName(for: profileValue.id),
+                    rate: profileValue.rate,
+                    pitch: profileValue.pitch,
+                    volume: profileValue.volume,
+                    duration: lastDurationByID[profileValue.id],
+                    isCalibrating: calibratingVoiceID == profileValue.id
+                )
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    if let idx = selectedProfiles.firstIndex(where: { $0.id == profile.id }) {
+                    if let idx = selectedProfiles.firstIndex(where: { $0.id == profileValue.id }) {
                         presentEditVoice(index: idx)
                     }
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     // Put Sync first so full-swipe defaults to Sync (safer than Delete).
                     Button {
-                        if let idx = selectedProfiles.firstIndex(where: { $0.id == profile.id }) {
+                        if let idx = selectedProfiles.firstIndex(where: { $0.id == profileValue.id }) {
                             synchronizeVoice(at: idx)
                         }
                     } label: {
                         Label("Sync", systemImage: "arrow.clockwise")
                     }
                     .tint(.blue)
+                    .accessibilityLabel("Synchronize this voice")
+                    .accessibilityHint("Calibrate this voice to the target time")
 
                     Button(role: .destructive) {
                         // Remove from the effective list and sync baseline so
                         // future global adjustments don’t resurrect this row.
-                        let removedID = profile.id
+                        let removedID = profileValue.id
                         if let idx = selectedProfiles.firstIndex(where: { $0.id == removedID }) {
                             selectedProfiles.remove(at: idx)
                         }
@@ -257,6 +280,7 @@ struct VoiceChorusPlayground: View {
                         baseProfiles = selectedProfiles
                         applyGlobalAdjustments()
                     } label: { Label("Delete", systemImage: "trash") }
+                    .accessibilityLabel("Delete voice")
                 }
             }
             // Attach reordering to the ForEach so it works on all platforms.
@@ -273,7 +297,7 @@ struct VoiceChorusPlayground: View {
         calibrationTask?.cancel()
         calibrationTask = Task { @MainActor in
             // Use a dedicated engine for measurement to avoid interfering with the chorus engine
-            let io = RealVoiceIO()
+            let io = engineFactory()
             defer {
                 isCalibrating = false
                 calibrationTask = nil
@@ -294,12 +318,12 @@ struct VoiceChorusPlayground: View {
                             let t = max(0.0, min(1.0, rateScale - 1.0)) // 1.0→2.0 maps to 0…1
                             return (base + (1.0 - base) * t).clamped(to: 0.0...1.0)
                         } else {
-                            let t = max(0.0, min(1.0, (1.0 - rateScale) / 0.75)) // 1.0→0.25 maps to 0…1
+                            let t = max(0.0, min(1.0, (1.0 - rateScale) / Metrics.Adjustments.slowRange)) // 1.0→0.25 maps to 0…1
                             return (base - base * t).clamped(to: 0.0...1.0)
                         }
                     }()
                     p.rate = newRate
-                    p.pitch = (p.pitch + Float(pitchOffset)).clamped(to: 0.5...2.0)
+                    p.pitch = (p.pitch + Float(pitchOffset)).clamped(to: Metrics.Pitch.clampLo...Metrics.Pitch.clampHi)
                     updated.append(p)
                 }
                 selectedProfiles = updated
@@ -321,8 +345,8 @@ struct VoiceChorusPlayground: View {
                     voiceID: voiceID,
                     phrase: phrase,
                     targetSeconds: targetSeconds,
-                    tolerance: 0.05,
-                    maxIterations: 3
+                    tolerance: Metrics.Calibration.tolerance,
+                    maxIterations: Metrics.Calibration.maxIterations
                 )
                 // Update the stored and baseline profile with the new rate and last measured duration
                 selectedProfiles[i].rate = result.finalRate
@@ -347,25 +371,32 @@ struct VoiceChorusPlayground: View {
             Text(String(format: "%.2fs", targetSeconds))
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
-            Stepper(value: $targetSeconds, in: 1.0...20.0, step: 0.25) {
+            Stepper(value: $targetSeconds, in: Metrics.Timing.targetSecondsRange, step: Metrics.Timing.targetSecondsStep) {
                 EmptyView()
             }
             .labelsHidden()
             .controlSize(.mini)
+            .accessibilityLabel("Target time")
+            .accessibilityHint("Adjust the target duration in seconds")
+
+            // Group the actual time elements for a clear VoiceOver announcement
+            // VoiceOver will read the value; the label clarifies context.
             Spacer()
             HStack(spacing: 6) {
                 if isPlaying {
                     ProgressView().controlSize(.mini)
                 }
-                Text(lastChorusSeconds.map { String(format: "%.2fs", $0) } ?? "—s")
+                Text(lastChorusSeconds.map { $0.asSeconds2f } ?? "—s")
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            .frame(minWidth: 60, alignment: .trailing)
+            .frame(minWidth: Metrics.Layout.actualTimeMinWidth, alignment: .trailing)
+            .accessibilityLabel("Actual time")
+            .accessibilityValue(lastChorusSeconds.map { $0.asSeconds2f } ?? "Not available")
         }
         .padding(.horizontal)
-        .padding(.bottom, 4)
+        .padding(.bottom, Metrics.Padding.headerV)
     }
 
     @ViewBuilder
@@ -378,11 +409,11 @@ struct VoiceChorusPlayground: View {
             onStop: { stopAll() },
             onSync: { synchronizeRates() }
         )
-        .padding(.bottom, 4)
+        .padding(.bottom, Metrics.Padding.headerV)
     }
 
     // MARK: - Extracted components
-    private struct ActionRowView: View {
+    fileprivate struct ActionRowView: View {
         @Binding var isPlaying: Bool
         @Binding var isCalibrating: Bool
         var hasSelection: Bool
@@ -411,10 +442,13 @@ struct VoiceChorusPlayground: View {
                                 Text("Play Chorus")
                                     .opacity((isPlaying || isCalibrating) ? 0 : 1)
                             }
-                            .frame(minWidth: 100, alignment: .leading) // stabilize text width
+                            .frame(minWidth: Metrics.Buttons.playTextMinWidth, alignment: .leading) // stabilize text width
                         }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, Metrics.Buttons.horizontalPad)
+                        .padding(.vertical, Metrics.Buttons.verticalPad)
+                        .accessibilityLabel((isPlaying || isCalibrating) ? "Stop" : "Play Chorus")
+                        .accessibilityHint((isPlaying || isCalibrating) ? "Stop playback and calibration" : "Start playing all voices")
+                        .accessibilityAddTraits(.isButton)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint((isPlaying || isCalibrating) ? .red : .blue)
@@ -430,9 +464,12 @@ struct VoiceChorusPlayground: View {
                         Button { onSync() } label: {
                             Label("Synchronize", systemImage: "metronome.fill")
                         }
+                        .accessibilityIdentifier("vk.syncAll")
                         .buttonStyle(.bordered)
                         .tint(.secondary)
                         .controlSize(.small)
+                        .accessibilityLabel("Synchronize all")
+                        .accessibilityHint("Calibrate all voices to the target time")
                         .disabled(!hasSelection)
                     }
                     Spacer()
@@ -443,23 +480,125 @@ struct VoiceChorusPlayground: View {
 
     @ViewBuilder
     private func globalAdjustmentsSection() -> some View {
-        VStack(spacing: 8) {
-            TunerSliderRow(
-                title: "Speed",
-                systemImage: "speedometer",
-                value: $rateScale,
-                range: 0.05...2.0,
-                step: 0.01,
-                formatted: { v in String(format: "%.2f×", Double(v)) }
-            )
-            .onChange(of: rateScale) { _, _ in applyGlobalAdjustments() }
-            if rateScale < 0.1 {
-                HStack { Spacer().frame(width: 50); Text("very slow").font(.caption2).foregroundStyle(.tertiary); Spacer() }
+        GlobalAdjustmentsView(
+            rateScale: $rateScale,
+            pitchOffset: $pitchOffset,
+            onChange: { applyGlobalAdjustments() }
+        )
+    }
+
+    // MARK: - Extracted: Global adjustments controls
+    fileprivate struct GlobalAdjustmentsView: View {
+        @Binding var rateScale: Double
+        @Binding var pitchOffset: Double
+        var onChange: () -> Void
+
+        var body: some View {
+            VStack(spacing: 8) {
+                TunerSliderRow(
+                    title: "Speed",
+                    systemImage: "speedometer",
+                    value: $rateScale,
+                    range: Metrics.Adjustments.speedRange,
+                    step: Metrics.Controls.sliderStep,
+                    formatted: { v in String(format: "%.2f×", Double(v)) }
+                )
+                .onChange(of: rateScale) { _, _ in onChange() }
+
+
+                TunerSliderRow(
+                    title: "Pitch", systemImage: "waveform.path.ecg",
+                    value: $pitchOffset, range: Metrics.Adjustments.pitchOffsetRange, step: Metrics.Controls.sliderStep,
+                    formatted: { off in String(format: "%.2f", 1.0 + Double(off)) }
+                ).onChange(of: pitchOffset) { _, _ in onChange() }
             }
-            TunerSliderRow(title: "Pitch", systemImage: "waveform.path.ecg", value: $pitchOffset, range: -0.9...0.9, step: 0.01, formatted: { off in
-                let absPitch = 1.0 + Double(off)
-                return String(format: "%.2f", absPitch)
-            }).onChange(of: pitchOffset) { _, _ in applyGlobalAdjustments() }
+        }
+    }
+
+    // MARK: - Small extracted cells
+    fileprivate struct DetailsCell: View {
+        let rate: Double
+        let pitch: Float
+        let volume: Float
+        var body: some View {
+            Text(String(format: "Speed %.2f · Pitch %.2f · Vol %.2f",
+                        rate, pitch, volume))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.9)        // allow slight shrink before truncation
+                .allowsTightening(true)
+                .truncationMode(.tail)
+                .frame(width: 190, alignment: .trailing)
+        }
+    }
+
+    fileprivate struct DurationCell: View {
+        let duration: TimeInterval?
+        let isHighlighted: Bool
+        var body: some View {
+            let text = duration.map { $0.asSeconds2f } ?? ""
+            Text(text)
+                .font(.footnote)
+                .monospacedDigit()
+                .foregroundStyle(duration == nil ? .secondary : .primary)
+                .frame(width: Metrics.Layout.timingCellWidth, alignment: .trailing)
+                .padding(.vertical, 2)
+                .background {
+                    if isHighlighted {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.yellow.opacity(0.30))
+                    }
+                }
+                .animation(.easeInOut(duration: 0.2), value: isHighlighted)
+        }
+    }
+
+    /// A single row presenting a selected voice profile.
+    /// Uses small cells for details and duration to keep layout tidy.
+    /// Provide data and attach gestures/swipe actions at the call site for clarity.
+    fileprivate struct SelectedVoiceRow: View {
+        let name: String
+        let rate: Double
+        let pitch: Float
+        let volume: Float
+        let duration: TimeInterval?
+        let isCalibrating: Bool
+
+        var body: some View {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                // Name (left)
+                Text(name)
+                    .font(.subheadline)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.9)
+                    .allowsTightening(true)
+                    .truncationMode(.tail)
+                    .layoutPriority(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityLabel("Voice name")
+                    .accessibilityValue(Text(name))
+
+                Spacer(minLength: 0)
+
+                // Details (middle)
+                DetailsCell(rate: rate, pitch: pitch, volume: volume)
+                    .accessibilityLabel("Voice settings")
+                    .accessibilityValue(Text(String(format: "Speed %.2f, Pitch %.2f, Volume %.2f", rate, pitch, volume)))
+
+                // Timing (right)
+                DurationCell(duration: duration, isHighlighted: isCalibrating)
+                    .accessibilityLabel("Last duration")
+                    .accessibilityValue(Text(duration.map { SecondsFormatter.twoDecimals($0) } ?? "Not measured"))
+
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 6, alignment: .trailing)
+                    .accessibilityHidden(true)
+            }
+            // Make the whole row read as a single actionable item
+            .accessibilityAddTraits(.isButton)
         }
     }
 
@@ -476,7 +615,7 @@ struct VoiceChorusPlayground: View {
 
         calibrationTask?.cancel()
         calibrationTask = Task { @MainActor in
-            let io = RealVoiceIO()
+            let io = engineFactory()
             defer {
                 isCalibrating = false
                 calibratingVoiceID = nil
@@ -493,12 +632,12 @@ struct VoiceChorusPlayground: View {
                             let t = max(0.0, min(1.0, rateScale - 1.0))
                             return (base + (1.0 - base) * t).clamped(to: 0.0...1.0)
                         } else {
-                            let t = max(0.0, min(1.0, (1.0 - rateScale) / 0.75))
+                            let t = max(0.0, min(1.0, (1.0 - rateScale) / Metrics.Adjustments.slowRange))
                             return (base - base * t).clamped(to: 0.0...1.0)
                         }
                     }()
                     p.rate = newRate
-                    p.pitch = (p.pitch + Float(pitchOffset)).clamped(to: 0.5...2.0)
+                    p.pitch = (p.pitch + Float(pitchOffset)).clamped(to: Metrics.Pitch.clampLo...Metrics.Pitch.clampHi)
                     updated.append(p)
                 }
                 selectedProfiles = updated
@@ -511,7 +650,7 @@ struct VoiceChorusPlayground: View {
             io.setVoiceProfile(selectedProfiles[index])
             let result = await VoiceTempoCalibrator.fitRate(
                 io: io, voiceID: voiceID, phrase: phrase,
-                targetSeconds: targetSeconds, tolerance: 0.05, maxIterations: 3
+                targetSeconds: targetSeconds, tolerance: Metrics.Calibration.tolerance, maxIterations: Metrics.Calibration.maxIterations
             )
             selectedProfiles[index].rate = result.finalRate
             lastDurationByID[voiceID] = result.measured
@@ -547,7 +686,7 @@ struct VoiceChorusPlayground: View {
 
     // Use system voices (RealVoiceIO no longer exposes availableVoices()).
     @MainActor func availableVoices() -> [TTSVoiceInfo] {
-        SystemVoicesCache.all()
+        voicesProvider.all()
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
@@ -576,9 +715,9 @@ struct VoiceChorusPlayground: View {
         let pitchOffsets: [Float] = [-0.05, 0.05, 0.1, -0.1]
 
         for (i, v) in slice.enumerated() {
-            var p = TTSVoiceProfile(id: v.id, rate: 0.55, pitch: 1.0, volume: 1.0)
+            var p = TTSVoiceProfile(id: v.id, rate: Metrics.Defaults.rate, pitch: Metrics.Defaults.pitch, volume: Metrics.Defaults.volume)
             if i < pitchOffsets.count {
-                p.pitch = (p.pitch + pitchOffsets[i]).clamped(to: 0.5...2.0)
+                p.pitch = (p.pitch + pitchOffsets[i]).clamped(to: Metrics.Pitch.clampLo...Metrics.Pitch.clampHi)
             }
             picks.append(p)
         }
@@ -588,9 +727,12 @@ struct VoiceChorusPlayground: View {
     }
 
     // MARK: - Tuner integration
+    /// Present the voice tuner to add a new voice.
+    /// Seeds the tuner with a random voice from the user's preferred language.
     private func presentAddVoice() {
         editingIndex = nil
-        tunerEngine = RealVoiceIO()
+        // Use the injected engine factory for testability and consistency.
+        tunerEngine = engineFactory()
         // Prefer a random voice from the user’s preferred language; fall back to any.
         let baseLang: String = {
             let tag = Locale.preferredLanguages.first ?? Locale.current.identifier
@@ -608,7 +750,7 @@ struct VoiceChorusPlayground: View {
         let pool = sameLang.isEmpty ? availableVoices() : sameLang
         if let pick = pool.randomElement() {
             tunerSelection = pick.id
-            let seed = TTSVoiceProfile(id: pick.id, rate: 0.55, pitch: 1.0, volume: 1.0)
+            let seed = TTSVoiceProfile(id: pick.id, rate: Metrics.Defaults.rate, pitch: Metrics.Defaults.pitch, volume: Metrics.Defaults.volume)
             tunerEngine.setVoiceProfile(seed)
             tunerEngine.setDefaultVoiceProfile(seed)
         } else {
@@ -620,7 +762,7 @@ struct VoiceChorusPlayground: View {
     private func presentEditVoice(index: Int) {
         guard selectedProfiles.indices.contains(index) else { return }
         editingIndex = index
-        tunerEngine = RealVoiceIO()
+        tunerEngine = engineFactory()
         // Seed tuner with current profile
         let prof = selectedProfiles[index]
         tunerEngine.setVoiceProfile(prof)
@@ -638,7 +780,7 @@ struct VoiceChorusPlayground: View {
             tuned = TTSVoiceProfile(id: id, rate: def.rate, pitch: def.pitch, volume: def.volume)
         }
         if tuned == nil {
-            tuned = TTSVoiceProfile(id: id, rate: 0.55, pitch: 1.0, volume: 1.0)
+            tuned = TTSVoiceProfile(id: id, rate: Metrics.Defaults.rate, pitch: Metrics.Defaults.pitch, volume: Metrics.Defaults.volume)
         }
         guard let tuned else { return }
         if let idx = editingIndex, selectedProfiles.indices.contains(idx) {
@@ -678,26 +820,26 @@ struct VoiceChorusPlayground: View {
                     return (baseRate + (1.0 - baseRate) * t).clamped(to: 0.0...1.0)
                 } else {
                     // 1.0→0.25 maps to t: 0…1, pull toward 0.0 by fraction of current
-                    let t = max(0.0, min(1.0, (1.0 - rateScale) / 0.75))
+                    let t = max(0.0, min(1.0, (1.0 - rateScale) / Metrics.Adjustments.slowRange))
                     return (baseRate - baseRate * t).clamped(to: 0.0...1.0)
                 }
             }()
             profile.rate = newRate
-            profile.pitch = (profile.pitch + Float(pitchOffset)).clamped(to: 0.5...2.0)
+            profile.pitch = (profile.pitch + Float(pitchOffset)).clamped(to: Metrics.Pitch.clampLo...Metrics.Pitch.clampHi)
             return profile
         }
     }
 }
 
-struct VoiceChorusPlayground_Previews: PreviewProvider {
+struct ChorusLabView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
             #if os(macOS)
-            VoiceChorusPlayground()
+            ChorusLabView()
                 .frame(width: 520, height: 820) // taller, narrower for Mac preview
                 .previewDisplayName("macOS")
             #else
-            VoiceChorusPlayground()
+            ChorusLabView()
                 .previewDisplayName("iOS")
             #endif
         }
@@ -709,5 +851,79 @@ struct VoiceChorusPlayground_Previews: PreviewProvider {
 private extension Comparable {
     func clamped(to range: ClosedRange<Self>) -> Self {
         min(max(self, range.lowerBound), range.upperBound)
+    }
+}
+
+
+// MARK: - Formatting helpers
+private extension Double {
+    // Two-decimal seconds with ASCII 's' suffix
+    var asSeconds2f: String { String(format: "%.2fs", self) }
+}
+
+// MARK: - Unit-testable helpers
+/// Helpers for chorus tuning logic. Pure and unit-testable.
+enum ChorusMath {
+    /// Compute an adjusted rate from a baseline rate and a global rate scale.
+    /// Mapping is amplified relative to the base:
+    /// - rateScale > 1.0 moves toward 1.0 by a fraction of headroom (1.0 - base)
+    /// - rateScale < 1.0 pulls toward 0.0 by a fraction of the base value
+    /// Values are clamped to 0...1 to match TTSVoiceProfile.rate expectations.
+    /// - Parameters:
+    ///   - baseRate: The original voice rate, in 0...1.
+    ///   - rateScale: Global multiplier. 1.0 = unchanged; >1.0 speeds up; <1.0 slows down.
+    ///   - slowRange: Denominator for mapping 1.0→0.x into t:0...1 (prevents over-slowing too quickly).
+    /// - Returns: New rate in 0...1.
+    static func adjustedRate(baseRate: Double, rateScale: Double, slowRange: Double) -> Double {
+        if rateScale >= 1.0 {
+            // Map 1.0→2.0 into t:0...1 and push toward 1.0 by headroom
+            let t = max(0.0, min(1.0, rateScale - 1.0))
+            return (baseRate + (1.0 - baseRate) * t).clamped(to: 0.0...1.0)
+        } else {
+            // Map 1.0→0.25 into t:0...1 and pull toward 0.0 by fraction of base
+            let t = max(0.0, min(1.0, (1.0 - rateScale) / slowRange))
+            return (baseRate - baseRate * t).clamped(to: 0.0...1.0)
+        }
+    }
+
+    /// Apply global rate scale and pitch offset to a set of baseline profiles.
+    /// - Parameters:
+    ///   - baseProfiles: The baseline chorus (not mutated).
+    ///   - rateScale: Global rate multiplier (see adjustedRate).
+    ///   - pitchOffset: Global offset added to pitch, then clamped.
+    /// - Returns: New profiles array with adjusted rate and pitch.
+    static func applyAdjustments(
+        baseProfiles: [TTSVoiceProfile],
+        rateScale: Double,
+        pitchOffset: Double
+    ) -> [TTSVoiceProfile] {
+        var updated: [TTSVoiceProfile] = []
+        updated.reserveCapacity(baseProfiles.count)
+        for var profile in baseProfiles {
+            profile.rate = adjustedRate(baseRate: profile.rate, rateScale: rateScale, slowRange: Metrics.Adjustments.slowRange)
+            profile.pitch = (profile.pitch + Float(pitchOffset)).clamped(to: Metrics.Pitch.clampLo...Metrics.Pitch.clampHi)
+            updated.append(profile)
+        }
+        return updated
+    }
+}
+
+/// Seconds formatting helpers (pure; suitable for tests).
+enum SecondsFormatter {
+    static func twoDecimals(_ seconds: Double) -> String { String(format: "%.2fs", seconds) }
+}
+
+// MARK: - Injected dependencies
+/// Abstraction over the source of system voices, to enable testing and reuse.
+protocol SystemVoicesProvider {
+    @MainActor
+    func all() -> [TTSVoiceInfo]
+}
+
+/// Default provider backed by SystemVoicesCache.
+struct DefaultSystemVoicesProvider: SystemVoicesProvider {
+    @MainActor
+    func all() -> [TTSVoiceInfo] {
+        SystemVoicesCache.all()
     }
 }
