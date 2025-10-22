@@ -2,8 +2,8 @@
 //  VoiceProfilesStore.swift
 //  VoiceKitUI
 //
-//  Extracted from VoicePickerView.swift so we can remove the picker UI.
-//
+//  Originally extracted from the old VoicePickerView; now used by VoiceChooserView.
+//  (The picker UI was removed; this store remains the shared persistence layer.)
 
 import SwiftUI
 import Foundation

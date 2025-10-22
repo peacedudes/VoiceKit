@@ -1,5 +1,5 @@
 //
-//  VoiceTunerView.swift
+//  VoiceChooserView.swift
 //  VoiceKit
 //
 //  A focused UI to pick a system voice and tune its settings (rate, pitch, volume)
@@ -15,7 +15,7 @@ import Foundation
 import VoiceKitCore
 
 @MainActor
-public struct VoiceTunerView: View {
+public struct VoiceChooserView: View {
     private let tts: TTSConfigurable
     @ObservedObject private var store: VoiceProfilesStore
 
@@ -270,7 +270,7 @@ public struct VoiceTunerView: View {
                 }
                 Spacer()
             }
-            .navigationTitle("Voice Tuner")
+            .navigationTitle("Voice Chooser")
             .onAppear { seedVoicesFast() }
         }
     }
@@ -515,19 +515,19 @@ public struct VoiceTunerView: View {
 }
 
 // MARK: - Preview
-struct VoiceTunerView_Previews: PreviewProvider {
+struct VoiceChooserView_Previews: PreviewProvider {
     static var previews: some View {
-        VoiceTunerPreviewContainer()
+        VoiceChooserPreviewContainer()
     }
 }
 
-private struct VoiceTunerPreviewContainer: View {
+private struct VoiceChooserPreviewContainer: View {
     @State private var pickedVoiceID: String? = nil
     private let tts: TTSConfigurable = RealVoiceIO()
 
     var body: some View {
         #if os(macOS)
-        VoiceTunerView(
+        VoiceChooserView(
             tts: tts,
             selectedID: $pickedVoiceID,
             onChoose: {},
@@ -535,7 +535,7 @@ private struct VoiceTunerPreviewContainer: View {
         )
         .frame(minWidth: 400, minHeight: 520)
         #else
-        VoiceTunerView(
+        VoiceChooserView(
             tts: tts,
             selectedID: $pickedVoiceID,
             onChoose: {},

@@ -12,6 +12,6 @@
 - Initial public extract: VoiceKitCore and VoiceKitUI
 - RealVoiceIO with Swift 6 actor-safety
 - ScriptedVoiceIO for tests/demos
-- VoicePickerView + VoiceProfilesStore
+- VoiceChooserView + VoiceProfilesStore
 - NameMatch utilities
 - Package tests: NameMatch and ScriptedVoiceIO

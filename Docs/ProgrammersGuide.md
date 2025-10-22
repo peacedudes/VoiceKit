@@ -20,7 +20,7 @@ Requirements
   - NSSpeechRecognitionUsageDescription
 
 Quick start
-```swift
+~~~swift
 import VoiceKitCore
 
 @MainActor
@@ -36,7 +36,7 @@ final class DemoVM: ObservableObject {
         }
     }
 }
-```
+~~~
 
 Sequencing and lifecycle
 - Public API is @MainActor. Call from the main actor.
@@ -64,6 +64,15 @@ Short SFX clips (clip path)
   - prepareClip/startPreparedClip exist to minimize gap when chaining “speak → clip” by pre-rolling the clip; whether this is needed depends on your audio path. Measure in your app; playClip may be sufficient.
   - Streaming multiple clips back-to-back may benefit from prepare/start for seamlessness.
 
+UI components (summary)
+- VoiceChooserView (VoiceKitUI):
+  - Lets users pick a system TTS voice and tune rate/pitch/volume with live previews.
+  - Persists default voice, master control, and per-voice profiles via VoiceProfilesStore.
+  - Typical embedding: a Settings screen in SwiftUI.
+- ChorusLabView (VoiceKitUI):
+  - A multi-voice playground for experimenting with several voices in parallel and calibrating timing.
+  - Useful for demos and tuning voice mixes; keep it behind a developer toggle in production apps.
+
 Logging (opt-in)
 - RealVoiceIO exposes a tiny, optional logger to aid integration debugging:
   - Property:
@@ -76,25 +85,25 @@ Logging (opt-in)
     RealVoiceIO will default logger to print:
     [VoiceKit][info] speak(text:…, voiceID:…)
   - To customize, set the logger yourself:
-    ```swift
+    ~~~swift
     @MainActor
     let io = RealVoiceIO()
     io.logger = { level, msg in
         print("[VoiceKit][\(level)] \(msg)")
     }
-    ```
+    ~~~
 
 Deterministic testing and previews
 - Use ScriptedVoiceIO for tests/demos that must not rely on device voices, locale, or hardware:
-  ```swift
+  ~~~swift
   @MainActor
   let script = try! JSONSerialization.data(withJSONObject: ["hello","world"])
   let io = ScriptedVoiceIO(fromBase64: script.base64EncodedString())!
   let r = try await io.listen(timeout: 1.0, inactivity: 0.3, record: false)
   XCTAssertEqual(r.transcript, "hello")
-  ```
+  ~~~
 - UI voice selection and previews:
-  - Use VoicePickerView and VoiceProfilesStore to persist profiles/master/default/hidden flags.
+  - Use VoiceChooserView and VoiceProfilesStore to select a system voice and tune rate/pitch/volume with live previews.
   - Tests should prefer a FakeTTS conforming to TTSConfigurable & VoiceListProvider to avoid AV/locale variability.
 - Name utilities:
   - NameMatch and NameResolver provide robust normalization and exact matching for kid-friendly inputs.
@@ -103,7 +112,7 @@ API reference snapshots (current)
 - See Docs/VoiceKitGuide.md for a full reference. Short snapshots here:
 
 VoiceIO (public protocol, @MainActor)
-```swift
+~~~swift
 @MainActor
 public protocol VoiceIO: AnyObject {
     // UI callbacks
@@ -131,10 +140,10 @@ public protocol VoiceIO: AnyObject {
     func stopAll()
     func hardReset()
 }
-```
+~~~
 
 TTSConfigurable (shared with UI; @MainActor)
-```swift
+~~~swift
 @MainActor
 public protocol TTSConfigurable: AnyObject {
     func setVoiceProfile(_ profile: TTSVoiceProfile)
@@ -145,10 +154,10 @@ public protocol TTSConfigurable: AnyObject {
     func getMasterControl() -> TTSMasterControl
     func speak(_ text: String, using voiceID: String?) async
 }
-```
+~~~
 
 Models (shared)
-```swift
+~~~swift
 public struct VoiceResult: Sendable {
     public let transcript: String
     public let recordingURL: URL?
@@ -172,10 +181,10 @@ public struct TTSMasterControl: Sendable, Equatable, Codable {
     public var pitchVariation: Float
     public var volume: Float
 }
-```
+~~~
 
 Recognition context
-```swift
+~~~swift
 public struct RecognitionContext: Sendable {
     public enum Expectation: Sendable {
         case freeform
@@ -185,14 +194,17 @@ public struct RecognitionContext: Sendable {
     public var expectation: Expectation
     public init(expectation: Expectation = .freeform) { self.expectation = expectation }
 }
-```
+~~~
 
 Notes
+- listen accepts an optional RecognitionContext via the context: parameter and defaults to .freeform.
+- Pass .number when you expect numeric entries, or .name(allowed:) for constrained name inputs.
+- Both forms compile (with or without context:) since it has a default value.
 - RealVoiceIO currently includes a minimal listen stub that returns "42" for numeric expectation in tests/CI.
 - Clip playback plumbing is present; real audio playback can be layered in your app target as needed.
 - Concurrency: public APIs and callbacks run on @MainActor; avoid capturing @MainActor self on audio threads.
 
 See also
 - Docs/VoiceKitGuide.md for the in-depth guide and examples.
-- VoiceKitUI: VoicePickerView and VoiceTunerView for selecting and tuning voices with live previews.
+- VoiceKitUI: VoiceChooserView and ChorusLabView for selecting/tuning voices and experimenting with multi-voice playback.
 - Tests/… for deterministic patterns (ScriptedVoiceIO, FakeTTS).
