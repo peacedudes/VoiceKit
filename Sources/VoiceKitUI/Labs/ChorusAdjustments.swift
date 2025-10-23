@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import VoiceKitCore
+import VoiceKit
 
 internal func applyChorusAdjustments(
     base: [TTSVoiceProfile],

@@ -9,7 +9,7 @@
 import SwiftUI
 import AVFoundation
 import Foundation
-import VoiceKitCore
+import VoiceKit
 
 @MainActor
 public final class VoiceChooserViewModel: ObservableObject {

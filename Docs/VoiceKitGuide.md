@@ -14,12 +14,12 @@ Requirements
   - NSSpeechRecognitionUsageDescription
 
 Install
-- Local during development: Add Local Package…; link VoiceKitCore and (optionally) VoiceKitUI (Do Not Embed).
+- Local during development: Add Local Package…; link VoiceKit and (optionally) VoiceKitUI (Do Not Embed).
 - Remote: Add from GitHub URL; rule “Up to Next Major” from your tag (e.g., v0.1.1).
 
 Quick start
 ~~~swift
-import VoiceKitCore
+import VoiceKit
 
 @MainActor
 final class DemoVM: ObservableObject {
@@ -36,7 +36,7 @@ final class DemoVM: ObservableObject {
 ~~~
 
 Modules and primary types
-- VoiceKitCore
+- VoiceKit
   - RealVoiceIO (@MainActor): production TTS via AVSpeechSynthesizer; package ships with a minimal STT shim for CI/tests.
   - ScriptedVoiceIO (@MainActor): deterministic engine for tests/demos (listen dequeues scripted strings; speak emits a pulse pattern).
   - VoiceQueue (@MainActor): sequence speak/SFX/pause; optional parallel channels.
@@ -86,7 +86,7 @@ Formatting tip for contributors
 
 Voice chooser
 ~~~swift
-import VoiceKitCore
+import VoiceKit
 import VoiceKitUI
 import SwiftUI
 

@@ -9,7 +9,7 @@
 - Concurrency notes clarified for TCC and delegate hops
 
 ## [0.1.0] — 2025-09-12
-- Initial public extract: VoiceKitCore and VoiceKitUI
+- Initial public extract: VoiceKit and VoiceKitUI
 - RealVoiceIO with Swift 6 actor-safety
 - ScriptedVoiceIO for tests/demos
 - VoiceChooserView + VoiceProfilesStore

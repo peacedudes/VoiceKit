@@ -4,7 +4,7 @@ Audience
 - Developers integrating VoiceKit who want to avoid runtime warnings and ensure actor-safety.
 
 Principles
-- Public APIs in VoiceKitCore (RealVoiceIO, ScriptedVoiceIO) and caches like SystemVoicesCache are @MainActor.
+- Public APIs in VoiceKit (RealVoiceIO, ScriptedVoiceIO) and caches like SystemVoicesCache are @MainActor.
 - Keep AVFoundation calls on the main actor unless explicitly documented otherwise.
 - Use Task and continuations carefully; pass only Sendable data across actor hops.
 

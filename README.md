@@ -3,7 +3,7 @@
 Reusable voice I/O for SwiftUI apps (iOS 17+, macOS 14+). Swift 6–safe, test‑friendly, and designed for delightful APIs.
 
 Modules at a glance
-- VoiceKitCore: RealVoiceIO (TTS with a simple STT test shim), ScriptedVoiceIO (deterministic tests/demos), NameMatch/NameResolver, VoiceQueue, models.
+- VoiceKit: RealVoiceIO (TTS with a simple STT test shim), ScriptedVoiceIO (deterministic tests/demos), NameMatch/NameResolver, VoiceQueue, models.
 - VoiceKitUI: VoiceChooserView (select a system voice and tune rate/pitch/volume with live preview), and ChorusLabView (developer playground for multi‑voice experiments; not intended for production apps).
 
 Highlights
@@ -16,13 +16,13 @@ Requirements
 - iOS 17.0+ and/or macOS 14.0+
 
 Install (Swift Package Manager)
-- Local during development: Add Local Package…; choose the VoiceKit folder; link VoiceKitCore (and VoiceKitUI if needed).
+- Local during development: Add Local Package…; choose the VoiceKit folder; link VoiceKit (and VoiceKitUI if needed).
 - Remote: Add from your Git URL; rule “Up to Next Major” from your tag (e.g., v0.1.1).
 - No special embedding step is required—SwiftPM/Xcode handle linking automatically.
 
 Quick start
 ~~~swift
-import VoiceKitCore
+import VoiceKit
 
 @MainActor
 final class DemoVM: ObservableObject {
@@ -40,7 +40,7 @@ final class DemoVM: ObservableObject {
 
 Voice chooser
 ~~~swift
-import VoiceKitCore
+import VoiceKit
 import VoiceKitUI
 import SwiftUI
 

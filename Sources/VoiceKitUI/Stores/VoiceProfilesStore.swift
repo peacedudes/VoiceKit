@@ -7,7 +7,7 @@
 
 import SwiftUI
 import Foundation
-import VoiceKitCore
+import VoiceKit
 
 public struct VoiceProfilesFile: Codable {
     public var defaultVoiceID: String?

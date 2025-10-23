@@ -9,7 +9,7 @@
 import XCTest
 import AVFoundation
 @testable import VoiceKitUI
-@testable import VoiceKitCore
+@testable import VoiceKit
 
 @MainActor
 final class RuntimeHygieneExamplesTests: XCTestCase {

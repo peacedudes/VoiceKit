@@ -7,7 +7,7 @@
 
 import XCTest
 @testable import VoiceKitUI
-@testable import VoiceKitCore
+@testable import VoiceKit
 
 @MainActor
 final class VoiceProfilesStoreBootstrapTests: XCTestCase {

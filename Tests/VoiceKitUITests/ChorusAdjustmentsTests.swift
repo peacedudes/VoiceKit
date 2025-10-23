@@ -6,7 +6,7 @@
 //
 
 import XCTest
-@testable import VoiceKitCore
+@testable import VoiceKit
 @testable import VoiceKitUI
 
 final class ChorusAdjustmentsTests: XCTestCase {

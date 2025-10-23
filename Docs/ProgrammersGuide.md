@@ -21,7 +21,7 @@ Requirements
 
 Quick start
 ~~~swift
-import VoiceKitCore
+import VoiceKit
 
 @MainActor
 final class DemoVM: ObservableObject {
@@ -107,6 +107,20 @@ Deterministic testing and previews
   - Tests should prefer a FakeTTS conforming to TTSConfigurable & VoiceListProvider to avoid AV/locale variability.
 - Name utilities:
   - NameMatch and NameResolver provide robust normalization and exact matching for kid-friendly inputs.
+
+Build/test one-liner (clipboard-first)
+- Keep the loop fast and calm. A simple alias we recommend:
+~~~bash
+alias test='(swift build && SWIFTPM_TEST_LOG_FORMAT=xcode swift test) 2>&1 | tee >(tail -n ${LINES_CLIP:-200} | toClip)'
+~~~
+- Why this shape:
+  - xcode format improves readability
+  - avoid -v by default to reduce noise; add -v only when chasing a specific failure
+  - full output stays in your terminal; only the last ~200 lines go to the clipboard (adjust LINES_CLIP as needed)
+- When to add switches:
+  - Focus a single test: swift test --filter SuiteName/TestName
+  - Temporarily add verbosity: swift test -v
+- Same spirit as a project “xcb.sh” runner: tailor the default early so collaboration is smooth.
 
 API reference snapshots (current)
 - See Docs/VoiceKitGuide.md for a full reference. Short snapshots here:

@@ -14,7 +14,7 @@
 import XCTest
 import AVFoundation
 @testable import VoiceKitUI
-@testable import VoiceKitCore
+@testable import VoiceKit
 
 import TestSupport
 @MainActor
