@@ -15,7 +15,13 @@ Requirements
 
 Install
 - Local during development: Add Local Package…; link VoiceKit and (optionally) VoiceKitUI (Do Not Embed).
-- Remote: Add from GitHub URL; rule “Up to Next Major” from your tag (e.g., v0.1.1).
+- Remote: Add from GitHub URL; rule “Up to Next Major” from your tag (e.g., v0.x.y).
+
+- Note: as of v0.2.0 the core module is named "VoiceKit" (previously "VoiceKitCore").
+  If you’re upgrading from older tags, update imports to:
+~~~swift
+import VoiceKit
+~~~
 
 Quick start
 ~~~swift
