@@ -38,6 +38,11 @@ let package = Package(
             dependencies: ["VoiceKitCore", "TestSupport"],
             path: "Tests/VoiceKitCoreTests"
         ),
+        .testTarget(
+            name: "VoiceKitUITests",
+            dependencies: ["VoiceKitUI", "VoiceKitCore", "TestSupport"],
+            path: "Tests/VoiceKitUITests"
+        ),
     ],
     swiftLanguageModes: [
         .v6

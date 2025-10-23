@@ -54,6 +54,7 @@ Docs
 - Docs/VoiceKitGuide.md (comprehensive reference: API, models, UI, testing)
 - Docs/ProgrammersGuide.md (concise: quick start, sequencing, logging, boosted clips)
 - Docs/Concurrency.md (actor-safety and practical patterns)
+- Docs/ROADMAP.md (structure, samples, scope decisions)
 - CHANGELOG.md
 
 Logging (opt-in)
