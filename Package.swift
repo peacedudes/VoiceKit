@@ -17,31 +17,32 @@ let package = Package(
         .macOS("14.0")
     ],
     products: [
-        .library(name: "VoiceKitCore", targets: ["VoiceKitCore"]),
+        .library(name: "VoiceKit", targets: ["VoiceKit"]),
         .library(name: "VoiceKitUI", targets: ["VoiceKitUI"])
     ],
     dependencies: [
     ],
     targets: [
+        .target(name: "TestSupport", path: "Sources/TestSupport"),
         .target(
-            name: "VoiceKitCore",
-            path: "Sources/VoiceKitCore"
+            name: "VoiceKit",
+            path: "Sources/VoiceKit"
         ),
         .target(
             name: "VoiceKitUI",
-            dependencies: ["VoiceKitCore"],
+            dependencies: ["VoiceKit"],
             path: "Sources/VoiceKitUI"
         ),
         .testTarget(
-            name: "VoiceKitCoreTests",
-            dependencies: ["VoiceKitCore"],
-            path: "Tests/VoiceKitCoreTests"
+            name: "VoiceKitTests",
+            dependencies: ["VoiceKit", "TestSupport"],
+            path: "Tests/VoiceKitTests"
         ),
         .testTarget(
             name: "VoiceKitUITests",
-            dependencies: ["VoiceKitCore", "VoiceKitUI"],
+            dependencies: ["VoiceKitUI", "VoiceKit", "TestSupport"],
             path: "Tests/VoiceKitUITests"
-        )
+        ),
     ],
     swiftLanguageModes: [
         .v6
