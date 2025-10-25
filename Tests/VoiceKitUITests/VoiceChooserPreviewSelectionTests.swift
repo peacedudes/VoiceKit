@@ -1,5 +1,5 @@
 //
-//  VoicePickerPreviewSelectionTests.swift
+//  VoiceChooserPreviewSelectionTests.swift
 //  VoiceKit
 //
 //  Deterministic FakeTTS voices; force .all; verify hidden toggle.
@@ -10,7 +10,7 @@ import VoiceKit
 import VoiceKitUI
 
 @MainActor
-final class VoicePickerPreviewSelectionTests: XCTestCase {
+final class VoiceChooserPreviewSelectionTests: XCTestCase {
 
     @MainActor
     final class FakeTTS: TTSConfigurable, VoiceListProvider {
@@ -38,7 +38,7 @@ final class VoicePickerPreviewSelectionTests: XCTestCase {
             TTSVoiceInfo(id: "vs", name: "Shown", language: "en-US")
         ]
         let store = VoiceProfilesStore(filename: "hidden-\(UUID().uuidString).json")
-        let vm = VoicePickerViewModel(tts: tts, store: store)
+        let vm = VoiceChooserViewModel(tts: tts, store: store)
         vm.refreshAvailableVoices()
 
         vm.languageFilter = .all

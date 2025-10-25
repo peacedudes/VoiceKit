@@ -1,5 +1,5 @@
 //
-//  VoicePickerFilteringTests.swift
+//  VoiceChooserFilteringTests.swift
 //  VoiceKit
 //
 //  Deterministic FakeTTS voices; force .all to avoid locale dependence.
@@ -10,7 +10,7 @@ import VoiceKit
 import VoiceKitUI
 
 @MainActor
-final class VoicePickerFilteringTests: XCTestCase {
+final class VoiceChooserFilteringTests: XCTestCase {
 
     @MainActor
     final class FakeTTS: TTSConfigurable, VoiceListProvider {
@@ -35,7 +35,7 @@ final class VoicePickerFilteringTests: XCTestCase {
         ]
 
         let store = VoiceProfilesStore(filename: "filter-\(UUID().uuidString).json")
-        let vm = VoicePickerViewModel(tts: fake, store: store)
+        let vm = VoiceChooserViewModel(tts: fake, store: store)
         vm.refreshAvailableVoices()
 
         vm.languageFilter = .all

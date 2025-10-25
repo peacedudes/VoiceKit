@@ -26,9 +26,9 @@ public final class VoiceChorus {
         self.makeEngine = makeEngine
     }
 
-    /// Ensure we have at least n engines ready.
-    private func ensureEngines(count n: Int) {
-        while engines.count < n {
+    /// Ensure we have at least the needed number of engines ready.
+    private func ensureEngines(count neededCount: Int) {
+        while engines.count < neededCount {
             engines.append(makeEngine())
         }
     }

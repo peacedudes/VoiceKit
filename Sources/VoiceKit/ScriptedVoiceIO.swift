@@ -42,8 +42,8 @@ public final class ScriptedVoiceIO: VoiceIO {
         onTTSSpeakingChanged?(true)
         onTTSPulse?(0.35)
         let steps = 6
-        for i in 0..<steps {
-            let phase = Double(i) / Double(steps - 1)
+        for stepIndex in 0..<steps {
+            let phase = Double(stepIndex) / Double(steps - 1)
             let level = 0.28 + 0.24 * sin(phase * .pi)
             onTTSPulse?(CGFloat(level))
             try? await Task.sleep(nanoseconds: 50_000_000)

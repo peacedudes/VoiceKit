@@ -94,8 +94,8 @@ extension RealVoiceIO {
         let sysMax = AVSpeechUtteranceMaximumSpeechRate
         let sysSpan = sysMax - sysMin
         func mapRate(_ normalized: Double) -> Float {
-            let t = Float(normalized.clamped(to: 0.0...1.0))
-            return (sysMin + t * sysSpan).clamped(to: sysMin...sysMax)
+            let clamped = Float(normalized.clamped(to: 0.0...1.0))
+            return (sysMin + clamped * sysSpan).clamped(to: sysMin...sysMax)
         }
 
         // Defaults
@@ -187,7 +187,7 @@ extension RealVoiceIO {
                 cont.resume()
             }
             // Cancel measurement if any; resume with 0
-            if let _ = self.ttsStartTimes.removeValue(forKey: key),
+            if self.ttsStartTimes.removeValue(forKey: key) != nil,
                let mCont = self.measureContinuations.removeValue(forKey: key) {
                 mCont.resume(returning: 0.0)
             } else if let mCont = self.measureContinuations.removeValue(forKey: key) {

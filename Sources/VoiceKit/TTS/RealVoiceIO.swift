@@ -55,7 +55,6 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
     internal var ttsStartTimes: [ObjectIdentifier: TimeInterval] = [:]
     internal var measureContinuations: [ObjectIdentifier: CheckedContinuation<TimeInterval, Never>] = [:]
 
-
     // Simple pulse animation state
     internal var ttsPhase: CGFloat = 0
     internal var ttsGlow: CGFloat = 0

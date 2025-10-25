@@ -1,3 +1,4 @@
+// swiftlint:disable file_length type_body_length implicit_optional_initialization identifier_name
 //
 //  VoiceChooserView.swift
 //  VoiceKit

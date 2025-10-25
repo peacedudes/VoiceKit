@@ -98,8 +98,8 @@ extension RealVoiceIO {
         // Cancel and clear any remaining waiters exactly once.
         let waiters = clipWaiters
         clipWaiters = []
-        for w in waiters {
-            w.resume(throwing: SimpleError("Stopped"))
+        for waiter in waiters {
+            waiter.resume(throwing: SimpleError("Stopped"))
         }
     }
 
@@ -108,8 +108,6 @@ extension RealVoiceIO {
     public func prepareBoosted(url: URL, gainDB: Float) async throws {
         try await prepareClip(url: url, gainDB: gainDB)
     }
-
-
 
     // MARK: - Helpers for future completion/timeout wiring
 
@@ -121,7 +119,7 @@ extension RealVoiceIO {
 
         let waiters = clipWaiters
         clipWaiters = []
-        for w in waiters { w.resume() }
+        for waiter in waiters { waiter.resume() }
     }
 
     internal func completeClipWithTimeout() {
@@ -132,7 +130,7 @@ extension RealVoiceIO {
 
         let waiters = clipWaiters
         clipWaiters = []
-        for w in waiters { w.resume(throwing: SimpleError("Timed out")) }
+        for waiter in waiters { waiter.resume(throwing: SimpleError("Timed out")) }
     }
     
     // One-shot helper: prepare then start the clip
@@ -141,4 +139,3 @@ extension RealVoiceIO {
         try await startPreparedClip()
     }
 }
-

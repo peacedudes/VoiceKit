@@ -1,5 +1,5 @@
 //
-//  VoicePickerBootstrappingTests.swift
+//  VoiceChooserBootstrappingTests.swift
 //  VoiceKit
 //
 //  Deterministic bootstrap test using FakeTTS voices only.
@@ -10,7 +10,7 @@ import XCTest
 @testable import VoiceKit
 
 @MainActor
-final class VoicePickerBootstrappingTests: XCTestCase {
+final class VoiceChooserBootstrappingTests: XCTestCase {
 
     @MainActor
     final class FakeTTS: TTSConfigurable, VoiceListProvider {
@@ -42,7 +42,7 @@ final class VoicePickerBootstrappingTests: XCTestCase {
         ]
 
         // IMPORTANT: use FakeTTS in the ViewModel
-        let vm = VoicePickerViewModel(tts: tts, store: store, allowSystemVoices: false)
+        let vm = VoiceChooserViewModel(tts: tts, store: store, allowSystemVoices: false)
         vm.refreshAvailableVoices()
 
         XCTAssertEqual(vm.voices.map(\.id), ["a", "b"])

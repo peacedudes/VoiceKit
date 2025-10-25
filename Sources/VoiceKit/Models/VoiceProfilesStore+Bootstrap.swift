@@ -25,8 +25,8 @@ public enum VoiceProfilesStoreBootstrap {
     // Returns default voice ID and full list of profiles (sorted by name).
     public static func bootstrap() -> (defaultID: String?, profiles: [VoiceProfileSummary]) {
         // Use cached system voices (single query per process via SystemVoicesCache).
-        var summaries = SystemVoicesCache.all().map { v in
-            VoiceProfileSummary(id: v.id, name: v.name, language: v.language, isHidden: false)
+        var summaries = SystemVoicesCache.all().map { voice in
+            VoiceProfileSummary(id: voice.id, name: voice.name, language: voice.language, isHidden: false)
         }
 
         // Stable sort by name so tests see deterministic order
