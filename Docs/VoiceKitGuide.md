@@ -253,6 +253,36 @@ public struct RecognitionContext: Sendable {
 }
 ~~~
 
+Embedded SFX in text
+You can embed short sound effects inline with text using [sfx:NAME]. VoiceQueue will parse and schedule the SFX with near-zero gap when it follows speech.
+
+- Syntax: [sfx:NAME] where NAME uses letters, numbers, dot, underscore, or dash.
+- Resolver: provide a closure (String) -> URL? to map NAME to an audio file URL.
+
+Example
+~~~swift
+// Build a resolver from your app’s assets (or a recorded clip).
+let nameClipURL: URL = /* recorded name file URL */
+let resolver: VoiceQueue.SFXResolver = { name in
+    switch name {
+    case "nameClip": return nameClipURL
+    case "ding":     return Bundle.main.url(forResource: "ding", withExtension: "caf")
+    default:         return nil
+    }
+}
+
+// Compose the utterance with an embedded SFX.
+let text = "Hello [sfx:nameClip] May I call you Alex?"
+
+// Queue and play. Non-matching tokens remain as plain text.
+let q = VoiceQueue(primary: RealVoiceIO())
+q.enqueueParsingSFX(text: text, resolver: resolver, defaultVoiceID: nil)
+await q.play()
+~~~
+
+Notes
+- If an SFX token immediately follows a speak item, VoiceQueue pre-schedules and then starts the prepared clip to minimize the gap.
+
 Changelog
 - See CHANGELOG.md.
 

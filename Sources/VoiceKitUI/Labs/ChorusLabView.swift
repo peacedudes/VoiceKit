@@ -82,6 +82,8 @@ struct ChorusLabView: View {
     @State private var tunerSelection: String? = nil
     @State private var tunerEngine = RealVoiceIO()
     @State private var editingIndex: Int? = nil
+    // Copy-to-clipboard feedback
+    @State private var didCopy: Bool = false
 
     // iOS-only: edit mode toggling for List reordering
     #if os(iOS)
@@ -169,6 +171,14 @@ struct ChorusLabView: View {
                 // Copy-to-clipboard: generate one-liners to recreate the current chorus.
                 Button {
                     copyChorusSetup()
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                        didCopy = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+                        withAnimation(.easeOut(duration: 0.35)) {
+                            didCopy = false
+                        }
+                    }
                 } label: {
                     Image(systemName: "doc.on.doc")
                 }
@@ -187,6 +197,22 @@ struct ChorusLabView: View {
                 #else
                 .buttonStyle(.plain)
                 #endif
+            }
+            .overlay(alignment: .topTrailing) {
+                if didCopy {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                        Text("Copied to Clipboard")
+                            .font(.caption2)
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundStyle(.green)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color.green.opacity(0.12)))
+                    .transition(.scale.combined(with: .opacity))
+                    .offset(y: -24)
+                }
             }
             .padding(.vertical, 4)
             #if os(macOS)
@@ -567,7 +593,7 @@ struct ChorusLabView: View {
                 .background {
                     if isHighlighted {
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.yellow.opacity(0.30))
+                            .fill(Color.green.opacity(0.18))
                     }
                 }
                 .animation(.easeInOut(duration: 0.2), value: isHighlighted)
