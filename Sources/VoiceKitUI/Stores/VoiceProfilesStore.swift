@@ -11,18 +11,18 @@ import VoiceKit
 
 public struct VoiceProfilesFile: Codable {
     public var defaultVoiceID: String?
-    public var master: TTSMasterControl
+    public var tuning: Tuning
     public var profilesByID: [String: TTSVoiceProfile]
     public var activeVoiceIDs: [String]
     public var hiddenVoiceIDs: [String]
 
     public init(defaultVoiceID: String? = nil,
-                master: TTSMasterControl = .init(),
+                tuning: Tuning = .init(),
                 profilesByID: [String: TTSVoiceProfile] = [:],
                 activeVoiceIDs: [String] = [],
                 hiddenVoiceIDs: [String] = []) {
         self.defaultVoiceID = defaultVoiceID
-        self.master = master
+        self.tuning = tuning
         self.profilesByID = profilesByID
         self.activeVoiceIDs = activeVoiceIDs
         self.hiddenVoiceIDs = hiddenVoiceIDs
@@ -35,24 +35,12 @@ public struct VoiceProfilesFile: Codable {
         var volume: Float
     }
 
-    private struct MasterDTO: Codable {
-        var rateVariation: Float
-        var pitchVariation: Float
-        var volume: Float
-        init(_ m: TTSMasterControl) {
-            rateVariation = m.rateVariation; pitchVariation = m.pitchVariation; volume = m.volume
-        }
-        func make() -> TTSMasterControl {
-            TTSMasterControl(rateVariation: rateVariation, pitchVariation: pitchVariation, volume: volume)
-        }
-    }
-
-    enum CodingKeys: String, CodingKey { case defaultVoiceID, master, profilesByID, activeVoiceIDs, hiddenVoiceIDs }
+    private enum CodingKeys: String, CodingKey { case defaultVoiceID, tuning, profilesByID, activeVoiceIDs, hiddenVoiceIDs }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         defaultVoiceID = try c.decodeIfPresent(String.self, forKey: .defaultVoiceID)
-        master = try c.decode(MasterDTO.self, forKey: .master).make()
+        tuning = try c.decode(Tuning.self, forKey: .tuning)
         activeVoiceIDs = try c.decodeIfPresent([String].self, forKey: .activeVoiceIDs) ?? []
         hiddenVoiceIDs = try c.decodeIfPresent([String].self, forKey: .hiddenVoiceIDs) ?? []
         let dict = try c.decodeIfPresent([String: ProfileDTO].self, forKey: .profilesByID) ?? [:]
@@ -69,7 +57,7 @@ public struct VoiceProfilesFile: Codable {
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encodeIfPresent(defaultVoiceID, forKey: .defaultVoiceID)
-        try c.encode(MasterDTO(master), forKey: .master)
+        try c.encode(tuning, forKey: .tuning)
         try c.encode(activeVoiceIDs, forKey: .activeVoiceIDs)
         try c.encode(hiddenVoiceIDs, forKey: .hiddenVoiceIDs)
         let dict = profilesByID.mapValues { ProfileDTO(id: $0.id, rate: $0.rate, pitch: $0.pitch, volume: $0.volume) }
@@ -80,7 +68,7 @@ public struct VoiceProfilesFile: Codable {
 @MainActor
 public final class VoiceProfilesStore: ObservableObject {
     @Published public var defaultVoiceID: String?
-    @Published public var master: TTSMasterControl = .init()
+    @Published public var master: Tuning = .init()
     @Published public var profilesByID: [String: TTSVoiceProfile] = [:]
     @Published public var activeVoiceIDs: Set<String> = []
     @Published public var hiddenVoiceIDs: Set<String> = []
@@ -100,15 +88,22 @@ public final class VoiceProfilesStore: ObservableObject {
         guard let data = try? Data(contentsOf: fileURL) else { return }
         if let decoded = try? JSONDecoder().decode(VoiceProfilesFile.self, from: data) {
             self.defaultVoiceID = decoded.defaultVoiceID
-            self.master = decoded.master
+            self.master = decoded.tuning
             self.profilesByID = decoded.profilesByID
             self.activeVoiceIDs = Set(decoded.activeVoiceIDs)
             self.hiddenVoiceIDs = Set(decoded.hiddenVoiceIDs)
         }
     }
 
+    // Transitional convenience: prefer 'tuning' from call sites.
+    // Proxies to 'master' until the persistence and API are renamed.
+    public var tuning: Tuning {
+        get { master }
+        set { master = newValue }
+    }
+
     public func save() {
-        let payload = VoiceProfilesFile(defaultVoiceID: defaultVoiceID, master: master, profilesByID: profilesByID, activeVoiceIDs: Array(activeVoiceIDs), hiddenVoiceIDs: Array(hiddenVoiceIDs))
+        let payload = VoiceProfilesFile(defaultVoiceID: defaultVoiceID, tuning: master, profilesByID: profilesByID, activeVoiceIDs: Array(activeVoiceIDs), hiddenVoiceIDs: Array(hiddenVoiceIDs))
         if let data = try? JSONEncoder().encode(payload) {
             try? data.write(to: fileURL, options: [.atomic])
         }

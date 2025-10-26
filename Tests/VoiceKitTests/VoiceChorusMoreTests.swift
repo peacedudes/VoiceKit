@@ -30,7 +30,7 @@ final class VoiceChorusMoreTests: XCTestCase {
         // Tracking
         private(set) var profiles: [String: TTSVoiceProfile] = [:]
         private(set) var defaultProfile: TTSVoiceProfile?
-        private(set) var master: TTSMasterControl = .init()
+        private(set) var master: Tuning = .init()
         private(set) var speaks: [(text: String, voiceID: String?)] = []
         private(set) var stopAllCalls = 0
 
@@ -66,8 +66,9 @@ final class VoiceChorusMoreTests: XCTestCase {
         func getVoiceProfile(id: String) -> TTSVoiceProfile? { profiles[id] }
         func setDefaultVoiceProfile(_ profile: TTSVoiceProfile) { defaultProfile = profile; profiles[profile.id] = profile }
         func getDefaultVoiceProfile() -> TTSVoiceProfile? { defaultProfile }
-        func setMasterControl(_ master: TTSMasterControl) { self.master = master }
-        func getMasterControl() -> TTSMasterControl { master }
+        // Current protocol requirements:
+        func setTuning(_ tuning: Tuning) { self.master = tuning }
+        func getTuning() -> Tuning { master }
         func speak(_ text: String, using voiceID: String?) async {
             speaks.append((text, voiceID))
             if delaySeconds > 0 {

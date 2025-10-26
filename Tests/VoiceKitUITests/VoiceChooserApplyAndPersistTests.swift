@@ -61,9 +61,9 @@ final class VoiceChooserApplyAndPersistTests: XCTestCase {
         store.setProfile(TTSVoiceProfile(id: id, rate: 0.5, pitch: 1.0, volume: 1.0))
         vm.setDefaultVoice(id: id)
 
-        // Update master; order: rateVariation, pitchVariation, volume
-        let newMaster = TTSMasterControl(rateVariation: 0.015, pitchVariation: 0.02, volume: 1.1)
-        vm.updateMaster(newMaster)
+        // Update tuning; order: rateVariation, pitchVariation, volume
+        let newTuning = Tuning(rateVariation: 0.015, pitchVariation: 0.02, volume: 1.1)
+        vm.updateTuning(newTuning)
 
         store.save()
         let loaded = VoiceProfilesStore(filename: filename)

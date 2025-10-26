@@ -84,12 +84,14 @@ public final class VoiceChooserViewModel: ObservableObject {
         store.defaultVoiceID = id
     }
 
-    public func updateMaster(_ m: TTSMasterControl, previewKind: String? = nil) {
-        store.master = m
+    // Transitional convenience: prefer 'tuning' from UI code.
+    // Proxies to store.master until full rename.
+    public func updateTuning(_ tuning: Tuning, previewKind: String? = nil) {
+        store.tuning = tuning
     }
 
     public func applyToTTS() {
-        tts.setMasterControl(store.master)
+        tts.setTuning(store.tuning)
         for p in store.profilesByID.values {
             tts.setVoiceProfile(p)
         }

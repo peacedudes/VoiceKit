@@ -36,7 +36,7 @@ final class VoiceChorusTests: XCTestCase {
         private(set) var spoken: [(text: String, voiceID: String?)] = []
         private(set) var profiles: [String: TTSVoiceProfile] = [:]
         private(set) var defaultProfile: TTSVoiceProfile?
-        private(set) var master: TTSMasterControl = .init()
+        private(set) var tuning: Tuning = .init()
 
         // VoiceIO
         func ensurePermissions() async throws {}
@@ -58,8 +58,8 @@ final class VoiceChorusTests: XCTestCase {
         func getVoiceProfile(id: String) -> TTSVoiceProfile? { profiles[id] }
         func setDefaultVoiceProfile(_ profile: TTSVoiceProfile) { profiles[profile.id] = profile; defaultProfile = profile }
         func getDefaultVoiceProfile() -> TTSVoiceProfile? { defaultProfile }
-        func setMasterControl(_ master: TTSMasterControl) { self.master = master }
-        func getMasterControl() -> TTSMasterControl { master }
+        func setTuning(_ tuning: Tuning) { self.tuning = tuning }
+        func getTuning() -> Tuning { tuning }
 
         // Extended for tests
         func speak(_ text: String, using voiceID: String?) async {

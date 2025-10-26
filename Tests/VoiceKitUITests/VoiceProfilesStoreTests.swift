@@ -32,19 +32,19 @@ final class VoiceProfilesStoreTests: XCTestCase {
         XCTAssertEqual(lp.volume, 0.9, accuracy: 0.0001)
     }
 
-    func testMasterControlPersists() throws {
+    func testTuningPersists() throws {
         let filename = "test_master.json"
         let store = VoiceProfilesStore(filename: filename)
         defer { cleanup(filename) }
 
         // Note parameter order: rateVariation, pitchVariation, volume
-        store.master = TTSMasterControl(rateVariation: 0.02, pitchVariation: 0.03, volume: 1.2)
+        store.tuning = Tuning(rateVariation: 0.02, pitchVariation: 0.03, volume: 1.2)
         store.save()
 
         let loaded = VoiceProfilesStore(filename: filename)
-        XCTAssertEqual(loaded.master.rateVariation, 0.02, accuracy: 0.0001)
-        XCTAssertEqual(loaded.master.pitchVariation, 0.03, accuracy: 0.0001)
-        XCTAssertEqual(loaded.master.volume, 1.2, accuracy: 0.0001)
+        XCTAssertEqual(loaded.tuning.rateVariation, 0.02, accuracy: 0.0001)
+        XCTAssertEqual(loaded.tuning.pitchVariation, 0.03, accuracy: 0.0001)
+        XCTAssertEqual(loaded.tuning.volume, 1.2, accuracy: 0.0001)
     }
 
     func testFavoriteAndActiveFlags() throws {

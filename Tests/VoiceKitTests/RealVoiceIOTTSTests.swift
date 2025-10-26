@@ -21,8 +21,8 @@ final class RealVoiceIOTTSTests: TestSupport.QoSNeutralizingTestCase {
         io.setVoiceProfile(alex)
         io.setDefaultVoiceProfile(alex)
 
-        // TTSMasterControl initializer order: rateVariation, pitchVariation, volume
-        io.setMasterControl(TTSMasterControl(rateVariation: 0.01, pitchVariation: 0.02, volume: 0.9))
+        // Tuning initializer order: rateVariation, pitchVariation, volume
+        io.setTuning(Tuning(rateVariation: 0.01, pitchVariation: 0.02, volume: 0.9))
 
         await io.speak("Applying profile for test.")
         // If no crash, mapping succeeded.

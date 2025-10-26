@@ -20,8 +20,8 @@ final class VoiceChooserFilteringTests: XCTestCase {
         func getVoiceProfile(id: String) -> TTSVoiceProfile? { nil }
         func setDefaultVoiceProfile(_ profile: TTSVoiceProfile) {}
         func getDefaultVoiceProfile() -> TTSVoiceProfile? { nil }
-        func setMasterControl(_ master: TTSMasterControl) {}
-        func getMasterControl() -> TTSMasterControl { .init() }
+        func setTuning(_ tuning: Tuning) {}
+        func getTuning() -> Tuning { .init() }
         func speak(_ text: String, using voiceID: String?) async {}
         func stopSpeakingNow() {}
     }

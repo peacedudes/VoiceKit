@@ -10,6 +10,8 @@
 import Foundation
 import CoreGraphics
 
+// Tuning is the canonical control model (rateVariation, pitchVariation, volume).
+
 // MARK: - Public results and errors
 
 public struct VoiceResult: Sendable {
@@ -94,7 +96,7 @@ public struct TTSVoiceProfile: Sendable, Equatable, Codable {
     }
 }
 
-public struct TTSMasterControl: Sendable, Equatable, Codable {
+public struct Tuning: Sendable, Equatable, Codable {
     public var rateVariation: Float
     public var pitchVariation: Float
     public var volume: Float
@@ -113,8 +115,8 @@ public protocol TTSConfigurable: AnyObject {
     func getVoiceProfile(id: String) -> TTSVoiceProfile?
     func setDefaultVoiceProfile(_ profile: TTSVoiceProfile)
     func getDefaultVoiceProfile() -> TTSVoiceProfile?
-    func setMasterControl(_ master: TTSMasterControl)
-    func getMasterControl() -> TTSMasterControl
+    func setTuning(_ tuning: Tuning)
+    func getTuning() -> Tuning
 
     /// Speak text using an optional voice profile id (nil uses default).
     func speak(_ text: String, using voiceID: String?) async

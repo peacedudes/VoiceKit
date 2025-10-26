@@ -17,14 +17,14 @@ final class VoiceChooserBootstrappingTests: XCTestCase {
         var voices: [TTSVoiceInfo] = []
         var profiles: [String: TTSVoiceProfile] = [:]
         var defaultProfile: TTSVoiceProfile?
-        var master: TTSMasterControl = .init()
+        var tuning: Tuning = .init()
         nonisolated func availableVoices() -> [TTSVoiceInfo] { MainActor.assumeIsolated { voices } }
         func setVoiceProfile(_ profile: TTSVoiceProfile) { profiles[profile.id] = profile }
         func getVoiceProfile(id: String) -> TTSVoiceProfile? { profiles[id] }
         func setDefaultVoiceProfile(_ profile: TTSVoiceProfile) { defaultProfile = profile }
         func getDefaultVoiceProfile() -> TTSVoiceProfile? { defaultProfile }
-        func setMasterControl(_ master: TTSMasterControl) { self.master = master }
-        func getMasterControl() -> TTSMasterControl { master }
+        func setTuning(_ tuning: Tuning) { self.tuning = tuning }
+        func getTuning() -> Tuning { tuning }
         func speak(_ text: String, using voiceID: String?) async {}
         func stopSpeakingNow() {}
     }

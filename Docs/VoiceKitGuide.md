@@ -47,11 +47,11 @@ Modules and primary types
   - ScriptedVoiceIO (@MainActor): deterministic engine for tests/demos (listen dequeues scripted strings; speak emits a pulse pattern).
   - VoiceQueue (@MainActor): sequence speak/SFX/pause; optional parallel channels.
   - Utilities: NameMatch, NameResolver, PermissionBridge, VoiceOpGate.
-  - Models: TTSVoiceInfo, TTSVoiceProfile (rate: Double; pitch/volume: Float), TTSMasterControl, RecognitionContext, VoiceResult.
+  - Models: TTSVoiceInfo, TTSVoiceProfile (rate: Double; pitch/volume: Float), Tuning, RecognitionContext, VoiceResult.
 - VoiceKitUI
   - VoiceChooserView: pick a system voice and tune its settings (rate, pitch, volume) with live preview.
   - ChorusLabView: experiment with multiple voices speaking in parallel and calibrate timing.
-  - VoiceProfilesStore: JSON persistence for profiles/master/flags; deterministic in tests.
+  - VoiceProfilesStore: JSON persistence for profiles/tuning/flags; deterministic in tests.
 
 Speak and listen
 ~~~swift
@@ -112,7 +112,7 @@ public struct TTSVoiceProfile {
     public var pitch, volume: Float
 }
 
-public struct TTSMasterControl {
+public struct Tuning {
     public var rateVariation, pitchVariation, volume: Float
 }
 
@@ -127,7 +127,7 @@ public struct RecognitionContext {
 
 Chooser notes
 - VoiceChooserView lets users select a system TTS voice and adjust rate, pitch, and volume with immediate audio feedback.
-- Profiles persist via VoiceProfilesStore (id → TTSVoiceProfile) along with default voice and master control values.
+- Profiles persist via VoiceProfilesStore (id → TTSVoiceProfile) along with default voice and tuning values.
 - For deterministic tests, use a FakeTTS (conforming to TTSConfigurable) and avoid relying on device locale/voices.
 
 Concurrency and thread-safety (Swift 6)
@@ -155,13 +155,13 @@ Example (UI)
 final class FakeTTS: TTSConfigurable {
     var profiles: [String: TTSVoiceProfile] = [:]
     var defaultProfile: TTSVoiceProfile?
-    var master: TTSMasterControl = .init()
+    var tuning: Tuning = .init()
     func setVoiceProfile(_ p: TTSVoiceProfile) { profiles[p.id] = p }
     func getVoiceProfile(id: String) -> TTSVoiceProfile? { profiles[id] }
     func setDefaultVoiceProfile(_ p: TTSVoiceProfile) { defaultProfile = p }
     func getDefaultVoiceProfile() -> TTSVoiceProfile? { defaultProfile }
-    func setMasterControl(_ m: TTSMasterControl) { master = m }
-    func getMasterControl() -> TTSMasterControl { master }
+    func setTuning(_ t: Tuning) { tuning = t }
+    func getTuning() -> Tuning { tuning }
     func speak(_ text: String, using voiceID: String?) async {}
 }
 ~~~
@@ -236,8 +236,8 @@ public protocol TTSConfigurable: AnyObject {
     func getVoiceProfile(id: String) -> TTSVoiceProfile?
     func setDefaultVoiceProfile(_ profile: TTSVoiceProfile)
     func getDefaultVoiceProfile() -> TTSVoiceProfile?
-    func setMasterControl(_ master: TTSMasterControl)
-    func getMasterControl() -> TTSMasterControl
+    func setTuning(_ tuning: Tuning)
+    func getTuning() -> Tuning
     func speak(_ text: String, using voiceID: String?) async
 }
 
@@ -245,7 +245,7 @@ public protocol TTSConfigurable: AnyObject {
 public struct VoiceResult: Sendable { public let transcript: String; public let recordingURL: URL? }
 public struct TTSVoiceInfo: Identifiable, Hashable, Codable, Sendable { public let id, name, language: String }
 public struct TTSVoiceProfile: Sendable, Equatable, Codable { public let id: String; public var rate: Double; public var pitch, volume: Float }
-public struct TTSMasterControl: Sendable, Equatable, Codable { public var rateVariation, pitchVariation, volume: Float }
+public struct Tuning: Sendable, Equatable, Codable { public var rateVariation, pitchVariation, volume: Float }
 public struct RecognitionContext: Sendable {
     public enum Expectation: Sendable { case freeform, name(allowed: [String]), number }
     public var expectation: Expectation

@@ -43,7 +43,7 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
     // MARK: - TTS state
     internal var profilesByID: [String: TTSVoiceProfile] = [:]
     internal var defaultProfile: TTSVoiceProfile?
-    internal var master: TTSMasterControl = .init()
+    internal var tuning: Tuning = .init()
 
     // AVSpeechSynthesizer (lazy optional)
     internal var synthesizer: AVSpeechSynthesizer?
@@ -119,9 +119,13 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
     public func getVoiceProfile(id: String) -> TTSVoiceProfile? { profilesByID[id] }
     public func setDefaultVoiceProfile(_ profile: TTSVoiceProfile) { defaultProfile = profile; profilesByID[profile.id] = profile }
     public func getDefaultVoiceProfile() -> TTSVoiceProfile? { defaultProfile }
-    public func setMasterControl(_ master: TTSMasterControl) { self.master = master }
-    public func getMasterControl() -> TTSMasterControl { master }
 
+    // Transitional convenience: prefer Tuning in new code.
+    // These are not required by TTSConfigurable yet, but available on RealVoiceIO.
+    public func setTuning(_ tuning: Tuning) {
+        self.tuning = tuning
+    }
+    public func getTuning() -> Tuning { tuning }
     // MARK: - VoiceIO basics
 
     public func ensurePermissions() async throws {}

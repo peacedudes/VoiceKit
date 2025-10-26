@@ -8,7 +8,7 @@
 //  Updates for current API:
 //  - TTSVoiceProfile has no displayName; use system name helpers if needed.
 //  - TTSVoiceProfile.rate is Double; pitch/volume are Float.
-//  - TTSMasterControl initializer order: rateVariation, pitchVariation, volume.
+//  - Tuning initializer order: rateVariation, pitchVariation, volume.
 //  - Add explicit type annotations where inference became ambiguous.
 //
 
@@ -74,9 +74,9 @@ final class VoiceChooserViewModelTests: TestSupport.QoSNeutralizingTestCase {
         store.setProfile(profile)
         vm.applyToTTS()
 
-        // Update master with correct parameter order
-        let master = TTSMasterControl(rateVariation: 0.02, pitchVariation: 0.01, volume: 1.05)
-        vm.updateMaster(master, previewKind: "test")
+        // Update tuning with correct parameter order
+        let tuning = Tuning(rateVariation: 0.02, pitchVariation: 0.01, volume: 1.05)
+        vm.updateTuning(tuning, previewKind: "test")
 
         // Trigger a preview phrase
         let phrase: String = vm.samplePhrase(for: profile, suffix: "preview")
@@ -103,14 +103,14 @@ final class VoiceChooserViewModelTests: TestSupport.QoSNeutralizingTestCase {
                 var voices: [TTSVoiceInfo] = []
                 var profiles: [String: TTSVoiceProfile] = [:]
                 var defaultProfile: TTSVoiceProfile?
-                var master: TTSMasterControl = .init()
+                var tuning: Tuning = .init()
                 nonisolated func availableVoices() -> [TTSVoiceInfo] { MainActor.assumeIsolated { voices } }
                 func setVoiceProfile(_ profile: TTSVoiceProfile) { profiles[profile.id] = profile }
                 func getVoiceProfile(id: String) -> TTSVoiceProfile? { profiles[id] }
                 func setDefaultVoiceProfile(_ profile: TTSVoiceProfile) { defaultProfile = profile }
                 func getDefaultVoiceProfile() -> TTSVoiceProfile? { defaultProfile }
-                func setMasterControl(_ master: TTSMasterControl) { self.master = master }
-                func getMasterControl() -> TTSMasterControl { master }
+                func setTuning(_ tuning: Tuning) { self.tuning = tuning }
+                func getTuning() -> Tuning { tuning }
                 func speak(_ text: String, using voiceID: String?) async {}
                 func stopSpeakingNow() {}
             }

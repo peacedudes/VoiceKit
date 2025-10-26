@@ -88,7 +88,7 @@ extension RealVoiceIO {
             utterance.voice = voice
         }
 
-        let control = master
+        let control = tuning
         // Map normalized 0…1 rate into AVSpeechUtterance native range for audibly stronger effect.
         let sysMin = AVSpeechUtteranceMinimumSpeechRate
         let sysMax = AVSpeechUtteranceMaximumSpeechRate
@@ -103,7 +103,7 @@ extension RealVoiceIO {
         var mappedRate = mapRate(baseNormRate)
         var usedNormRate = baseNormRate
         var source = "default"
-        // Apply per-utterance random rate variation in system units (preserving semantics of master.rateVariation as normalized fraction).
+        // Apply per-utterance random rate variation in system units (preserving semantics of tuning.rateVariation as normalized fraction).
         let rateDelta = Float.random(in: -control.rateVariation...control.rateVariation) * sysSpan
         utterance.rate = (mappedRate + rateDelta).clamped(to: sysMin...sysMax)
 

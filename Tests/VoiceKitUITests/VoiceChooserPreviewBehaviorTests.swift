@@ -6,7 +6,7 @@
 //  date: 09-17-2025
 //
 //  Updates for current API:
-//  - TTSMasterControl initializer order is (rateVariation, pitchVariation, volume).
+//  - Tuning initializer order is (rateVariation, pitchVariation, volume).
 //  - TTSVoiceProfile: rate is Double; pitch/volume are Float.
 //  - Tests exercise preview debounce and interruption behavior without relying on displayName.
 //
@@ -44,10 +44,10 @@ final class VoiceChooserPreviewBehaviorTests: TestSupport.QoSNeutralizingTestCas
         store.setProfile(TTSVoiceProfile(id: id, rate: 0.55, pitch: 1.0, volume: 1.0))
         vm.applyToTTS()
 
-        // Rapidly update master; debounce should consolidate previews
-        vm.updateMaster(TTSMasterControl(rateVariation: 0.010, pitchVariation: 0.015, volume: 1.00), previewKind: "one")
-        vm.updateMaster(TTSMasterControl(rateVariation: 0.012, pitchVariation: 0.020, volume: 1.05), previewKind: "two")
-        vm.updateMaster(TTSMasterControl(rateVariation: 0.015, pitchVariation: 0.025, volume: 1.10), previewKind: "three")
+        // Rapidly update tuning; debounce should consolidate previews
+        vm.updateTuning(Tuning(rateVariation: 0.010, pitchVariation: 0.015, volume: 1.00), previewKind: "one")
+        vm.updateTuning(Tuning(rateVariation: 0.012, pitchVariation: 0.020, volume: 1.05), previewKind: "two")
+        vm.updateTuning(Tuning(rateVariation: 0.015, pitchVariation: 0.025, volume: 1.10), previewKind: "three")
 
         // Allow debounce window to elapse
         try? await Task.sleep(nanoseconds: 300_000_000)
@@ -116,9 +116,9 @@ final class VoiceChooserPreviewBehaviorTests: TestSupport.QoSNeutralizingTestCas
         // Kick off a preview
         vm.playPreview(phrase: vm.samplePhrase(for: p), voiceID: id)
 
-        // Change master to quieter, then louder, using correct argument order
-        vm.updateMaster(TTSMasterControl(rateVariation: 0.0, pitchVariation: 0.0, volume: 0.8), previewKind: "at lower volume")
-        vm.updateMaster(TTSMasterControl(rateVariation: 0.0, pitchVariation: 0.0, volume: 1.2), previewKind: "at higher volume")
+        // Change tuning to quieter, then louder, using correct argument order
+        vm.updateTuning(Tuning(rateVariation: 0.0, pitchVariation: 0.0, volume: 0.8), previewKind: "at lower volume")
+        vm.updateTuning(Tuning(rateVariation: 0.0, pitchVariation: 0.0, volume: 1.2), previewKind: "at higher volume")
 
         try? await Task.sleep(nanoseconds: 200_000_000)
         vm.stopPreview()

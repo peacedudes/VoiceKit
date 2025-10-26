@@ -164,8 +164,8 @@ public protocol TTSConfigurable: AnyObject {
     func getVoiceProfile(id: String) -> TTSVoiceProfile?
     func setDefaultVoiceProfile(_ profile: TTSVoiceProfile)
     func getDefaultVoiceProfile() -> TTSVoiceProfile?
-    func setMasterControl(_ master: TTSMasterControl)
-    func getMasterControl() -> TTSMasterControl
+    func setTuning(_ tuning: Tuning)
+    func getTuning() -> Tuning
     func speak(_ text: String, using voiceID: String?) async
 }
 ~~~
@@ -190,7 +190,7 @@ public struct TTSVoiceProfile: Sendable, Equatable, Codable {
     public var volume: Float
 }
 
-public struct TTSMasterControl: Sendable, Equatable, Codable {
+public struct Tuning: Sendable, Equatable, Codable {
     public var rateVariation: Float
     public var pitchVariation: Float
     public var volume: Float
