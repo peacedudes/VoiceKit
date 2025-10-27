@@ -17,6 +17,7 @@ import CoreGraphics
 public struct VoiceResult: Sendable {
     public let transcript: String
     public let recordingURL: URL?
+
     public init(transcript: String, recordingURL: URL?) {
         self.transcript = transcript
         self.recordingURL = recordingURL
@@ -25,7 +26,9 @@ public struct VoiceResult: Sendable {
 
 public struct SimpleError: LocalizedError, Sendable {
     public var message: String
+
     public init(_ message: String) { self.message = message }
+
     public var errorDescription: String? { message }
 }
 
@@ -77,6 +80,7 @@ public struct TTSVoiceInfo: Identifiable, Hashable, Codable, Sendable {
     public let id: String
     public let name: String
     public let language: String
+
     public init(id: String, name: String, language: String) {
         self.id = id; self.name = name; self.language = language
     }
@@ -130,7 +134,9 @@ public struct RecognitionContext: Sendable {
         case name(allowed: [String])
         case number
     }
+
     public var expectation: Expectation
+
     public init(expectation: Expectation = .freeform) { self.expectation = expectation }
 }
 
@@ -149,7 +155,9 @@ public extension RecognitionContext {
 
 public actor VoiceOpGate {
     private var busy = false
+
     public init() {}
+
     public func acquire() async {
         while busy { try? await Task.sleep(nanoseconds: 200_000) }
         busy = true

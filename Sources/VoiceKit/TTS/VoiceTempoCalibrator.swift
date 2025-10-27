@@ -77,4 +77,3 @@ public enum VoiceTempoCalibrator {
         return (profile.rate, lastMeasured)
     }
 }
-

@@ -32,6 +32,7 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
     /// Example:
     ///   io.logger = { level, msg in print("[VoiceKit][\(level)] \(msg)") }
     public var logger: ((LogLevel, String) -> Void)?
+
     @inline(__always)
     internal func log(_ level: LogLevel = .info, _ message: @autoclosure () -> String) {
         logger?(level, message())

@@ -26,6 +26,7 @@ struct FakeSpeechTaskDriver: SpeechTaskDriver {
         struct ScriptedEvents: AsyncSequence {
             typealias Element = SpeechEvent
             let events: [SpeechEvent]
+
             struct Iterator: AsyncIteratorProtocol {
                 var index = 0
                 let events: [SpeechEvent]
@@ -61,7 +62,9 @@ final class FakeTapSource: RecognitionTapSource {
     @MainActor
     final class BufferCallbackBox {
         private let callback: @Sendable (AVAudioPCMBuffer) -> Void
+
         init(callback: @escaping @Sendable (AVAudioPCMBuffer) -> Void) { self.callback = callback }
+
         func call(with buffer: AVAudioPCMBuffer) { callback(buffer) }
     }
 

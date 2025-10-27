@@ -36,11 +36,13 @@ public struct VoiceChooserView: View {
     @State private var isPreviewing: Bool = false
     
     private enum SliderKind { case speed, pitch, volume }
+
     @State private var activeSlider: SliderKind?
     @State private var didAnnounceLabelForActiveDrag: Bool = false
 
     // Language filtering
     private enum LanguageFilter: Equatable { case current, all, specific(String) } // specific = base code like "en"
+
     @State private var languageFilter: LanguageFilter = .current
     @State private var allVoices: [TTSVoiceInfo] = []
     @State private var languageOptions: [(code: String, name: String)] = []

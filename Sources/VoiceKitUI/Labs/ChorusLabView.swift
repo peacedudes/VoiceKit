@@ -552,7 +552,6 @@ struct ChorusLabView: View {
                 )
                 .onChange(of: rateScale) { _, _ in onChange() }
 
-
                 TunerSliderRow(
                     title: "Pitch", systemImage: "waveform.path.ecg",
                     value: $pitchOffset, range: Metrics.Adjustments.pitchOffsetRange, step: Metrics.Controls.sliderStep,
@@ -932,7 +931,6 @@ struct ChorusLabView_Previews: PreviewProvider {
         }
     }
 }
-
 
 // MARK: - Formatting helpers
 private extension Double {
