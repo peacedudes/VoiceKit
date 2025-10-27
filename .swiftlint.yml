@@ -1,12 +1,11 @@
 ---
-# .swiftlint.yml
+# .swiftlint.yml (proposed next pass)
 included:
   - Sources
   - Tests
 
 disabled_rules:
   - inclusive_language
-
 
 opt_in_rules:
   - empty_count
@@ -18,10 +17,21 @@ opt_in_rules:
   - trailing_comma
   - statement_position
   - comma
+  - unused_import
+  - redundant_optional_initialization
+  - redundant_type_annotation
+  - explicit_self
+  - explicit_acl
+  - let_var_whitespace
+  - todo
+  - discouraged_optional_collection
+  - attributes
+  - modifier_order
 
 identifier_name:
   min_length: 2
   allowed_symbols: ["_"]
+  excluded: ["id", "x", "y", "i", "j", "k", "db", "IO"]
 
 line_length:
   warning: 120
@@ -32,5 +42,33 @@ line_length:
 
 trailing_whitespace:
   ignores_empty_lines: true
+
+file_length:
+  warning: 500
+  error: 1200
+
+type_body_length:
+  warning: 300
+  error: 600
+
+function_body_length:
+  warning: 80
+  error: 160
+
+cyclomatic_complexity:
+  ignores_case_statements: true
+  warning: 12
+  error: 20
+
+nesting:
+  type_level:
+    warning: 2
+    error: 3
+  statement_level:
+    warning: 5
+    error: 7
+
+force_cast: error
+force_try: error
 
 reporter: "github-actions-logging"

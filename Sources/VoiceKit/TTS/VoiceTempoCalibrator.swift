@@ -78,9 +78,3 @@ public enum VoiceTempoCalibrator {
     }
 }
 
-// Local clamp helpers
-private extension Comparable {
-    func clamped(to range: ClosedRange<Self>) -> Self {
-        min(max(self, range.lowerBound), range.upperBound)
-    }
-}
