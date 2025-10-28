@@ -23,14 +23,15 @@ public struct NameResolver: Sendable {
         self.policy = policy
     }
 
-    /// Resolve a spoken name to an allowed list.
-    /// - Behavior:
-    ///   - If `allowed` is nil or empty: return the raw input with leading/trailing
-    ///     whitespace and punctuation trimmed (preserving original case/diacritics).
-    ///   - Else: normalize both transcript and allowed strings by folding case/diacritics,
-    ///     removing zero-width/soft hyphens, converting punctuation (including hyphen/dash
-    ///     variants) to spaces, and collapsing whitespace. Return the original allowed string
-    ///     when a normalized exact match is found; otherwise nil.
+    // Resolve a spoken name to an allowed list.
+    // - Behavior:
+    //   - If `allowed` is nil or empty: return the raw input with leading/trailing
+    //     whitespace and punctuation trimmed (preserving original case/diacritics).
+    //   - Else: normalize both transcript and allowed strings by folding case/diacritics,
+    //     removing zero-width/soft hyphens, converting punctuation (including hyphen/dash
+    //     variants) to spaces, and collapsing whitespace. Return the original allowed string
+    //     when a normalized exact match is found; otherwise nil.
+    // swiftlint:disable:next discouraged_optional_collection
     public func resolve(transcript raw: String, allowed: [String]?) -> String? {
         guard let allowed, !allowed.isEmpty else {
             return cleanEdgesPreservingCase(raw)
@@ -38,8 +39,8 @@ public struct NameResolver: Sendable {
 
         // Build normalized lookup → original allowed string
         var table: [String: String] = [:]
-        for a in allowed {
-            table[normalizeForMatch(a)] = a
+        for allowedName in allowed {
+            table[normalizeForMatch(allowedName)] = allowedName
         }
 
         switch policy {
@@ -52,11 +53,9 @@ public struct NameResolver: Sendable {
     // MARK: - Helpers
 
     /// Trim whitespace and leading/trailing punctuation without changing case/diacritics.
-    private func cleanEdgesPreservingCase(_ s: String) -> String {
-        let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Also trim punctuation at the edges (e.g., "Max!" -> "Max")
-        let edgeTrimmed = trimmed.trimmingCharacters(in: .punctuationCharacters)
-        return edgeTrimmed
+    private func cleanEdgesPreservingCase(_ string: String) -> String {
+        string.trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: .punctuationCharacters) // (e.g., "Max!" -> "Max")
     }
 
     /// Normalize for strict matching:
@@ -64,30 +63,30 @@ public struct NameResolver: Sendable {
     /// - Convert hyphen/dash variants and all punctuation to spaces.
     /// - Collapse whitespace to single spaces; trim.
     /// - Fold diacritics and case (lowercased result).
-    private func normalizeForMatch(_ s: String) -> String {
+    private func normalizeForMatch(_ string: String) -> String {
+        var result = string
+
         // Remove invisible/soft joiners that can sneak into transcripts
-        var t = s
-        let invisibles = ["\u{00AD}", // soft hyphen
-                          "\u{200B}", // zero-width space
-                          "\u{200C}", // zero-width non-joiner
-                          "\u{200D}", // zero-width joiner
-                          "\u{2060}"] // word joiner
-        for ch in invisibles { t = t.replacingOccurrences(of: ch, with: "") }
+        result = result.replacingOccurrences(of: #"[\u00AD\u200B\u200C\u200D\u2060]"#,
+                                             with: "",
+                                             options: .regularExpression)
 
         // Turn hyphen/dash variants (and ASCII '-') into spaces to align "Jean‑Luc" with "Jean Luc"
-        let dashVariants = ["-", "\u{2010}", "\u{2011}", "\u{2012}", "\u{2013}", "\u{2014}", "\u{2212}"]
-        for d in dashVariants { t = t.replacingOccurrences(of: d, with: " ") }
+        result = result.replacingOccurrences(of: #"[-\u2010\u2011\u2012\u2013\u2014\u2212]"#,
+                                             with: " ",
+                                             options: .regularExpression)
 
         // Replace all remaining punctuation with spaces (commas, periods, quotes, etc.)
-        t = t.replacingOccurrences(of: #"[\p{P}]"#, with: " ", options: .regularExpression)
+        result = result.replacingOccurrences(of: #"[\p{P}]"#, with: " ", options: .regularExpression)
 
         // Collapse whitespace and trim
-        t = t.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        result = result
+            .replacingOccurrences(of: #"\s{2,}"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Fold diacritics and case for matching
-        t = t.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .autoupdatingCurrent)
+        result = result.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .autoupdatingCurrent)
 
-        return t
+        return result
     }
 }

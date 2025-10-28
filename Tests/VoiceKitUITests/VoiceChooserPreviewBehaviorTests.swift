@@ -73,20 +73,20 @@ final class VoiceChooserPreviewBehaviorTests: TestSupport.QoSNeutralizingTestCas
         await VoiceKitTestMode.setAllowSystemVoiceQueries(true)
         defer { Task { await VoiceKitTestMode.setAllowSystemVoiceQueries(false) } }
         let id = "com.apple.speech.synthesis.voice.Alex"
-        var p = TTSVoiceProfile(id: id, rate: 0.55,
+        var profile = TTSVoiceProfile(id: id, rate: 0.55,
                                 pitch: 1.0, volume: 1.0)
-        store.setProfile(p)
+        store.setProfile(profile)
         vm.applyToTTS()
 
         // Start a preview
-        vm.playPreview(phrase: vm.samplePhrase(for: p), voiceID: id)
+        vm.playPreview(phrase: vm.samplePhrase(for: profile), voiceID: id)
 
         // Change profile quickly; playPreview should interrupt the previous one
-        p.rate = 0.65
-        p.pitch = 1.1
-        p.volume = 0.95
-        vm.updateProfile(p)
-        vm.playPreview(phrase: vm.samplePhrase(for: p, suffix: "updated"), voiceID: id)
+        profile.rate = 0.65
+        profile.pitch = 1.1
+        profile.volume = 0.95
+        vm.updateProfile(profile)
+        vm.playPreview(phrase: vm.samplePhrase(for: profile, suffix: "updated"), voiceID: id)
 
         try? await Task.sleep(nanoseconds: 150_000_000)
         vm.stopPreview()
@@ -108,13 +108,13 @@ final class VoiceChooserPreviewBehaviorTests: TestSupport.QoSNeutralizingTestCas
         await VoiceKitTestMode.setAllowSystemVoiceQueries(true)
         defer { Task { await VoiceKitTestMode.setAllowSystemVoiceQueries(false) } }
         let id = "com.apple.speech.synthesis.voice.Alex"
-        let p = TTSVoiceProfile(id: id, rate: 0.5,
+        let profile = TTSVoiceProfile(id: id, rate: 0.5,
                                 pitch: 1.0, volume: 1.0)
-        store.setProfile(p)
+        store.setProfile(profile)
         vm.applyToTTS()
 
         // Kick off a preview
-        vm.playPreview(phrase: vm.samplePhrase(for: p), voiceID: id)
+        vm.playPreview(phrase: vm.samplePhrase(for: profile), voiceID: id)
 
         // Change tuning to quieter, then louder, using correct argument order
         vm.updateTuning(Tuning(rateVariation: 0.0, pitchVariation: 0.0, volume: 0.8), previewKind: "at lower volume")

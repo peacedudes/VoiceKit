@@ -8,13 +8,8 @@ import Foundation
 extension Comparable {
     /// Returns the value limited to the provided closed range.
     /// Example: (1.2).clamped(to: 0.0...1.0) == 1.0
+    @inlinable
     public func clamped(to limits: ClosedRange<Self>) -> Self {
-        if self < limits.lowerBound {
-            return limits.lowerBound
-        }
-        if self > limits.upperBound {
-            return limits.upperBound
-        }
-        return self
+        max(limits.lowerBound, min(limits.upperBound, self))
     }
 }

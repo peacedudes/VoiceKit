@@ -19,9 +19,9 @@ public enum NameMatch: Sendable {
     /// - Removes non-letter/number/space/hyphen characters.
     /// - Collapses whitespaces.
     /// - Converts to lowercase.
-    public static func normalizeKey(_ s: String) -> String {
+    public static func normalizeKey(_ string: String) -> String {
         // 1) Normalize common ligatures first
-        var t = s
+        var result = string
             .replacingOccurrences(of: "Æ", with: "AE")
             .replacingOccurrences(of: "æ", with: "ae")
             .replacingOccurrences(of: "Œ", with: "OE")
@@ -31,29 +31,29 @@ public enum NameMatch: Sendable {
         //    Includes: hyphen (2010), non-breaking hyphen (2011), figure dash (2012),
         //    en dash (2013), em dash (2014), minus sign (2212)
         let dashVariants = ["\u{2010}", "\u{2011}", "\u{2012}", "\u{2013}", "\u{2014}", "\u{2212}"]
-        for d in dashVariants { t = t.replacingOccurrences(of: d, with: "-") }
+        for dash in dashVariants { result = result.replacingOccurrences(of: dash, with: "-") }
 
         // 3) Remove soft/zero-width characters that should not affect matching
         //    Soft hyphen (00AD), zero-width space/joiners (200B, 200C, 200D), word joiner (2060)
         let invisibles = ["\u{00AD}", "\u{200B}", "\u{200C}", "\u{200D}", "\u{2060}"]
-        for ch in invisibles { t = t.replacingOccurrences(of: ch, with: "") }
+        for char in invisibles { result = result.replacingOccurrences(of: char, with: "") }
 
         // 4) Fold diacritics and case
-        t = t.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .autoupdatingCurrent)
+        result = result.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .autoupdatingCurrent)
 
         // 5) Remove apostrophes (straight and curly)
-        t = t.replacingOccurrences(of: #"['’]"#, with: "", options: .regularExpression)
+        result = result.replacingOccurrences(of: #"['’]"#, with: "", options: .regularExpression)
 
         // 6) Keep only letters, numbers, spaces, and ASCII hyphen
-        t = t.replacingOccurrences(of: #"[^\p{L}\p{N} \-]"#, with: "", options: .regularExpression)
+        result = result.replacingOccurrences(of: #"[^\p{L}\p{N} \-]"#, with: "", options: .regularExpression)
 
         // 7) Collapse repeated hyphens and spaces; trim ends
-        t = t.replacingOccurrences(of: #"\-+"#, with: "-", options: .regularExpression)
-        t = t.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-        t = t.trimmingCharacters(in: CharacterSet(charactersIn: " -"))
+        result = result.replacingOccurrences(of: #"\-+"#, with: "-", options: .regularExpression)
+        result = result.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        result = result.trimmingCharacters(in: CharacterSet(charactersIn: " -"))
 
         // 8) Lowercase final key
-        return t.lowercased()
+        return result.lowercased()
     }
 
     /// Compute a token-aware normalized edit-distance score between two strings.
@@ -61,44 +61,44 @@ public enum NameMatch: Sendable {
     /// - Splits inputs into tokens by space and pairs them to minimize distance.
     /// - Uses Levenshtein edit distance per token pair, normalized by token length.
     /// - Penalizes unmatched tokens to maintain a score reflecting missing tokens.
-    public static func stringDistanceScore(a: String, b: String) -> Double {
-        if a == b { return 0 }
-        let at = a.split(separator: " ").map(String.init)
-        let bt = b.split(separator: " ").map(String.init)
-        if at.isEmpty || bt.isEmpty { return 1 }
+    public static func stringDistanceScore(a aString: String, b bString: String) -> Double {
+        if aString == bString { return 0 }
+        let aTokens = aString.split(separator: " ").map(String.init)
+        let bTokens = bString.split(separator: " ").map(String.init)
+        if aTokens.isEmpty || bTokens.isEmpty { return 1 }
 
-        var used = Array(repeating: false, count: bt.count)
+        var used = Array(repeating: false, count: bTokens.count)
         var scores: [Double] = []
 
-        for t in at {
+        for token in aTokens {
             var best: Double = 1
             var bestIdx = -1
-            for (i, u) in bt.enumerated() where !used[i] {
-                let d = Double(levenshtein(t, u)) / Double(max(t.count, u.count))
-                if d < best { best = d; bestIdx = i }
+            for (i, candidate) in bTokens.enumerated() where !used[i] {
+                let dist = Double(levenshtein(token, candidate)) / Double(max(token.count, candidate.count))
+                if dist < best { best = dist; bestIdx = i }
             }
             if bestIdx >= 0 { used[bestIdx] = true }
             scores.append(best)
         }
         let avg = scores.reduce(0, +) / Double(scores.count)
-        let unmatched = bt.count - used.filter { $0 }.count
-        let penalty = bt.isEmpty ? 0 : Double(unmatched) / Double(bt.count)
+        let unmatched = bTokens.count - used.filter { $0 }.count
+        let penalty = bTokens.isEmpty ? 0 : Double(unmatched) / Double(bTokens.count)
         return min(1.0, avg * 0.8 + penalty * 0.2)
     }
 
     // MARK: - Private helpers
 
     private static func levenshtein(_ aStr: String, _ bStr: String) -> Int {
-        let a = Array(aStr), b = Array(bStr)
-        let m = a.count, n = b.count
-        if m == 0 { return n }
-        if n == 0 { return m }
-        var dp = Array(repeating: Array(repeating: 0, count: n + 1), count: m + 1)
-        for i in 0...m { dp[i][0] = i }
-        for j in 0...n { dp[0][j] = j }
-        for i in 1...m {
-            for j in 1...n {
-                let cost = a[i - 1] == b[j - 1] ? 0 : 1
+        let lhs = Array(aStr), rhs = Array(bStr)
+        let lhsCount = lhs.count, rhsCount = rhs.count
+        if lhsCount == 0 { return rhsCount }
+        if rhsCount == 0 { return lhsCount }
+        var dp = Array(repeating: Array(repeating: 0, count: rhsCount + 1), count: lhsCount + 1)
+        for i in 0...lhsCount { dp[i][0] = i }
+        for j in 0...rhsCount { dp[0][j] = j }
+        for i in 1...lhsCount {
+            for j in 1...rhsCount {
+                let cost = lhs[i - 1] == rhs[j - 1] ? 0 : 1
                 dp[i][j] = min(
                     dp[i - 1][j] + 1,        // deletion
                     dp[i][j - 1] + 1,        // insertion
@@ -106,6 +106,6 @@ public enum NameMatch: Sendable {
                 )
             }
         }
-        return dp[m][n]
+        return dp[lhsCount][rhsCount]
     }
 }

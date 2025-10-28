@@ -355,23 +355,23 @@ struct ChorusLabView: View {
                 // Apply global scaling/offset to produce effective profiles:
                 var updated: [TTSVoiceProfile] = []
                 updated.reserveCapacity(baseProfiles.count)
-                for var p in baseProfiles {
+                for var profile in baseProfiles {
                     // Amplified relative mapping (all Double to match TTSVoiceProfile.rate):
                     // - If rateScale > 1, move toward 1.0 by a fraction of headroom.
                     // - If rateScale < 1, move toward 0.0 by a fraction of current value.
-                    let base: Double = p.rate
+                    let base: Double = profile.rate
                     let newRate: Double = {
                         if rateScale >= 1.0 {
-                            let t = max(0.0, min(1.0, rateScale - 1.0)) // 1.0→2.0 maps to 0…1
-                            return (base + (1.0 - base) * t).clamped(to: 0.0...1.0)
+                            let factor = max(0.0, min(1.0, rateScale - 1.0)) // 1.0→2.0 maps to 0…1
+                            return (base + (1.0 - base) * factor).clamped(to: 0.0...1.0)
                         } else {
-                            let t = max(0.0, min(1.0, (1.0 - rateScale) / Metrics.Adjustments.slowRange)) // 1.0→0.25 maps to 0…1
-                            return (base - base * t).clamped(to: 0.0...1.0)
+                            let factor = max(0.0, min(1.0, (1.0 - rateScale) / Metrics.Adjustments.slowRange)) // 1.0→0.25 maps to 0…1
+                            return (base - base * factor).clamped(to: 0.0...1.0)
                         }
                     }()
-                    p.rate = newRate
-                    p.pitch = (p.pitch + Float(pitchOffset)).clamped(to: Metrics.Pitch.clampLo...Metrics.Pitch.clampHi)
-                    updated.append(p)
+                    profile.rate = newRate
+                    profile.pitch = (profile.pitch + Float(pitchOffset)).clamped(to: Metrics.Pitch.clampLo...Metrics.Pitch.clampHi)
+                    updated.append(profile)
                 }
                 selectedProfiles = updated
             }
@@ -548,7 +548,7 @@ struct ChorusLabView: View {
                     value: $rateScale,
                     range: Metrics.Adjustments.speedRange,
                     step: Metrics.Controls.sliderStep,
-                    formatted: { v in String(format: "%.2f×", Double(v)) }
+                    formatted: { value in String(format: "%.2f×", Double(value)) }
                 )
                 .onChange(of: rateScale) { _, _ in onChange() }
 
@@ -671,20 +671,20 @@ struct ChorusLabView: View {
                 baseProfiles = selectedProfiles
                 var updated: [TTSVoiceProfile] = []
                 updated.reserveCapacity(baseProfiles.count)
-                for var p in baseProfiles {
-                    let base: Double = p.rate
+                for var profile in baseProfiles {
+                    let base: Double = profile.rate
                     let newRate: Double = {
                         if rateScale >= 1.0 {
-                            let t = max(0.0, min(1.0, rateScale - 1.0))
-                            return (base + (1.0 - base) * t).clamped(to: 0.0...1.0)
+                            let factor = max(0.0, min(1.0, rateScale - 1.0))
+                            return (base + (1.0 - base) * factor).clamped(to: 0.0...1.0)
                         } else {
-                            let t = max(0.0, min(1.0, (1.0 - rateScale) / Metrics.Adjustments.slowRange))
-                            return (base - base * t).clamped(to: 0.0...1.0)
+                            let factor = max(0.0, min(1.0, (1.0 - rateScale) / Metrics.Adjustments.slowRange))
+                            return (base - base * factor).clamped(to: 0.0...1.0)
                         }
                     }()
-                    p.rate = newRate
-                    p.pitch = (p.pitch + Float(pitchOffset)).clamped(to: Metrics.Pitch.clampLo...Metrics.Pitch.clampHi)
-                    updated.append(p)
+                    profile.rate = newRate
+                    profile.pitch = (profile.pitch + Float(pitchOffset)).clamped(to: Metrics.Pitch.clampLo...Metrics.Pitch.clampHi)
+                    updated.append(profile)
                 }
                 selectedProfiles = updated
             }
@@ -760,12 +760,12 @@ struct ChorusLabView: View {
         var picks: [TTSVoiceProfile] = []
         let pitchOffsets: [Float] = [-0.05, 0.05, 0.1, -0.1]
 
-        for (i, v) in slice.enumerated() {
-            var p = TTSVoiceProfile(id: v.id, rate: Metrics.Defaults.rate, pitch: Metrics.Defaults.pitch, volume: Metrics.Defaults.volume)
-            if i < pitchOffsets.count {
-                p.pitch = (p.pitch + pitchOffsets[i]).clamped(to: Metrics.Pitch.clampLo...Metrics.Pitch.clampHi)
+        for (index, voice) in slice.enumerated() {
+            var profile = TTSVoiceProfile(id: voice.id, rate: Metrics.Defaults.rate, pitch: Metrics.Defaults.pitch, volume: Metrics.Defaults.volume)
+            if index < pitchOffsets.count {
+                profile.pitch = (profile.pitch + pitchOffsets[index]).clamped(to: Metrics.Pitch.clampLo...Metrics.Pitch.clampHi)
             }
-            picks.append(p)
+            picks.append(profile)
         }
         // Establish baseline and effective selections
         baseProfiles = picks
@@ -846,8 +846,8 @@ struct ChorusLabView: View {
     }
 
     private func resolvedName(for id: String) -> String {
-        if let v = availableVoices().first(where: { $0.id == id }) {
-            return v.name
+        if let voice = availableVoices().first(where: { $0.id == id }) {
+            return voice.name
         }
         return "Voice"
     }
@@ -862,12 +862,12 @@ struct ChorusLabView: View {
             let newRate: Double = {
                 if rateScale >= 1.0 {
                     // 1.0→2.0 maps to t: 0…1, push toward 1.0 by headroom
-                    let t = max(0.0, min(1.0, rateScale - 1.0))
-                    return (baseRate + (1.0 - baseRate) * t).clamped(to: 0.0...1.0)
+                    let factor = max(0.0, min(1.0, rateScale - 1.0))
+                    return (baseRate + (1.0 - baseRate) * factor).clamped(to: 0.0...1.0)
                 } else {
                     // 1.0→0.25 maps to t: 0…1, pull toward 0.0 by fraction of current
-                    let t = max(0.0, min(1.0, (1.0 - rateScale) / Metrics.Adjustments.slowRange))
-                    return (baseRate - baseRate * t).clamped(to: 0.0...1.0)
+                    let factor = max(0.0, min(1.0, (1.0 - rateScale) / Metrics.Adjustments.slowRange))
+                    return (baseRate - baseRate * factor).clamped(to: 0.0...1.0)
                 }
             }()
             profile.rate = newRate
@@ -954,12 +954,12 @@ enum ChorusMath {
     static func adjustedRate(baseRate: Double, rateScale: Double, slowRange: Double) -> Double {
         if rateScale >= 1.0 {
             // Map 1.0→2.0 into t:0...1 and push toward 1.0 by headroom
-            let t = max(0.0, min(1.0, rateScale - 1.0))
-            return (baseRate + (1.0 - baseRate) * t).clamped(to: 0.0...1.0)
+            let factor = max(0.0, min(1.0, rateScale - 1.0))
+            return (baseRate + (1.0 - baseRate) * factor).clamped(to: 0.0...1.0)
         } else {
             // Map 1.0→0.25 into t:0...1 and pull toward 0.0 by fraction of base
-            let t = max(0.0, min(1.0, (1.0 - rateScale) / slowRange))
-            return (baseRate - baseRate * t).clamped(to: 0.0...1.0)
+            let factor = max(0.0, min(1.0, (1.0 - rateScale) / slowRange))
+            return (baseRate - baseRate * factor).clamped(to: 0.0...1.0)
         }
     }
 

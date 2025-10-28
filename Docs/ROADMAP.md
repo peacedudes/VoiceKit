@@ -19,7 +19,7 @@ Structure (folders by concern)
   - STT (input): SeamsCompat.swift, SeamsLive.swift, PermissionBridge.swift
   - Sequencing: VoiceQueue.swift
   - Utilities: NameMatch.swift, NameResolver.swift, IsCI.swift, VoiceKitTestMode.swift
-  - Models/helpers: VoiceProfilesStore+Bootstrap.swift
+  - Models/helpers: VoiceProfilesStore+Seed.swift
 - VoiceKitUI:
   - Screens: VoiceChooserView.swift
   - ViewModels: VoiceChooserViewModel.swift

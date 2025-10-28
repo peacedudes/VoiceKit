@@ -47,8 +47,8 @@ final class VoiceChooserBootstrappingTests: XCTestCase {
 
         XCTAssertEqual(vm.voices.map(\.id), ["a", "b"])
 
-        let p = store.profile(for: vm.voices[0])
-        XCTAssertEqual(p.id, "a")
+        let profile = store.profile(for: vm.voices[0])
+        XCTAssertEqual(profile.id, "a")
 
         if let def = store.defaultVoiceID {
             XCTAssertTrue(vm.voices.contains(where: { $0.id == def }))

@@ -17,8 +17,8 @@ extension RealVoiceIO {
     // Converts simple number words into digits (e.g., "seven" -> "7",
     // "Nineteen" -> "19", "forty-two point five" -> "42.5").
     // Falls back to trimmed original if tokens are unrecognized.
-    public static func normalizeNumeric(from s: String) -> String {
-        let trimmed = s.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+    public static func normalizeNumeric(from string: String) -> String {
+        let trimmed = string.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty { return trimmed }
 
@@ -44,23 +44,23 @@ extension RealVoiceIO {
         var i = 0
 
         // Combine multiple chunks by thousands if needed (simple concatenation rule).
-        func commitInt(_ v: Int) {
-            intValue = (intValue ?? 0) * 1000 + v
+        func commitInt(_ value: Int) {
+            intValue = (intValue ?? 0) * 1000 + value
         }
 
         while i < tokens.count {
-            let t = tokens[i]
+            let token = tokens[i]
 
-            if t == "point" {
+            if token == "point" {
                 // Build decimal digits from remaining tokens.
                 var dec = ""
                 var j = i + 1
                 while j < tokens.count {
-                    let w = tokens[j]
-                    if let d = ones[w] {
-                        dec.append(String(d))
-                    } else if let n = Int(w) {
-                        dec.append(String(n))
+                    let word = tokens[j]
+                    if let digit = ones[word] {
+                        dec.append(String(digit))
+                    } else if let number = Int(word) {
+                        dec.append(String(number))
                     } else {
                         // Unknown token -> give up and return original trimmed string.
                         return trimmed
@@ -71,17 +71,17 @@ extension RealVoiceIO {
                 break
             }
 
-            if let v = teens[t] {
-                commitInt(v)
+            if let teenValue = teens[token] {
+                commitInt(teenValue)
                 i += 1
                 continue
             }
 
-            if let v = tens[t] {
+            if let tensValue = tens[token] {
                 // Lookahead to combine tens + ones (e.g., "forty two" -> 42)
-                var value = v
-                if i + 1 < tokens.count, let d = ones[tokens[i + 1]] {
-                    value += d
+                var value = tensValue
+                if i + 1 < tokens.count, let onesDigit = ones[tokens[i + 1]] {
+                    value += onesDigit
                     i += 1
                 }
                 commitInt(value)
@@ -89,19 +89,19 @@ extension RealVoiceIO {
                 continue
             }
 
-            if let d = ones[t] {
-                commitInt(d)
+            if let digitValue = ones[token] {
+                commitInt(digitValue)
                 i += 1
                 continue
             }
 
-            if let num = Int(t) {
+            if let num = Int(token) {
                 commitInt(num)
                 i += 1
                 continue
             }
 
-            if Double(t) != nil {
+            if Double(token) != nil {
                 // Already numeric with potential decimal -> return original.
                 return trimmed
             }
@@ -122,8 +122,8 @@ extension RealVoiceIO {
     }
 
     // Backward-compat unlabeled version
-    public static func normalizeNumeric(_ s: String) -> String {
-        normalizeNumeric(from: s)
+    public static func normalizeNumeric(_ string: String) -> String {
+        normalizeNumeric(from: string)
     }
 
     // Tests call finishRecognition() to simulate end-of-speech.

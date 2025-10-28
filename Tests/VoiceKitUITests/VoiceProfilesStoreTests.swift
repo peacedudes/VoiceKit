@@ -19,8 +19,8 @@ final class VoiceProfilesStoreTests: XCTestCase {
         defer { cleanup(filename) }
 
         let id = "com.apple.speech.synthesis.voice.Alex"
-        let p = TTSVoiceProfile(id: id, rate: 0.6, pitch: 1.1, volume: 0.9)
-        store.setProfile(p)
+        let profile = TTSVoiceProfile(id: id, rate: 0.6, pitch: 1.1, volume: 0.9)
+        store.setProfile(profile)
         store.save()
 
         let loaded = VoiceProfilesStore(filename: filename)

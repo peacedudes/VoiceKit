@@ -85,9 +85,9 @@ final class VoiceChorusMoreTests: XCTestCase {
         // Arrange: chorus that makes new FakeChorusEngine per profile
         var made: [FakeChorusEngine] = []
         let chorus = VoiceChorus(makeEngine: {
-            let e = FakeChorusEngine()
-            made.append(e)
-            return e
+            let engine = FakeChorusEngine()
+            made.append(engine)
+            return engine
         })
         let text = "Hello"
         let p1 = TTSVoiceProfile(id: "id.alex", rate: 0.55, pitch: 1.0, volume: 1.0)
@@ -115,15 +115,15 @@ final class VoiceChorusMoreTests: XCTestCase {
     func testAllowsDuplicateVoiceIDs() async throws {
         var made: [FakeChorusEngine] = []
         let chorus = VoiceChorus(makeEngine: {
-            let e = FakeChorusEngine()
-            made.append(e)
-            return e
+            let engine = FakeChorusEngine()
+            made.append(engine)
+            return engine
         })
         let text = "Same voice twice"
-        let a = TTSVoiceProfile(id: "id.same", rate: 0.50, pitch: 1.0, volume: 1.0)
-        let b = TTSVoiceProfile(id: "id.same", rate: 0.70, pitch: 0.9, volume: 1.0) // duplicate id, different settings
+        let profileA = TTSVoiceProfile(id: "id.same", rate: 0.50, pitch: 1.0, volume: 1.0)
+        let profileB = TTSVoiceProfile(id: "id.same", rate: 0.70, pitch: 0.9, volume: 1.0) // duplicate id, different settings
 
-        await chorus.sing(text, withVoiceProfiles: [a, b])
+        await chorus.sing(text, withVoiceProfiles: [profileA, profileB])
 
         XCTAssertEqual(made.count, 2)
         // Both engines should have spoken, each with the (same) id
@@ -138,8 +138,8 @@ final class VoiceChorusMoreTests: XCTestCase {
         else {
             return XCTFail("Expected profiles assigned for duplicate id")
         }
-        XCTAssertEqual(ra, a.rate, accuracy: 0.0001)
-        XCTAssertEqual(rb, b.rate, accuracy: 0.0001)
+        XCTAssertEqual(ra, profileA.rate, accuracy: 0.0001)
+        XCTAssertEqual(rb, profileB.rate, accuracy: 0.0001)
     }
 
     func testCreatesEnginesAsNeededViaFactory() async throws {
@@ -160,9 +160,9 @@ final class VoiceChorusMoreTests: XCTestCase {
         // Engines that take time to speak
         var made: [FakeChorusEngine] = []
         let chorus = VoiceChorus(makeEngine: {
-            let e = FakeChorusEngine(delaySeconds: 0.4)
-            made.append(e)
-            return e
+            let engine = FakeChorusEngine(delaySeconds: 0.4)
+            made.append(engine)
+            return engine
         })
         let text = "Long speak"
         let p1 = TTSVoiceProfile(id: "id.A", rate: 0.5, pitch: 1.0, volume: 1.0)

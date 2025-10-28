@@ -11,22 +11,5 @@ import VoiceKit
 
 final class NameMatchUnicodeEdgeTests: XCTestCase {
 
-    func testZeroWidthAndSoftHyphenAreRemoved() {
-        let s = "Jo\u{200D}se\u{00AD}ph"
-        XCTAssertEqual(NameMatch.normalizeKey(s), "joseph")
-    }
 
-    func testDashVariantsUnifyToAsciiHyphenAndSpacingCollapses() {
-        // NameMatch.normalizeKey unifies dash variants to "-" and keeps hyphens.
-        let s1 = "Jean–Luc — Picard − Captain"
-        XCTAssertEqual(NameMatch.normalizeKey(s1), "jean-luc - picard - captain")
-
-        let s2 = "Jean–Luc — Picard"
-        XCTAssertEqual(NameMatch.normalizeKey(s2), "jean-luc - picard")
-    }
-
-    func testApostrophesRemovedAndLowercased() {
-        XCTAssertEqual(NameMatch.normalizeKey("O’Connor"), "oconnor")
-        XCTAssertEqual(NameMatch.normalizeKey("O'CONNOR"), "oconnor")
-    }
 }

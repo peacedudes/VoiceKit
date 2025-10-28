@@ -35,8 +35,8 @@ final class RealVoiceIOTrimmingTests: XCTestCase {
             if i < head || i >= head + body {
                 ch[i] = 0
             } else {
-                let t = Float(i - head) / Float(sampleRate)
-                ch[i] = sin(2 * .pi * Float(toneHz) * t) * 0.2
+                let time = Float(i - head) / Float(sampleRate)
+                ch[i] = sin(2 * .pi * Float(toneHz) * time) * 0.2
             }
         }
 
@@ -60,13 +60,12 @@ final class RealVoiceIOTrimmingTests: XCTestCase {
         let io = RealVoiceIO()
         let url = try makeTempAudio(duration: 0.3)
         // Provide fake STT timestamps that bracket the tone
-        let trimmed = io.trimAudioSmart(inputURL: url, sttStart: 0.05, sttEnd: 0.22, prePad: 0.02, postPad: 0.02)
-        XCTAssertNotNil(trimmed)
-
-        // Verify output is readable
-        if let t = trimmed {
-            let f = try AVAudioFile(forReading: t)
-            XCTAssertGreaterThan(f.length, 0)
+        if let trimmed = io.trimAudioSmart(inputURL: url, sttStart: 0.05, sttEnd: 0.22, prePad: 0.02, postPad: 0.02) {
+            // Verify output is readable
+            let file = try AVAudioFile(forReading: trimmed)
+            XCTAssertGreaterThan(file.length, 0)
+        } else {
+            XCTFail("trimmed audio URL is nil")
         }
     }
 }

@@ -10,25 +10,53 @@ import XCTest
 import VoiceKit
 
 final class NameResolverTests: XCTestCase {
+    let resolver = NameResolver()
 
     func testReturnsCleanedRawWhenNoAllowedList() {
-        let r = NameResolver()
-        XCTAssertEqual(r.resolve(transcript: "  Zoë  ", allowed: nil), "Zoë")
-        XCTAssertEqual(r.resolve(transcript: "  Max! ", allowed: []), "Max")
+        XCTAssertEqual(resolver.resolve(transcript: "  Zoë  ", allowed: nil), "Zoë")
+        XCTAssertEqual(resolver.resolve(transcript: "  Max! ", allowed: []), "Max")
     }
 
     func testStrictExactMatchesWithDiacriticsAndCase() {
-        let r = NameResolver()
         let allowed = ["Zoe", "Andre", "Ana Maria"]
-        XCTAssertEqual(r.resolve(transcript: "Zoë", allowed: allowed), "Zoe")
-        XCTAssertEqual(r.resolve(transcript: "  ANA   MARIA ", allowed: allowed), "Ana Maria")
-        XCTAssertNil(r.resolve(transcript: "Ann", allowed: allowed))
+        XCTAssertEqual(resolver.resolve(transcript: "Zoë", allowed: allowed), "Zoe")
+        XCTAssertEqual(resolver.resolve(transcript: "  ANA   MARIA ", allowed: allowed), "Ana Maria")
+        XCTAssertNil(resolver.resolve(transcript: "Ann", allowed: allowed))
     }
 
     func testPunctuationAndWhitespaceAreCollapsed() {
-        let r = NameResolver()
         let allowed = ["Jean Luc"]
-        XCTAssertEqual(r.resolve(transcript: "Jean‑Luc", allowed: allowed), "Jean Luc")
-        XCTAssertEqual(r.resolve(transcript: "  Jean, Luc  ", allowed: allowed), "Jean Luc")
+        XCTAssertEqual(resolver.resolve(transcript: "Jean‑Luc", allowed: allowed), "Jean Luc")
+        XCTAssertEqual(resolver.resolve(transcript: "  Jean, Luc  ", allowed: allowed), "Jean Luc")
+    }
+
+    func testStripsInvisiblesAndCollapsesDashVariantsAndWhitespace() {
+        // Includes: non-breaking hyphen U+2011, soft hyphen U+00AD, zero-width space U+200B
+        let raw = "  Jean\u{2011}Luc\u{00AD}\u{200B}   Picard  "
+        let allowed = ["Jean Luc Picard"]
+
+        XCTAssertEqual(resolver.resolve(transcript: raw, allowed: allowed), "Jean Luc Picard")
+    }
+    
+    // More tests
+    
+    func testEmptyAndPunctuationOnlyReturnsEmptyWhenNoAllowed() {
+        XCTAssertEqual(resolver.resolve(transcript: "   ", allowed: nil), "")
+        XCTAssertEqual(resolver.resolve(transcript: " !!! ", allowed: nil), "")
+    }
+
+    func testVariousDashesAndSpacesMatch() {
+        let allowed = ["Jean Luc"]
+        // em dash, en dash, ascii dash, comma
+        XCTAssertEqual(resolver.resolve(transcript: "Jean—Luc", allowed: allowed), "Jean Luc")
+        XCTAssertEqual(resolver.resolve(transcript: "Jean–Luc", allowed: allowed), "Jean Luc")
+        XCTAssertEqual(resolver.resolve(transcript: "Jean-Luc", allowed: allowed), "Jean Luc")
+        XCTAssertEqual(resolver.resolve(transcript: "Jean,  Luc", allowed: allowed), "Jean Luc")
+    }
+
+    func testDiacriticsAndCaseFold() {
+        let allowed = ["Jose", "Ana Maria"]
+        XCTAssertEqual(resolver.resolve(transcript: "José", allowed: allowed), "Jose")
+        XCTAssertEqual(resolver.resolve(transcript: "ANA   MARÍA", allowed: allowed), "Ana Maria")
     }
 }

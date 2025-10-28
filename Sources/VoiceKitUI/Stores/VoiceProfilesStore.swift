@@ -38,30 +38,30 @@ public struct VoiceProfilesFile: Codable {
     private enum CodingKeys: String, CodingKey { case defaultVoiceID, tuning, profilesByID, activeVoiceIDs, hiddenVoiceIDs }
 
     public init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        defaultVoiceID = try c.decodeIfPresent(String.self, forKey: .defaultVoiceID)
-        tuning = try c.decode(Tuning.self, forKey: .tuning)
-        activeVoiceIDs = try c.decodeIfPresent([String].self, forKey: .activeVoiceIDs) ?? []
-        hiddenVoiceIDs = try c.decodeIfPresent([String].self, forKey: .hiddenVoiceIDs) ?? []
-        let dict = try c.decodeIfPresent([String: ProfileDTO].self, forKey: .profilesByID) ?? [:]
-        profilesByID = dict.reduce(into: [:]) { acc, kv in
-            acc[kv.key] = TTSVoiceProfile(
-                id: kv.value.id,
-                rate: kv.value.rate,
-                pitch: kv.value.pitch,
-                volume: kv.value.volume
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        defaultVoiceID = try container.decodeIfPresent(String.self, forKey: .defaultVoiceID)
+        tuning = try container.decode(Tuning.self, forKey: .tuning)
+        activeVoiceIDs = try container.decodeIfPresent([String].self, forKey: .activeVoiceIDs) ?? []
+        hiddenVoiceIDs = try container.decodeIfPresent([String].self, forKey: .hiddenVoiceIDs) ?? []
+        let profileDTOs = try container.decodeIfPresent([String: ProfileDTO].self, forKey: .profilesByID) ?? [:]
+        profilesByID = profileDTOs.reduce(into: [:]) { result, entry in
+            result[entry.key] = TTSVoiceProfile(
+                id: entry.value.id,
+                rate: entry.value.rate,
+                pitch: entry.value.pitch,
+                volume: entry.value.volume
             )
         }
     }
 
     public func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encodeIfPresent(defaultVoiceID, forKey: .defaultVoiceID)
-        try c.encode(tuning, forKey: .tuning)
-        try c.encode(activeVoiceIDs, forKey: .activeVoiceIDs)
-        try c.encode(hiddenVoiceIDs, forKey: .hiddenVoiceIDs)
-        let dict = profilesByID.mapValues { ProfileDTO(id: $0.id, rate: $0.rate, pitch: $0.pitch, volume: $0.volume) }
-        try c.encode(dict, forKey: .profilesByID)
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(defaultVoiceID, forKey: .defaultVoiceID)
+        try container.encode(tuning, forKey: .tuning)
+        try container.encode(activeVoiceIDs, forKey: .activeVoiceIDs)
+        try container.encode(hiddenVoiceIDs, forKey: .hiddenVoiceIDs)
+        let dtoByID = profilesByID.mapValues { ProfileDTO(id: $0.id, rate: $0.rate, pitch: $0.pitch, volume: $0.volume) }
+        try container.encode(dtoByID, forKey: .profilesByID)
     }
 }
 
@@ -110,13 +110,13 @@ public final class VoiceProfilesStore: ObservableObject {
     }
 
     public func profile(for info: TTSVoiceInfo) -> TTSVoiceProfile {
-        if let p = profilesByID[info.id] { return p }
-        let p = TTSVoiceProfile(id: info.id, rate: 0.55, pitch: 1.0, volume: 0.9)
-        profilesByID[info.id] = p
-        return p
+        if let profile = profilesByID[info.id] { return profile }
+        let profile = TTSVoiceProfile(id: info.id, rate: 0.55, pitch: 1.0, volume: 0.9)
+        profilesByID[info.id] = profile
+        return profile
     }
 
-    public func setProfile(_ p: TTSVoiceProfile) { profilesByID[p.id] = p }
+    public func setProfile(_ profile: TTSVoiceProfile) { profilesByID[profile.id] = profile }
     public func isActive(_ id: String) -> Bool { activeVoiceIDs.contains(id) }
     public func toggleActive(_ id: String) { if activeVoiceIDs.contains(id) { activeVoiceIDs.remove(id) } else { activeVoiceIDs.insert(id) }; save() }
     public func isHidden(_ id: String) -> Bool { hiddenVoiceIDs.contains(id) }

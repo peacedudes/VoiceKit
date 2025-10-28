@@ -69,8 +69,8 @@ final class VoiceChorusTests: XCTestCase {
 
     func testChorusSpeaksAllProfilesInOrder() async throws {
         // Arrange
-        let e = FakeEngine()
-        let chorus = VoiceChorus(makeEngine: { e })
+        let engine = FakeEngine()
+        let chorus = VoiceChorus(makeEngine: { engine })
         let text = "Testing one two three."
 
         // Three profiles (no displayName now)
@@ -85,7 +85,7 @@ final class VoiceChorusTests: XCTestCase {
         // Chorus should have asked engine to speak for each profile in sequence.
         // Depending on VoiceChorus implementation, this could be sequential or concurrent;
         // we verify that all voiceIDs appear at least once in the recorded calls.
-        let ids = e.spoken.compactMap { $0.voiceID }
+        let ids = engine.spoken.compactMap { $0.voiceID }
         XCTAssertTrue(ids.contains(p1.id))
         XCTAssertTrue(ids.contains(p2.id))
         XCTAssertTrue(ids.contains(p3.id))
@@ -93,13 +93,13 @@ final class VoiceChorusTests: XCTestCase {
 
     func testChorusAppliesDefaultAndOverridesPerUtterance() async throws {
         // Arrange
-        let e = FakeEngine()
-        let chorus = VoiceChorus(makeEngine: { e })
+        let engine = FakeEngine()
+        let chorus = VoiceChorus(makeEngine: { engine })
         let text = "Default and overrides."
 
         // Set a default profile on the engine
         let def = TTSVoiceProfile(id: "com.apple.speech.synthesis.voice.Alex", rate: 0.55, pitch: 1.0, volume: 1.0)
-        e.setDefaultVoiceProfile(def)
+        engine.setDefaultVoiceProfile(def)
 
         // Two override profiles
         let p1 = TTSVoiceProfile(id: "com.apple.speech.synthesis.voice.Emily", rate: 0.60, pitch: 1.05, volume: 1.0)
@@ -109,20 +109,20 @@ final class VoiceChorusTests: XCTestCase {
         await chorus.sing(text, withVoiceProfiles: [p1, p2])
 
         // Assert: calls should include the overridden IDs (not just the default)
-        let ids = e.spoken.compactMap { $0.voiceID }
+        let ids = engine.spoken.compactMap { $0.voiceID }
         XCTAssertTrue(ids.contains(p1.id))
         XCTAssertTrue(ids.contains(p2.id))
     }
 
     func testChorusHandlesEmptyProfilesGracefully() async throws {
         // Arrange
-        let e = FakeEngine()
-        let chorus = VoiceChorus(makeEngine: { e })
+        let engine = FakeEngine()
+        let chorus = VoiceChorus(makeEngine: { engine })
 
         // Act: with empty array
         await chorus.sing("Nothing to sing.", withVoiceProfiles: [])
 
         // Assert: no calls recorded
-        XCTAssertTrue(e.spoken.isEmpty)
+        XCTAssertTrue(engine.spoken.isEmpty)
     }
 }

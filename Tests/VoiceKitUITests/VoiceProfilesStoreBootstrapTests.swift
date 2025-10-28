@@ -1,5 +1,5 @@
 //
-//  VoiceProfilesStoreBootstrapTests.swift
+//  VoiceProfilesSeedTests.swift
 //  VoiceKit
 //
 //  Deterministic: use FakeTTS; verify profiles and default without system voice assumptions.
@@ -10,7 +10,7 @@ import XCTest
 @testable import VoiceKit
 
 @MainActor
-final class VoiceProfilesStoreBootstrapTests: XCTestCase {
+final class VoiceProfilesSeedTests: XCTestCase {
 
     @MainActor
     final class FakeTTS: TTSConfigurable, VoiceListProvider {
@@ -48,8 +48,8 @@ final class VoiceProfilesStoreBootstrapTests: XCTestCase {
             return
         }
 
-        let p = store.profile(for: first)
-        XCTAssertEqual(p.id, first.id)
+        let profile = store.profile(for: first)
+        XCTAssertEqual(profile.id, first.id)
         XCTAssertEqual(first.name, "Alpha")
     }
 

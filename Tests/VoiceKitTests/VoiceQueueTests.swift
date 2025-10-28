@@ -65,13 +65,13 @@ final class VoiceQueueTests: XCTestCase {
 
     func testSpeakThenSFXIsPreScheduledAndStarted() async {
         let io = FakeIO()
-        let q = VoiceQueue(primary: io)
+        let queue = VoiceQueue(primary: io)
 
         let url = tempURL("ding")
-        q.enqueue(.speak(text: "Hello", voiceID: "v1"))
-        q.enqueue(.sfx(url: url, gainDB: 6))
+        queue.enqueue(.speak(text: "Hello", voiceID: "v1"))
+        queue.enqueue(.sfx(url: url, gainDB: 6))
 
-        await q.play()
+        await queue.play()
         // Expect prepare before speak, then startPrepared after speak
         XCTAssertEqual(io.log, [
             "prepare:ding.caf:6.0",
@@ -82,41 +82,41 @@ final class VoiceQueueTests: XCTestCase {
 
     func testSFXWithoutPriorSpeakUsesPlayBoosted() async {
         let io = FakeIO()
-        let q = VoiceQueue(primary: io)
+        let queue = VoiceQueue(primary: io)
         let url = tempURL("pop")
 
-        q.enqueue(.sfx(url: url, gainDB: 3))
-        await q.play()
+        queue.enqueue(.sfx(url: url, gainDB: 3))
+        await queue.play()
 
         XCTAssertEqual(io.log, ["play:pop.caf:3.0"])
     }
 
     func testPauseWaitsBetweenItems() async {
         let io = FakeIO()
-        let q = VoiceQueue(primary: io)
+        let queue = VoiceQueue(primary: io)
         let start = Date()
-        q.enqueue(.speak(text: "A", voiceID: nil))
-        q.enqueue(.pause(seconds: 0.08))
-        q.enqueue(.speak(text: "B", voiceID: nil))
-        await q.play()
+        queue.enqueue(.speak(text: "A", voiceID: nil))
+        queue.enqueue(.pause(seconds: 0.08))
+        queue.enqueue(.speak(text: "B", voiceID: nil))
+        await queue.play()
         let elapsed = Date().timeIntervalSince(start)
         XCTAssertGreaterThanOrEqual(elapsed, 0.11)
     }
 
     func testMultiChannelRunsConcurrentlyWhenFactoryProvided() async {
         let io0 = FakeIO()
-        let q = VoiceQueue(primary: io0) {
+        let queue = VoiceQueue(primary: io0) {
             return FakeIO()
         }
-        q.enqueue(.speak(text: "ch0-1", voiceID: nil), on: 0)
-        q.enqueue(.speak(text: "ch0-2", voiceID: nil), on: 0)
+        queue.enqueue(.speak(text: "ch0-1", voiceID: nil), on: 0)
+        queue.enqueue(.speak(text: "ch0-2", voiceID: nil), on: 0)
 
-        q.enqueue(.speak(text: "ch1-1", voiceID: nil), on: 1)
-        q.enqueue(.speak(text: "ch1-2", voiceID: nil), on: 1)
+        queue.enqueue(.speak(text: "ch1-1", voiceID: nil), on: 1)
+        queue.enqueue(.speak(text: "ch1-2", voiceID: nil), on: 1)
 
-        let t = Date()
-        await q.play()
-        let elapsed = Date().timeIntervalSince(t)
+        let startTime = Date()
+        await queue.play()
+        let elapsed = Date().timeIntervalSince(startTime)
         // Two channels of ~80ms total each should overlap, completing under ~0.18s
         // extra time for CI tests 
         XCTAssertLessThan(elapsed, 0.5)
@@ -124,17 +124,17 @@ final class VoiceQueueTests: XCTestCase {
 
     func testCancelAllStopsFurtherProcessing() async {
         let io = FakeIO()
-        let q = VoiceQueue(primary: io)
+        let queue = VoiceQueue(primary: io)
         let url = tempURL("bell")
 
-        q.enqueue(.speak(text: "A", voiceID: nil))
-        q.enqueue(.sfx(url: url, gainDB: 4))
-        q.enqueue(.speak(text: "B", voiceID: nil))
+        queue.enqueue(.speak(text: "A", voiceID: nil))
+        queue.enqueue(.sfx(url: url, gainDB: 4))
+        queue.enqueue(.speak(text: "B", voiceID: nil))
 
         // Start playback and cancel quickly
-        Task { await q.play() }
+        Task { await queue.play() }
         try? await Task.sleep(nanoseconds: 20_000_000)
-        q.cancelAll()
+        queue.cancelAll()
 
         // Allow tasks to unwind
         try? await Task.sleep(nanoseconds: 80_000_000)
@@ -145,15 +145,15 @@ final class VoiceQueueTests: XCTestCase {
 
     func testEmbeddedSFXParsingQueuesParts() async {
         let io = FakeIO()
-        let q = VoiceQueue(primary: io)
+        let queue = VoiceQueue(primary: io)
         let ding = tempURL("ding")
         let resolver: VoiceQueue.SFXResolver = { name in
             if name == "ding" { return ding }
             return nil
         }
 
-        q.enqueueParsingSFX(text: "Hello [sfx:ding] world", resolver: resolver, defaultVoiceID: "vX")
-        await q.play()
+        queue.enqueueParsingSFX(text: "Hello [sfx:ding] world", resolver: resolver, defaultVoiceID: "vX")
+        await queue.play()
 
         // Should be: prepare(ding) -> speak("Hello ") -> startPrepared -> speak(" world")
         XCTAssertEqual(io.log, [
@@ -161,6 +161,28 @@ final class VoiceQueueTests: XCTestCase {
             "speak:Hello :vX",
             "startPrepared",
             "speak: world:vX"
+        ])
+    }
+
+    func testEmbeddedSFXParsingHandlesSpacesAndOddChars() async {
+        let io = FakeIO()
+        let queue = VoiceQueue(primary: io)
+        let fx = tempURL("fx")
+        let resolver: VoiceQueue.SFXResolver = { name in
+            // Name should preserve odd chars and leading spaces are trimmed by regex
+            if name == "a/b:c.d-e" { return fx }
+            return nil
+        }
+
+        queue.enqueueParsingSFX(text: "Hello [sfx:  a/b:c.d-e] world", resolver: resolver, defaultVoiceID: "vY")
+        await queue.play()
+
+        // Should be: prepare(fx) -> speak("Hello ") -> startPrepared -> speak(" world")
+        XCTAssertEqual(io.log, [
+            "prepare:fx.caf:0.0",
+            "speak:Hello :vY",
+            "startPrepared",
+            "speak: world:vY"
         ])
     }
 }

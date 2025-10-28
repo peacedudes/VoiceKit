@@ -76,8 +76,8 @@ public final class VoiceChooserViewModel: ObservableObject {
     }
 
     // Store and TTS sync
-    public func updateProfile(_ p: TTSVoiceProfile) {
-        store.setProfile(p)
+    public func updateProfile(_ profile: TTSVoiceProfile) {
+        store.setProfile(profile)
     }
 
     public func setDefaultVoice(id: String) {
@@ -92,8 +92,8 @@ public final class VoiceChooserViewModel: ObservableObject {
 
     public func applyToTTS() {
         tts.setTuning(store.tuning)
-        for p in store.profilesByID.values {
-            tts.setVoiceProfile(p)
+        for profile in store.profilesByID.values {
+            tts.setVoiceProfile(profile)
         }
         if let defID = store.defaultVoiceID,
            let def = store.profilesByID[defID] {
@@ -104,9 +104,9 @@ public final class VoiceChooserViewModel: ObservableObject {
     // Samples and previews
     public func samplePhrase(for profile: TTSVoiceProfile, suffix: String? = nil) -> String {
         let name = systemDisplayName(for: profile.id) ?? "Voice"
-        var s = "My name is \(name)."
-        if let suffix { s += " \(suffix)" }
-        return s
+        var phrase = "My name is \(name)."
+        if let suffix { phrase += " \(suffix)" }
+        return phrase
     }
 
     public func playPreview(phrase: String, voiceID: String) {
@@ -139,7 +139,7 @@ public final class VoiceChooserViewModel: ObservableObject {
     }
 
     private func bootstrapProfilesIfNeeded() {
-        for v in voices { _ = store.profile(for: v) }
+        for voice in voices { _ = store.profile(for: voice) }
         if store.defaultVoiceID == nil, let first = voices.first {
             store.defaultVoiceID = first.id
         }

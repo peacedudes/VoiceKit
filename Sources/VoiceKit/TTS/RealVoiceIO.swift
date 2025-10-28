@@ -74,13 +74,13 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
 
     // MARK: - Init
 
-    public override init() {
+    override public init() {
         self.config = VoiceIOConfig()
         super.init()
         // Opt-in default logger via env flag
         let env = ProcessInfo.processInfo.environment
-        if let v = env["VOICEKIT_LOG"]?.lowercased(),
-           v == "1" || v == "true" || v == "yes" {
+        if let logEnv = env["VOICEKIT_LOG"]?.lowercased(),
+           logEnv == "1" || logEnv == "true" || logEnv == "yes" {
             self.logger = { level, msg in
                 print("[VoiceKit][\(level)] \(msg)")
             }
@@ -91,8 +91,8 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
         self.config = config
         super.init()
         let env = ProcessInfo.processInfo.environment
-        if let v = env["VOICEKIT_LOG"]?.lowercased(),
-           v == "1" || v == "true" || v == "yes" {
+        if let logEnv = env["VOICEKIT_LOG"]?.lowercased(),
+           logEnv == "1" || logEnv == "true" || logEnv == "yes" {
             self.logger = { level, msg in
                 print("[VoiceKit][\(level)] \(msg)")
             }

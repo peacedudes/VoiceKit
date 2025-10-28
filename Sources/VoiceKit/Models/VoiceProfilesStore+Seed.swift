@@ -1,5 +1,5 @@
 //
-//  VoiceProfilesStore+Bootstrap.swift
+//  VoiceProfilesStore+Seed.swift
 //  VoiceKit
 //
 //  Deterministic voice bootstrap and filtering to satisfy UI tests.
@@ -70,4 +70,3 @@ public enum VoiceProfilesSeed {
         return filtered.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 }
-

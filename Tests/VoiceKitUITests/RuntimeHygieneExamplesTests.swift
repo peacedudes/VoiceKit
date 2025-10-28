@@ -25,7 +25,7 @@ final class RuntimeHygieneExamplesTests: XCTestCase {
         vm.refreshAvailableVoices()
 
         // In this mode, the VM doesn’t query system voices; lists are empty unless a VoiceListProvider is used.
-        XCTAssertTrue(vm.voices.isEmpty || vm.voices.count >= 0)
+        XCTAssertTrue(vm.voices.isEmpty || !vm.voices.isEmpty)
     }
 
     // Pattern 2: Explicit opt-in to real voices on @MainActor.

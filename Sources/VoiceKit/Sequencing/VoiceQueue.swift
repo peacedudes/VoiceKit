@@ -189,14 +189,14 @@ public final class VoiceQueue {
 
     // MARK: - Parsing
 
-    enum Part {
+    internal enum Part {
         case text(String)
         case sfx(String)
     }
 
-    static func parseTextForSFX(_ text: String) -> [Part] {
-        // Pattern: [sfx:NAME] where NAME is [a-zA-Z0-9._-]+
-        let pattern = #"\[sfx:([A-Za-z0-9._-]+)\]"#
+    internal static func parseTextForSFX(_ text: String) -> [Part] {
+        // Pattern: [sfx: NAME] — NAME is any non-] text, leading whitespace allowed
+        let pattern = #"\[sfx:\s*([^\]]+)\]"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return [.text(text)] }
 
         var parts: [Part] = []

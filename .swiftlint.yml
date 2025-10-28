@@ -28,6 +28,11 @@ opt_in_rules:
   - attributes
   - modifier_order
 
+explicit_acl:
+  excluded:
+    - Tests/**
+
+
 identifier_name:
   min_length: 2
   allowed_symbols: ["_"]

@@ -55,7 +55,7 @@ extension RealVoiceIO {
             object: AVAudioSession.sharedInstance(),
             queue: .main
         ) { [weak self] note in
-            let (typeRaw, optionRaw) = RealVoiceIO.extractInterruption(note.userInfo)
+            let (typeRaw, optionRaw) = RealVoiceIO.extractInterruption(note.userInfo ?? [:])
             guard let self else { return }
             Task { @MainActor in
                 self.handleInterruption(typeRaw: typeRaw, optionRaw: optionRaw)
@@ -67,7 +67,7 @@ extension RealVoiceIO {
             object: AVAudioSession.sharedInstance(),
             queue: .main
         ) { [weak self] note in
-            let reasonRaw = RealVoiceIO.extractRouteChange(note.userInfo)
+            let reasonRaw = RealVoiceIO.extractRouteChange(note.userInfo ?? [:])
             guard let self else { return }
             Task { @MainActor in
                 self.handleRouteChange(reasonRaw: reasonRaw)
@@ -80,16 +80,14 @@ extension RealVoiceIO {
         NotificationCenter.default.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: AVAudioSession.sharedInstance())
     }
 
-    nonisolated private static func extractInterruption(_ userInfo: [AnyHashable: Any]?) -> (type: UInt?, option: UInt?) {
-        guard let info = userInfo else { return (nil, nil) }
-        let type = info[AVAudioSessionInterruptionTypeKey] as? UInt
-        let option = info[AVAudioSessionInterruptionOptionKey] as? UInt
+    nonisolated private static func extractInterruption(_ userInfo: [AnyHashable: Any]) -> (type: UInt?, option: UInt?) {
+        let type = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt
+        let option = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt
         return (type, option)
     }
 
-    nonisolated private static func extractRouteChange(_ userInfo: [AnyHashable: Any]?) -> UInt? {
-        guard let info = userInfo else { return nil }
-        return info[AVAudioSessionRouteChangeReasonKey] as? UInt
+    nonisolated private static func extractRouteChange(_ userInfo: [AnyHashable: Any]) -> UInt? {
+        return userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt
     }
 
     // MARK: - Handlers
