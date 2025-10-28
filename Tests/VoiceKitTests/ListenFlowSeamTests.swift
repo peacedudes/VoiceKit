@@ -25,11 +25,13 @@ struct FakeSpeechTaskDriver: SpeechTaskDriver {
         // Build an async sequence of events without spawning a detached Task.
         struct ScriptedEvents: AsyncSequence {
             typealias Element = SpeechEvent
+
             let events: [SpeechEvent]
 
             struct Iterator: AsyncIteratorProtocol {
                 var index = 0
                 let events: [SpeechEvent]
+
                 mutating func next() async -> SpeechEvent? {
                     guard index < events.count else { return nil }
                     let event = events[index]
@@ -112,6 +114,7 @@ final class FakeBoostedProvider: BoostedNodesProvider {
     var engine: AVAudioEngine?
     var player: AVAudioPlayerNode?
     var eq: AVAudioUnitEQ?
+
     func ensure(format: AVAudioFormat) throws {}
     func reset() {}
     static func live() -> BoostedNodesProvider { FakeBoostedProvider() }

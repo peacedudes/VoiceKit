@@ -1,4 +1,3 @@
-// swiftlint:disable file_length type_body_length implicit_optional_initialization identifier_name
 //
 //  VoiceChooserView.swift
 //  VoiceKit
@@ -12,7 +11,6 @@
 
 import SwiftUI
 import AVFoundation
-import Foundation
 import VoiceKit
 
 @MainActor
@@ -32,7 +30,7 @@ public struct VoiceChooserView: View {
     @State private var selectedIDString: String = ""
     @State private var isLoadingVoices: Bool = false
     @State private var hasAppliedProfile: Bool = false
-    @State private var lastPreviewSeconds: Double? = nil
+    @State private var lastPreviewSeconds: Double?
     @State private var isPreviewing: Bool = false
     
     private enum SliderKind { case speed, pitch, volume }
@@ -211,47 +209,34 @@ public struct VoiceChooserView: View {
                 // Single set of sliders for the selected voice
                 if let profile = workingProfile {
                     VStack(spacing: 14) {
-                        TunerSliderRow(
-                            title: "Speed",
-                            systemImage: "speedometer",
+                        TunerSliderRow(title: "Speed", systemImage: "speedometer",
                             value: Binding(
                                 get: { Double(profile.rate) },
                                 set: { workingProfile?.rate = .init($0) }
                             ),
-                            range: 0.0...1.0,
-                            step: 0.01,
-                            formatted: { String(format: "%.2f×", $0) }
+                            range: 0.0...1.0, step: 0.01, formatted: { String(format: "%.2f×", $0) }
                         )
-                        TunerSliderRow(
-                            title: "Pitch",
-                            systemImage: "waveform",
+                        TunerSliderRow(title: "Pitch", systemImage: "waveform",
                             value: Binding(
                                 get: { Double(profile.pitch) },
                                 set: { workingProfile?.pitch = .init($0) }
                             ),
-                            range: 0.5...2.0,
-                            step: 0.01,
-                            formatted: { String(format: "%.2f", $0) }
+                            range: 0.5...2.0, step: 0.01, formatted: { String(format: "%.2f", $0) }
                         )
-                        TunerSliderRow(
-                            title: "Volume",
-                            systemImage: "speaker.wave.2.fill",
+                        TunerSliderRow(title: "Volume", systemImage: "speaker.wave.2.fill",
                             value: Binding(
                                 get: { Double(profile.volume) },
                                 set: { workingProfile?.volume = .init($0) }
                             ),
-                            range: 0.0...1.0,
-                            step: 0.01,
-                            formatted: { String(format: "%.2f", $0) }
+                            range: 0.0...1.0, step: 0.01, formatted: { String(format: "%.2f", $0) }
                         )
 
                         // Chooser actions (only when callbacks are provided)
                         if onChoose != nil || onCancel != nil {
                             HStack(spacing: 12) {
                                 if let onCancel {
-                                    Button(role: .cancel) {
-                                        onCancel()
-                                    } label: { Text("Cancel") }
+                                    Button(role: .cancel) { onCancel() }
+                                    label: { Text("Cancel") }
                                 }
                                 Spacer()
                                 if let onChoose {
@@ -477,7 +462,7 @@ public struct VoiceChooserView: View {
     }
 
     private func commitForSpeak() {
-        if let p = workingProfile { tts.setVoiceProfile(p) }
+        if let profile = workingProfile { tts.setVoiceProfile(profile) }
         previewSpeak(livePhrase())
     }
 
@@ -525,7 +510,7 @@ struct VoiceChooserView_Previews: PreviewProvider {
 }
 
 private struct VoiceChooserPreviewContainer: View {
-    @State private var pickedVoiceID: String? = nil
+    @State private var pickedVoiceID: String?
     private let tts: TTSConfigurable = RealVoiceIO()
 
     var body: some View {

@@ -60,18 +60,18 @@ private enum Metrics {
     }
 }
 @MainActor
-struct ChorusLabView: View {
+internal struct ChorusLabView: View {
     @State private var selectedProfiles: [TTSVoiceProfile] = []
     @State private var pitch: Float = 1.0
     @State private var rate: Float = 0.55
     @State private var customText: String = "Six swift ships."
     @State private var targetSeconds: Double = 3.0
     @State private var isCalibrating: Bool = false
-    @State private var calibrationTask: Task<Void, Never>? = nil
+    @State private var calibrationTask: Task<Void, Never>?
     @State private var lastDurationByID: [String: TimeInterval] = [:]
-    @State private var lastChorusSeconds: Double? = nil
+    @State private var lastChorusSeconds: Double?
     @State private var isPlaying: Bool = false
-    @State private var calibratingVoiceID: String? = nil
+    @State private var calibratingVoiceID: String?
     // Baseline profiles and global adjustments for chorus-wide tweaks
     @State private var baseProfiles: [TTSVoiceProfile] = []
     @State private var rateScale: Double = 1.0       // Multiplies baseline rate
@@ -79,28 +79,29 @@ struct ChorusLabView: View {
 
     // Tuner presentation
     @State private var showTuner = false
-    @State private var tunerSelection: String? = nil
+    @State private var tunerSelection: String?
     @State private var tunerEngine = RealVoiceIO()
-    @State private var editingIndex: Int? = nil
+    @State private var editingIndex: Int?
     // Copy-to-clipboard feedback
     @State private var didCopy: Bool = false
 
     // iOS-only: edit mode toggling for List reordering
     #if os(iOS)
-    @Environment(\.editMode) private var editMode
+    @Environment(\.editMode)
+    private var editMode
     #endif
     // Dependencies for testability and reuse:
     // - voicesProvider: supplies available system voices
     // - engineFactory: creates RealVoiceIO instances for chorus engines, calibration, and tuner
-    let voicesProvider: any SystemVoicesProvider
-    let engineFactory: () -> RealVoiceIO
-    let chorus: VoiceChorus
+    internal let voicesProvider: any SystemVoicesProvider
+    internal let engineFactory: () -> RealVoiceIO
+    internal let chorus: VoiceChorus
 
     /// Create the Chorus Lab view with injectable dependencies.
     /// - Parameters:
     ///   - voicesProvider: Source of system voices (defaults to SystemVoicesCache).
     ///   - engineFactory: Factory for engines (defaults to RealVoiceIO()).
-    init(
+    internal init(
         voicesProvider: any SystemVoicesProvider = DefaultSystemVoicesProvider(),
         engineFactory: @escaping () -> RealVoiceIO = { RealVoiceIO() }
     ) {
@@ -112,7 +113,7 @@ struct ChorusLabView: View {
         })
     }
 
-    var body: some View {
+    internal var body: some View {
         VStack {
             // Fixed control area
             VStack {
@@ -124,7 +125,11 @@ struct ChorusLabView: View {
                 ZStack(alignment: .topLeading) {
                     ZStack(alignment: .topLeading) {
                         if customText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            Text("Add voices with +\nPress Play to hear your chorus\nTune Goal, Rate, and Pitch to match")
+                            Text("""
+                                Add voices with +
+                                Press Play to hear your chorus
+                                Tune Goal, Rate, and Pitch to match
+                                """)
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                                 .multilineTextAlignment(.leading)
@@ -489,12 +494,13 @@ struct ChorusLabView: View {
                                 Text("Play Chorus")
                                     .opacity((isPlaying || isCalibrating) ? 0 : 1)
                             }
-                            .frame(minWidth: Metrics.Buttons.playTextMinWidth, alignment: .leading) // stabilize text width
+                            .frame(minWidth: Metrics.Buttons.playTextMinWidth, alignment: .leading) // stabilize width
                         }
                         .padding(.horizontal, Metrics.Buttons.horizontalPad)
                         .padding(.vertical, Metrics.Buttons.verticalPad)
                         .accessibilityLabel((isPlaying || isCalibrating) ? "Stop" : "Play Chorus")
-                        .accessibilityHint((isPlaying || isCalibrating) ? "Stop playback and calibration" : "Start playing all voices")
+                        .accessibilityHint((isPlaying || isCalibrating) ?
+                                           "Stop playback and calibration" : "Start playing all voices")
                         .accessibilityAddTraits(.isButton)
                     }
                     .buttonStyle(.borderedProminent)
@@ -630,7 +636,8 @@ struct ChorusLabView: View {
                 // Details (middle)
                 DetailsCell(rate: rate, pitch: pitch, volume: volume)
                     .accessibilityLabel("Voice settings")
-                    .accessibilityValue(Text(String(format: "Speed %.2f, Pitch %.2f, Volume %.2f", rate, pitch, volume)))
+                    .accessibilityValue(Text(String(format: "Speed %.2f, Pitch %.2f, Volume %.2f",
+                                                    rate, pitch, volume)))
 
                 // Timing (right)
                 DurationCell(duration: duration, isHighlighted: isCalibrating)
@@ -731,7 +738,8 @@ struct ChorusLabView: View {
     }
 
     // Use system voices (RealVoiceIO no longer exposes availableVoices()).
-    @MainActor func availableVoices() -> [TTSVoiceInfo] {
+    @MainActor
+    internal func availableVoices() -> [TTSVoiceInfo] {
         voicesProvider.all()
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
@@ -917,8 +925,8 @@ internal func makeChorusSnippet(for profiles: [TTSVoiceProfile]) -> String {
     """
 }
 
-struct ChorusLabView_Previews: PreviewProvider {
-    static var previews: some View {
+internal struct ChorusLabView_Previews: PreviewProvider {
+    internal static var previews: some View {
         Group {
             #if os(macOS)
             ChorusLabView()
@@ -940,7 +948,7 @@ private extension Double {
 
 // MARK: - Unit-testable helpers
 /// Helpers for chorus tuning logic. Pure and unit-testable.
-enum ChorusMath {
+internal enum ChorusMath {
     /// Compute an adjusted rate from a baseline rate and a global rate scBale.
     /// Mapping is amplified relative to the base:
     /// - rateScale > 1.0 moves toward 1.0 by a fraction of headroom (1.0 - base)
@@ -951,7 +959,7 @@ enum ChorusMath {
     ///   - rateScale: Global multiplier. 1.0 = unchanged; >1.0 speeds up; <1.0 slows down.
     ///   - slowRange: Denominator for mapping 1.0→0.x into t:0...1 (prevents over-slowing too quickly).
     /// - Returns: New rate in 0...1.
-    static func adjustedRate(baseRate: Double, rateScale: Double, slowRange: Double) -> Double {
+    internal static func adjustedRate(baseRate: Double, rateScale: Double, slowRange: Double) -> Double {
         if rateScale >= 1.0 {
             // Map 1.0→2.0 into t:0...1 and push toward 1.0 by headroom
             let factor = max(0.0, min(1.0, rateScale - 1.0))
@@ -969,7 +977,7 @@ enum ChorusMath {
     ///   - rateScale: Global rate multiplier (see adjustedRate).
     ///   - pitchOffset: Global offset added to pitch, then clamped.
     /// - Returns: New profiles array with adjusted rate and pitch.
-    static func applyAdjustments(
+    internal static func applyAdjustments(
         baseProfiles: [TTSVoiceProfile],
         rateScale: Double,
         pitchOffset: Double
@@ -986,21 +994,21 @@ enum ChorusMath {
 }
 
 /// Seconds formatting helpers (pure; suitable for tests).
-enum SecondsFormatter {
-    static func twoDecimals(_ seconds: Double) -> String { String(format: "%.2fs", seconds) }
+internal enum SecondsFormatter {
+    internal static func twoDecimals(_ seconds: Double) -> String { String(format: "%.2fs", seconds) }
 }
 
 // MARK: - Injected dependencies
 /// Abstraction over the source of system voices, to enable testing and reuse.
-protocol SystemVoicesProvider {
+internal protocol SystemVoicesProvider {
     @MainActor
     func all() -> [TTSVoiceInfo]
 }
 
 /// Default provider backed by SystemVoicesCache.
-struct DefaultSystemVoicesProvider: SystemVoicesProvider {
+internal struct DefaultSystemVoicesProvider: SystemVoicesProvider {
     @MainActor
-    func all() -> [TTSVoiceInfo] {
+    internal func all() -> [TTSVoiceInfo] {
         SystemVoicesCache.all()
     }
 }

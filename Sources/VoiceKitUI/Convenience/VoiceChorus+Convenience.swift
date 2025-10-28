@@ -18,9 +18,7 @@ public extension VoiceChorus {
 
     /// Create a chorus that uses a new RealVoiceIO per channel.
     @MainActor
-    static func real() -> VoiceChorus {
-        VoiceChorus(makeEngine: { RealVoiceIO() as (any TTSConfigurable & VoiceIO) })
-    }
+    static func real() -> VoiceChorus { VoiceChorus() }
 
     /// Create a chorus with your own RealVoiceIO factory (still hiding the existential).
     @MainActor

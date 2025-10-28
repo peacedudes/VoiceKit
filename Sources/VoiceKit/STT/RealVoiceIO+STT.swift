@@ -44,9 +44,7 @@ extension RealVoiceIO {
         var i = 0
 
         // Combine multiple chunks by thousands if needed (simple concatenation rule).
-        func commitInt(_ value: Int) {
-            intValue = (intValue ?? 0) * 1000 + value
-        }
+        func commitInt(_ value: Int) { intValue = (intValue ?? 0) * 1000 + value }
 
         while i < tokens.count {
             let token = tokens[i]

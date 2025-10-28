@@ -1,0 +1,4 @@
+---
+# Local SwiftLint overrides for Tests
+disabled_rules:
+  - explicit_acl

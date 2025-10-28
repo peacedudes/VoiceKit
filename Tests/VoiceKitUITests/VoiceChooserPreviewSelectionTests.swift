@@ -20,6 +20,7 @@ final class VoiceChooserPreviewSelectionTests: XCTestCase {
         var profiles: [String: TTSVoiceProfile] = [:]
         var defaultProfile: TTSVoiceProfile?
         var tuning: Tuning = .init()
+
         nonisolated func availableVoices() -> [TTSVoiceInfo] { MainActor.assumeIsolated { voices } }
         func setVoiceProfile(_ profile: TTSVoiceProfile) { profiles[profile.id] = profile }
         func getVoiceProfile(id: String) -> TTSVoiceProfile? { profiles[id] }

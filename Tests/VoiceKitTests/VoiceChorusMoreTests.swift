@@ -36,6 +36,7 @@ final class VoiceChorusMoreTests: XCTestCase {
 
         // Behavior
         let delaySeconds: Double
+
         init(delaySeconds: Double = 0) { self.delaySeconds = delaySeconds }
 
         // MARK: - VoiceIO

@@ -19,6 +19,7 @@ final class BoostedSchedulingSeamTests: XCTestCase {
         var player: AVAudioPlayerNode?
         var eq: AVAudioUnitEQ?
         private(set) var resetCount = 0
+
         func reset() { resetCount += 1 }
         static func live() -> BoostedNodesProvider { FakeBoostedNodesProvider() }
     }

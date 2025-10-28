@@ -35,7 +35,9 @@ public struct VoiceProfilesFile: Codable {
         var volume: Float
     }
 
-    private enum CodingKeys: String, CodingKey { case defaultVoiceID, tuning, profilesByID, activeVoiceIDs, hiddenVoiceIDs }
+    private enum CodingKeys: String, CodingKey {
+        case defaultVoiceID, tuning, profilesByID, activeVoiceIDs, hiddenVoiceIDs
+    }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)

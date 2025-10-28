@@ -96,6 +96,6 @@ private struct TunerSliderRowPreviewContainer: View {
     }
 }
 
-struct TunerSliderRow_Previews: PreviewProvider {
-    static var previews: some View { TunerSliderRowPreviewContainer() }
+internal struct TunerSliderRow_Previews: PreviewProvider {
+    internal static var previews: some View { TunerSliderRowPreviewContainer() }
 }

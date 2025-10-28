@@ -93,7 +93,6 @@ final class NameMatchTests: XCTestCase {
         XCTAssertLessThan(score, 0.8)
     }
 
-
     func testCrossTokenMatchingPicksBestPairs() {
         let aKey = NameMatch.normalizeKey("katherine anne")
         let bKey = NameMatch.normalizeKey("catherine ann")

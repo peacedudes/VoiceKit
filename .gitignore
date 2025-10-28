@@ -11,3 +11,4 @@ DerivedData/
 *.xcuserstate
 *.log
 handoff.md
+Package.resolved

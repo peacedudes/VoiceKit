@@ -15,9 +15,7 @@ enum PermissionBridge {
 
     nonisolated static func awaitSpeechAuth() async -> SFSpeechRecognizerAuthorizationStatus {
         // In CI, avoid system prompts that can hang headless runners.
-        if IsCI.running {
-            return .authorized
-        }
+        if IsCI.running { return .authorized }
         return await withCheckedContinuation { (continuation: CheckedContinuation<SFSpeechRecognizerAuthorizationStatus, Never>) in
             SFSpeechRecognizer.requestAuthorization { status in
                 continuation.resume(returning: status)
@@ -25,27 +23,16 @@ enum PermissionBridge {
         }
     }
 
-    #if os(iOS)
     nonisolated static func awaitMicPermission() async -> Bool {
-        if IsCI.running {
-            return true
-        }
-        return await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
-            AVAudioApplication.requestRecordPermission { granted in
-                continuation.resume(returning: granted)
-            }
+        if IsCI.running { return true }
+        return await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+            #if os(iOS)
+            AVAudioApplication.requestRecordPermission { cont.resume(returning: $0) }
+            #elseif os(macOS)
+            AVCaptureDevice.requestAccess(for: .audio) { cont.resume(returning: $0) }
+            #else
+            cont.resume(returning: true)
+            #endif
         }
     }
-    #elseif os(macOS)
-    nonisolated static func awaitMicPermission() async -> Bool {
-        if IsCI.running {
-            return true
-        }
-        return await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
-            AVCaptureDevice.requestAccess(for: .audio) { granted in
-                continuation.resume(returning: granted)
-            }
-        }
-    }
-    #endif
 }

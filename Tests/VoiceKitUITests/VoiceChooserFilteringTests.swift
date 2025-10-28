@@ -15,6 +15,7 @@ final class VoiceChooserFilteringTests: XCTestCase {
     @MainActor
     final class FakeTTS: TTSConfigurable, VoiceListProvider {
         var voices: [TTSVoiceInfo] = []
+
         nonisolated func availableVoices() -> [TTSVoiceInfo] { MainActor.assumeIsolated { voices } }
         func setVoiceProfile(_ profile: TTSVoiceProfile) {}
         func getVoiceProfile(id: String) -> TTSVoiceProfile? { nil }
