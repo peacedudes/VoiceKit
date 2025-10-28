@@ -20,7 +20,7 @@ public struct VoiceProfileSummary: Equatable, Sendable {
 }
 
 @MainActor
-public enum VoiceProfilesStoreBootstrap {
+public enum VoiceProfilesSeed {
 
     // Returns default voice ID and full list of profiles (sorted by name).
     public static func bootstrap() -> (defaultID: String?, profiles: [VoiceProfileSummary]) {
@@ -70,3 +70,4 @@ public enum VoiceProfilesStoreBootstrap {
         return filtered.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 }
+
