@@ -11,9 +11,9 @@ import Foundation
 @preconcurrency import Speech
 @preconcurrency import AVFoundation
 
-enum PermissionBridge {
+internal enum PermissionBridge {
 
-    nonisolated static func awaitSpeechAuth() async -> SFSpeechRecognizerAuthorizationStatus {
+    internal nonisolated static func awaitSpeechAuth() async -> SFSpeechRecognizerAuthorizationStatus {
         // In CI, avoid system prompts that can hang headless runners.
         if IsCI.running { return .authorized }
         return await withCheckedContinuation { (continuation: CheckedContinuation<SFSpeechRecognizerAuthorizationStatus, Never>) in
@@ -23,7 +23,7 @@ enum PermissionBridge {
         }
     }
 
-    nonisolated static func awaitMicPermission() async -> Bool {
+    internal nonisolated static func awaitMicPermission() async -> Bool {
         if IsCI.running { return true }
         return await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
             #if os(iOS)

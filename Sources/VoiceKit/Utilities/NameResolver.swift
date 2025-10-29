@@ -25,15 +25,14 @@ public struct NameResolver: Sendable {
 
     // Resolve a spoken name to an allowed list.
     // - Behavior:
-    //   - If `allowed` is nil or empty: return the raw input with leading/trailing
-    //     whitespace and punctuation trimmed (preserving original case/diacritics).
+    //   - If `allowed` is empty: return the raw input with leading/trailing whitespace
+    //     and punctuation trimmed (preserving original case/diacritics).
     //   - Else: normalize both transcript and allowed strings by folding case/diacritics,
     //     removing zero-width/soft hyphens, converting punctuation (including hyphen/dash
     //     variants) to spaces, and collapsing whitespace. Return the original allowed string
     //     when a normalized exact match is found; otherwise nil.
-    // swiftlint:disable:next discouraged_optional_collection
-    public func resolve(transcript raw: String, allowed: [String]?) -> String? {
-        guard let allowed, !allowed.isEmpty else {
+    public func resolve(transcript raw: String, allowed: [String] = []) -> String? {
+        guard !allowed.isEmpty else {
             return cleanEdgesPreservingCase(raw)
         }
 

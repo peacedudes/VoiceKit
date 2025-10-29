@@ -13,7 +13,7 @@ final class NameResolverTests: XCTestCase {
     let resolver = NameResolver()
 
     func testReturnsCleanedRawWhenNoAllowedList() {
-        XCTAssertEqual(resolver.resolve(transcript: "  Zoë  ", allowed: nil), "Zoë")
+        XCTAssertEqual(resolver.resolve(transcript: "  Zoë  "), "Zoë")
         XCTAssertEqual(resolver.resolve(transcript: "  Max! ", allowed: []), "Max")
     }
 
@@ -41,8 +41,8 @@ final class NameResolverTests: XCTestCase {
     // More tests
     
     func testEmptyAndPunctuationOnlyReturnsEmptyWhenNoAllowed() {
-        XCTAssertEqual(resolver.resolve(transcript: "   ", allowed: nil), "")
-        XCTAssertEqual(resolver.resolve(transcript: " !!! ", allowed: nil), "")
+        XCTAssertEqual(resolver.resolve(transcript: "   "), "")
+        XCTAssertEqual(resolver.resolve(transcript: " !!! "), "")
     }
 
     func testVariousDashesAndSpacesMatch() {

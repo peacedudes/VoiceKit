@@ -14,11 +14,11 @@ import Accelerate
 @MainActor
 extension RealVoiceIO {
 
-    func trimAudioSmart(inputURL: URL,
-                        sttStart: Double?,
-                        sttEnd: Double?,
-                        prePad: Double,
-                        postPad: Double) -> URL? {
+    internal func trimAudioSmart(inputURL: URL,
+                                 sttStart: Double?,
+                                 sttEnd: Double?,
+                                 prePad: Double,
+                                 postPad: Double) -> URL? {
         do {
             let inFile = try AVAudioFile(forReading: inputURL)
             let sampleRate = inFile.fileFormat.sampleRate
@@ -30,38 +30,13 @@ extension RealVoiceIO {
             var end = sttEnd ?? duration
 
             if fallback {
-                let targetFormat = inFile.processingFormat
-                let chunk: AVAudioFrameCount = 8192
-                inFile.framePosition = 0
-                let threshDB: Float = -45
-                var foundStart: Double?
-                var lastNonSilent: Double = 0
-
-                while inFile.framePosition < totalFrames {
-                    let remaining = AVAudioFrameCount(totalFrames - inFile.framePosition)
-                    let frames = min(chunk, remaining)
-                    guard let buf = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: frames) else { break }
-                    try inFile.read(into: buf, frameCount: frames)
-                    if buf.frameLength == 0 { break }
-                    let ts = Double(inFile.framePosition - Int64(frames)) / sampleRate
-
-                    if let ch = buf.floatChannelData?.pointee {
-                        var ms: Float = 0
-                        vDSP_measqv(ch, 1, &ms, vDSP_Length(buf.frameLength))
-                        let db: Float = ms <= 0 ? -160 : 10 * log10f(ms)
-                        if db > threshDB {
-                            if foundStart == nil { foundStart = ts }
-                            lastNonSilent = ts + Double(buf.frameLength) / sampleRate
-                        }
-                    }
-                }
-                if let fs = foundStart {
-                    start = fs
-                    end = max(lastNonSilent, fs + 0.1)
-                } else {
-                    start = 0
-                    end = duration
-                }
+                if let bounds = energyTrimBounds(inFile: inFile,
+                                                 sampleRate: sampleRate,
+                                                 totalFrames: totalFrames,
+                                                 thresholdDB: -45,
+                                                 chunk: 8192) {
+                    start = bounds.start; end = max(bounds.end, bounds.start + 0.1)
+                } else { start = 0; end = duration }
             }
 
             start = max(0, start - prePad)
@@ -90,6 +65,47 @@ extension RealVoiceIO {
             return outURL
         } catch {
             return inputURL
+        }
+    }
+
+    // Extracted energy-based trim bounds to reduce cyclomatic complexity of trimAudioSmart.
+    // Scans the file in chunks and returns the first non-silent timestamp and last non-silent timestamp.
+    private func energyTrimBounds(inFile: AVAudioFile,
+                                  sampleRate: Double,
+                                  totalFrames: AVAudioFramePosition,
+                                  thresholdDB: Float,
+                                  chunk: AVAudioFrameCount) -> (start: Double, end: Double)? {
+        let targetFormat = inFile.processingFormat
+        inFile.framePosition = 0
+        var foundStart: Double?
+        var lastNonSilent: Double = 0
+
+        while inFile.framePosition < totalFrames {
+            let remaining = AVAudioFrameCount(totalFrames - inFile.framePosition)
+            let frames = min(chunk, remaining)
+            guard let buf = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: frames) else { break }
+            do {
+                try inFile.read(into: buf, frameCount: frames)
+            } catch {
+                break
+            }
+            if buf.frameLength == 0 { break }
+            let ts = Double(inFile.framePosition - Int64(frames)) / sampleRate
+
+            if let ch = buf.floatChannelData?.pointee {
+                var ms: Float = 0
+                vDSP_measqv(ch, 1, &ms, vDSP_Length(buf.frameLength))
+                let db: Float = ms <= 0 ? -160 : 10 * log10f(ms)
+                if db > thresholdDB {
+                    if foundStart == nil { foundStart = ts }
+                    lastNonSilent = ts + Double(buf.frameLength) / sampleRate
+                }
+            }
+        }
+        if let fs = foundStart {
+            return (fs, lastNonSilent)
+        } else {
+            return nil
         }
     }
 }

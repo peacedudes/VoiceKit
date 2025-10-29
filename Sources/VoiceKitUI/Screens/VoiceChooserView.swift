@@ -503,8 +503,8 @@ public struct VoiceChooserView: View {
 }
 
 // MARK: - Preview
-struct VoiceChooserView_Previews: PreviewProvider {
-    static var previews: some View {
+internal struct VoiceChooserView_Previews: PreviewProvider {
+    internal static var previews: some View {
         VoiceChooserPreviewContainer()
     }
 }

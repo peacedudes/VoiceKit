@@ -14,6 +14,22 @@ import Foundation
 @MainActor
 extension RealVoiceIO {
 
+    // Build decimal digits after the "point" token; returns nil if any token is unrecognized.
+    private static func decimalDigits(from tokens: ArraySlice<String>,
+                                      ones: [String: Int]) -> String? {
+        var dec = ""
+        for word in tokens {
+            if let digit = ones[word] {
+                dec.append(String(digit))
+            } else if let number = Int(word) {
+                dec.append(String(number))
+            } else {
+                return nil
+            }
+        }
+        return dec.isEmpty ? "0" : dec
+    }
+
     // Converts simple number words into digits (e.g., "seven" -> "7",
     // "Nineteen" -> "19", "forty-two point five" -> "42.5").
     // Falls back to trimmed original if tokens are unrecognized.
@@ -50,22 +66,12 @@ extension RealVoiceIO {
             let token = tokens[i]
 
             if token == "point" {
-                // Build decimal digits from remaining tokens.
-                var dec = ""
-                var j = i + 1
-                while j < tokens.count {
-                    let word = tokens[j]
-                    if let digit = ones[word] {
-                        dec.append(String(digit))
-                    } else if let number = Int(word) {
-                        dec.append(String(number))
-                    } else {
-                        // Unknown token -> give up and return original trimmed string.
-                        return trimmed
-                    }
-                    j += 1
+                // Build decimal digits from remaining tokens via helper.
+                if let dec = Self.decimalDigits(from: tokens[(i + 1)...], ones: ones) {
+                    decimalPart = dec
+                } else {
+                    return trimmed
                 }
-                decimalPart = dec.isEmpty ? "0" : dec
                 break
             }
 

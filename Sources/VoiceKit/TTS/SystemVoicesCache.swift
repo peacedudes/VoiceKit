@@ -19,14 +19,14 @@ import Foundation
 @MainActor
 public enum SystemVoicesCache {
     // Storage
-    private static var cached: [TTSVoiceInfo]?
+    private static var cached: [TTSVoiceInfo] = []
     private static var lastRefresh: Date?
 
     /// Return cached voices. Builds the cache on first access.
     /// Stable, name-sorted order for predictable UI/tests.
     public static func all() -> [TTSVoiceInfo] {
-        if let cached { return cached }
-        return refresh()
+        if cached.isEmpty { return refresh() }
+        return cached
     }
 
     /// Rebuild the cache by querying AVSpeechSynthesisVoice.
@@ -48,7 +48,7 @@ public enum SystemVoicesCache {
 
     /// Clear the cache (next all() will rebuild). Rarely needed.
     public static func clear() {
-        cached = nil
+        cached = []
         lastRefresh = nil
     }
 }
