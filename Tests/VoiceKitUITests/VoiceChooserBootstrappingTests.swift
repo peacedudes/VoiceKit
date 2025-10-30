@@ -1,8 +1,8 @@
 //
-//  VoiceProfilesSeedTests.swift
+//  VoiceChooserBootstrappingTests.swift
 //  VoiceKit
 //
-//  Deterministic: use FakeTTS; verify profiles and default without system voice assumptions.
+//  Deterministic bootstrap test using FakeTTS voices only.
 //
 
 import XCTest
@@ -10,7 +10,7 @@ import XCTest
 @testable import VoiceKit
 
 @MainActor
-final class VoiceProfilesSeedTests: XCTestCase {
+final class VoiceChooserBootstrappingTests: XCTestCase {
 
     @MainActor
     final class FakeTTS: TTSConfigurable, VoiceListProvider {
@@ -30,32 +30,8 @@ final class VoiceProfilesSeedTests: XCTestCase {
         func stopSpeakingNow() {}
     }
 
-    func testBootstrapCreatesProfilesWithSystemNames() {
-        let filename = "test_bootstrap.json"
-        let store = VoiceProfilesStore(filename: filename)
-        defer { cleanup(filename) }
-
-        let tts = FakeTTS()
-        tts.voices = [
-            TTSVoiceInfo(id: "a", name: "Alpha", language: "en-US"),
-            TTSVoiceInfo(id: "b", name: "Beta", language: "en-GB")
-        ]
-        let vm = VoicePickerViewModel(tts: tts, store: store, allowSystemVoices: false)
-        vm.refreshAvailableVoices()
-        vm.applyToTTS()
-
-        guard let first = vm.voices.first else {
-            XCTFail("No test voices")
-            return
-        }
-
-        let profile = store.profile(for: first)
-        XCTAssertEqual(profile.id, first.id)
-        XCTAssertEqual(first.name, "Alpha")
-    }
-
-    func testDefaultVoiceIsSetIfMissing() {
-        let filename = "test_default.json"
+    func testBootstrapCreatesDefaultAndProfiles() {
+        let filename = "picker_bootstrap.json"
         let store = VoiceProfilesStore(filename: filename)
         defer { cleanup(filename) }
         store.defaultVoiceID = nil
@@ -65,9 +41,15 @@ final class VoiceProfilesSeedTests: XCTestCase {
             TTSVoiceInfo(id: "a", name: "Alpha", language: "en-US"),
             TTSVoiceInfo(id: "b", name: "Beta", language: "en-GB")
         ]
-        let vm = VoicePickerViewModel(tts: tts, store: store, allowSystemVoices: false)
+
+        // IMPORTANT: use FakeTTS in the ViewModel
+        let vm = VoiceChooserViewModel(tts: tts, store: store, allowSystemVoices: false)
         vm.refreshAvailableVoices()
-        vm.applyToTTS()
+
+        XCTAssertEqual(vm.voices.map(\.id), ["a", "b"])
+
+        let profile = store.profile(for: vm.voices[0])
+        XCTAssertEqual(profile.id, "a")
 
         if let def = store.defaultVoiceID {
             XCTAssertTrue(vm.voices.contains(where: { $0.id == def }))
