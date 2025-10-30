@@ -13,7 +13,7 @@ import Foundation
 
 internal enum PermissionBridge {
 
-    internal nonisolated static func awaitSpeechAuth() async -> SFSpeechRecognizerAuthorizationStatus {
+    nonisolated internal static func awaitSpeechAuth() async -> SFSpeechRecognizerAuthorizationStatus {
         // In CI, avoid system prompts that can hang headless runners.
         if IsCI.running { return .authorized }
         return await withCheckedContinuation { (continuation: CheckedContinuation<SFSpeechRecognizerAuthorizationStatus, Never>) in
@@ -23,7 +23,7 @@ internal enum PermissionBridge {
         }
     }
 
-    internal nonisolated static func awaitMicPermission() async -> Bool {
+    nonisolated internal static func awaitMicPermission() async -> Bool {
         if IsCI.running { return true }
         return await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
             #if os(iOS)

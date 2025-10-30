@@ -19,7 +19,7 @@ opt_in_rules:
   - comma
   - implicit_optional_initialization
   - redundant_type_annotation
-  - explicit_acl
+  - explicit_top_level_acl
   - let_var_whitespace
   - todo
   - discouraged_optional_collection

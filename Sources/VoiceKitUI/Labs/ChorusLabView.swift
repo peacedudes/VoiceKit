@@ -85,6 +85,72 @@ internal struct ChorusLabView: View {
     // Copy-to-clipboard feedback
     @State private var didCopy: Bool = false
 
+    // MARK: - Internal proxies for logic extension (keep @State private)
+    // These expose controlled access for helpers in ChorusLabView+Logic.swift.
+    internal var vk_selectedProfiles: [TTSVoiceProfile] {
+        get { selectedProfiles } set { selectedProfiles = newValue }
+    }
+    internal var vk_baseProfiles: [TTSVoiceProfile] {
+        get { baseProfiles } set { baseProfiles = newValue }
+    }
+    internal var vk_rateScale: Double {
+        get { rateScale } set { rateScale = newValue }
+    }
+    internal var vk_pitchOffset: Double {
+        get { pitchOffset } set { pitchOffset = newValue }
+    }
+    internal var vk_showTuner: Bool {
+        get { showTuner } set { showTuner = newValue }
+    }
+    internal var vk_tunerSelection: String? {
+        get { tunerSelection } set { tunerSelection = newValue }
+    }
+    internal var vk_tunerEngine: RealVoiceIO {
+        get { tunerEngine } set { tunerEngine = newValue }
+    }
+    internal var vk_editingIndex: Int? {
+        get { editingIndex } set { editingIndex = newValue }
+    }
+
+    // Internal constant proxies for logic in another file (keeps Metrics private)
+    internal var _defaultsRate: Double { Metrics.Defaults.rate }
+    internal var _defaultsPitch: Float { Metrics.Defaults.pitch }
+    internal var _defaultsVolume: Float { Metrics.Defaults.volume }
+    internal var _pitchClampLo: Float { Metrics.Pitch.clampLo }
+    internal var _pitchClampHi: Float { Metrics.Pitch.clampHi }
+    internal var _slowRange: Double { Metrics.Adjustments.slowRange }
+
+    // Calibration constants for logic in another file
+    internal var _calTolerance: Double { Metrics.Calibration.tolerance }
+    internal var _calMaxIterations: Int { Metrics.Calibration.maxIterations }
+
+    // Additional state proxies used by play/stop/sync helpers
+    internal var vk_isPlaying: Bool {
+        get { isPlaying } set { isPlaying = newValue }
+    }
+    internal var vk_isCalibrating: Bool {
+        get { isCalibrating } set { isCalibrating = newValue }
+    }
+    internal var vk_calibrationTask: Task<Void, Never>? {
+        get { calibrationTask } set { calibrationTask = newValue }
+    }
+    internal var vk_lastDurationByID: [String: TimeInterval] {
+        get { lastDurationByID } set { lastDurationByID = newValue }
+    }
+    internal var vk_lastChorusSeconds: Double? {
+        get { lastChorusSeconds } set { lastChorusSeconds = newValue }
+    }
+    internal var vk_calibratingVoiceID: String? {
+        get { calibratingVoiceID } set { calibratingVoiceID = newValue }
+    }
+    internal var vk_customText: String {
+        get { customText } set { customText = newValue }
+    }
+    // Avoid colliding with SwiftUI's synthesized _targetSeconds backing storage
+    internal var vk_targetSeconds: Double {
+        get { targetSeconds } set { targetSeconds = newValue }
+    }
+
     // iOS-only: edit mode toggling for List reordering
     #if os(iOS)
     @Environment(\.editMode)
@@ -93,15 +159,15 @@ internal struct ChorusLabView: View {
     // Dependencies for testability and reuse:
     // - voicesProvider: supplies available system voices
     // - engineFactory: creates RealVoiceIO instances for chorus engines, calibration, and tuner
-    internal let voicesProvider: any SystemVoicesProvider
-    internal let engineFactory: () -> RealVoiceIO
-    internal let chorus: VoiceChorus
+    let voicesProvider: any SystemVoicesProvider
+    let engineFactory: () -> RealVoiceIO
+    let chorus: VoiceChorus
 
     /// Create the Chorus Lab view with injectable dependencies.
     /// - Parameters:
     ///   - voicesProvider: Source of system voices (defaults to SystemVoicesCache).
     ///   - engineFactory: Factory for engines (defaults to RealVoiceIO()).
-    internal init(
+    init(
         voicesProvider: any SystemVoicesProvider = DefaultSystemVoicesProvider(),
         engineFactory: @escaping () -> RealVoiceIO = { RealVoiceIO() }
     ) {
@@ -113,7 +179,7 @@ internal struct ChorusLabView: View {
         })
     }
 
-    internal var body: some View {
+    var body: some View {
         VStack {
             // Fixed control area
             VStack {
@@ -272,13 +338,22 @@ internal struct ChorusLabView: View {
             // Seed only once on first appear.
             if selectedProfiles.isEmpty {
                 seedInitialVoices(count: 2)
-                applyGlobalAdjustments()
+                // Pure transform: re-derive effective profiles from baseline + sliders
+                selectedProfiles = ChorusMath.applyAdjustments(
+                    baseProfiles: baseProfiles,
+                    rateScale: rateScale,
+                    pitchOffset: pitchOffset
+                )
             }
         }
         // Safety net: when rows are added/removed, realign baseline and re-apply.
         .onChange(of: selectedProfiles.count) { _, _ in
             baseProfiles = selectedProfiles
-            applyGlobalAdjustments()
+            selectedProfiles = ChorusMath.applyAdjustments(
+                baseProfiles: baseProfiles,
+                rateScale: rateScale,
+                pitchOffset: pitchOffset
+            )
         }
     }
 
@@ -293,14 +368,14 @@ internal struct ChorusLabView: View {
             ForEach($selectedProfiles, id: \.id) { profile in
                 // Unwrap binding element for read-only UI usage in this row
                 let profileValue = profile.wrappedValue
-
-                SelectedVoiceRow(
+                ChorusLabSelectedVoiceRow(
                     name: resolvedName(for: profileValue.id),
                     rate: profileValue.rate,
                     pitch: profileValue.pitch,
                     volume: profileValue.volume,
                     duration: lastDurationByID[profileValue.id],
-                    isCalibrating: calibratingVoiceID == profileValue.id
+                    isCalibrating: calibratingVoiceID == profileValue.id,
+                    timingCellWidth: Metrics.Layout.timingCellWidth
                 )
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -311,9 +386,7 @@ internal struct ChorusLabView: View {
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     // Put Sync first so full-swipe defaults to Sync (safer than Delete).
                     Button {
-                        if let idx = selectedProfiles.firstIndex(where: { $0.id == profileValue.id }) {
-                            synchronizeVoice(at: idx)
-                        }
+                        // Temporarily disabled: we’ll rewire to a nonmutating async flow in the next step.
                     } label: {
                         Label("Sync", systemImage: "arrow.clockwise")
                     }
@@ -330,7 +403,12 @@ internal struct ChorusLabView: View {
                         }
                         lastDurationByID.removeValue(forKey: removedID)
                         baseProfiles = selectedProfiles
-                        applyGlobalAdjustments()
+                        // Pure transform: re-derive effective profiles from baseline + sliders
+                        selectedProfiles = ChorusMath.applyAdjustments(
+                            baseProfiles: baseProfiles,
+                            rateScale: rateScale,
+                            pitchOffset: pitchOffset
+                        )
                     } label: { Label("Delete", systemImage: "trash") }
                     .accessibilityLabel("Delete voice")
                 }
@@ -453,293 +531,69 @@ internal struct ChorusLabView: View {
 
     @ViewBuilder
     private func actionButtonsRow() -> some View {
-        ActionRowView(
+        ChorusLabActionRowView(
             isPlaying: $isPlaying,
             isCalibrating: $isCalibrating,
             hasSelection: !selectedProfiles.isEmpty,
-            onPlay: { startChorus() },
-            onStop: { stopAll() },
+            onPlay: {
+                // Inline to avoid calling a mutating helper from an immutable context
+                Task { @MainActor in
+                    isPlaying = true
+                    let t0 = Date()
+                    await chorus.sing(customText, withVoiceProfiles: selectedProfiles)
+                    let elapsed = Date().timeIntervalSince(t0)
+                    lastChorusSeconds = elapsed
+                    isPlaying = false
+                }
+            },
+            onStop: {
+                // Inline immediate stop logic
+                calibrationTask?.cancel()
+                calibrationTask = nil
+                isCalibrating = false
+                chorus.stop()
+                if isPlaying { isPlaying = false }
+            },
             onSync: { synchronizeRates() }
         )
         .padding(.bottom, Metrics.Padding.headerV)
     }
 
-    // MARK: - Extracted components
-    fileprivate struct ActionRowView: View {
-        @Binding var isPlaying: Bool
-        @Binding var isCalibrating: Bool
-        var hasSelection: Bool
-        var onPlay: () -> Void
-        var onStop: () -> Void
-        var onSync: () -> Void
-
-        var body: some View {
-            VStack(spacing: 6) {
-                // Single row: Stop/Play on the left; either Synchronize or Calibrating… to its right
-                HStack(spacing: 12) {
-                    Button {
-                        if isPlaying || isCalibrating { onStop() } else { onPlay() }
-                    } label: {
-                        // Keep width stable by layering both icon states and both titles
-                        HStack(spacing: 6) {
-                            ZStack {
-                                Image(systemName: "stop.fill")
-                                    .opacity((isPlaying || isCalibrating) ? 1 : 0)
-                                Image(systemName: "play.fill")
-                                    .opacity((isPlaying || isCalibrating) ? 0 : 1)
-                            }
-                            ZStack {
-                                Text("Stop")
-                                    .opacity((isPlaying || isCalibrating) ? 1 : 0)
-                                Text("Play Chorus")
-                                    .opacity((isPlaying || isCalibrating) ? 0 : 1)
-                            }
-                            .frame(minWidth: Metrics.Buttons.playTextMinWidth, alignment: .leading) // stabilize width
-                        }
-                        .padding(.horizontal, Metrics.Buttons.horizontalPad)
-                        .padding(.vertical, Metrics.Buttons.verticalPad)
-                        .accessibilityLabel((isPlaying || isCalibrating) ? "Stop" : "Play Chorus")
-                        .accessibilityHint((isPlaying || isCalibrating) ?
-                                           "Stop playback and calibration" : "Start playing all voices")
-                        .accessibilityAddTraits(.isButton)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint((isPlaying || isCalibrating) ? .red : .blue)
-                    .controlSize(.regular)
-                    .disabled(!hasSelection && !(isPlaying || isCalibrating))
-                    // Right-side: Synchronize (idle) or Calibrating… (busy), kept on the same line for smoother transitions
-                    if isCalibrating {
-                        HStack(spacing: 6) {
-                            ProgressView().controlSize(.small)
-                            Text("Calibrating…").foregroundStyle(.secondary)
-                        }
-                    } else if !isPlaying {
-                        Button { onSync() } label: {
-                            Label("Synchronize", systemImage: "metronome.fill")
-                        }
-                        .accessibilityIdentifier("vk.syncAll")
-                        .buttonStyle(.bordered)
-                        .tint(.secondary)
-                        .controlSize(.small)
-                        .accessibilityLabel("Synchronize all")
-                        .accessibilityHint("Calibrate all voices to the target time")
-                        .disabled(!hasSelection)
-                    }
-                    Spacer()
-                }
-            }
-        }
-    }
-
     @ViewBuilder
     private func globalAdjustmentsSection() -> some View {
-        GlobalAdjustmentsView(
+        ChorusLabGlobalAdjustmentsView(
             rateScale: $rateScale,
             pitchOffset: $pitchOffset,
-            onChange: { applyGlobalAdjustments() }
+            speedRange: Metrics.Adjustments.speedRange,
+            pitchOffsetRange: Metrics.Adjustments.pitchOffsetRange,
+            sliderStep: Metrics.Controls.sliderStep,
+            onChange: {
+                // Pure transform: re-derive effective profiles from baseline + sliders
+                selectedProfiles = ChorusMath.applyAdjustments(
+                    baseProfiles: baseProfiles,
+                    rateScale: rateScale,
+                    pitchOffset: pitchOffset
+                )
+            }
         )
     }
 
-    // MARK: - Extracted: Global adjustments controls
-    fileprivate struct GlobalAdjustmentsView: View {
-        @Binding var rateScale: Double
-        @Binding var pitchOffset: Double
-        var onChange: () -> Void
-
-        var body: some View {
-            VStack(spacing: 8) {
-                TunerSliderRow(
-                    title: "Speed",
-                    systemImage: "speedometer",
-                    value: $rateScale,
-                    range: Metrics.Adjustments.speedRange,
-                    step: Metrics.Controls.sliderStep,
-                    formatted: { value in String(format: "%.2f×", Double(value)) }
-                )
-                .onChange(of: rateScale) { _, _ in onChange() }
-
-                TunerSliderRow(
-                    title: "Pitch", systemImage: "waveform.path.ecg",
-                    value: $pitchOffset, range: Metrics.Adjustments.pitchOffsetRange, step: Metrics.Controls.sliderStep,
-                    formatted: { off in String(format: "%.2f", 1.0 + Double(off)) }
-                ).onChange(of: pitchOffset) { _, _ in onChange() }
-            }
-        }
-    }
-
-    // MARK: - Small extracted cells
-    fileprivate struct DetailsCell: View {
-        let rate: Double
-        let pitch: Float
-        let volume: Float
-        var body: some View {
-            Text(String(format: "Speed %.2f · Pitch %.2f · Vol %.2f",
-                        rate, pitch, volume))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.9)        // allow slight shrink before truncation
-                .allowsTightening(true)
-                .truncationMode(.tail)
-                .frame(width: 190, alignment: .trailing)
-        }
-    }
-
-    fileprivate struct DurationCell: View {
-        let duration: TimeInterval?
-        let isHighlighted: Bool
-        var body: some View {
-            let text = duration.map { $0.asSeconds2f } ?? ""
-            Text(text)
-                .font(.footnote)
-                .monospacedDigit()
-                .foregroundStyle(duration == nil ? .secondary : .primary)
-                .frame(width: Metrics.Layout.timingCellWidth, alignment: .trailing)
-                .padding(.vertical, 2)
-                .background {
-                    if isHighlighted {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.green.opacity(0.18))
-                    }
-                }
-                .animation(.easeInOut(duration: 0.2), value: isHighlighted)
-        }
-    }
-
-    /// A single row presenting a selected voice profile.
-    /// Uses small cells for details and duration to keep layout tidy.
-    /// Provide data and attach gestures/swipe actions at the call site for clarity.
-    fileprivate struct SelectedVoiceRow: View {
-        let name: String
-        let rate: Double
-        let pitch: Float
-        let volume: Float
-        let duration: TimeInterval?
-        let isCalibrating: Bool
-
-        var body: some View {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                // Name (left)
-                Text(name)
-                    .font(.subheadline)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.9)
-                    .allowsTightening(true)
-                    .truncationMode(.tail)
-                    .layoutPriority(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityLabel("Voice name")
-                    .accessibilityValue(Text(name))
-
-                Spacer(minLength: 0)
-
-                // Details (middle)
-                DetailsCell(rate: rate, pitch: pitch, volume: volume)
-                    .accessibilityLabel("Voice settings")
-                    .accessibilityValue(Text(String(format: "Speed %.2f, Pitch %.2f, Volume %.2f",
-                                                    rate, pitch, volume)))
-
-                // Timing (right)
-                DurationCell(duration: duration, isHighlighted: isCalibrating)
-                    .accessibilityLabel("Last duration")
-                    .accessibilityValue(Text(duration.map { SecondsFormatter.twoDecimals($0) } ?? "Not measured"))
-
-                Image(systemName: "chevron.right")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .frame(width: 6, alignment: .trailing)
-                    .accessibilityHidden(true)
-            }
-            // Make the whole row read as a single actionable item
-            .accessibilityAddTraits(.isButton)
-        }
-    }
+    // Extracted views are now in Labs/Components as internal types:
+    // - ChorusLabActionRowView
+    // - ChorusLabGlobalAdjustmentsView
+    // - ChorusLabSelectedVoiceRow
 
     // Synchronize a single voice (row-level). Runs a focused calibration for that index.
-    private func synchronizeVoice(at index: Int) {
-        guard selectedProfiles.indices.contains(index) else { return }
-        // Avoid overlapping with any in-flight calibration or playback.
-        if isCalibrating || isPlaying { return }
+    // (moved: synchronizeVoice -> ChorusLabView+Logic.swift)
 
-        isCalibrating = true
-        let phrase = customText
-        let voiceID = selectedProfiles[index].id
-        let prevScale = rateScale
-
-        calibrationTask?.cancel()
-        calibrationTask = Task { @MainActor in
-            let io = engineFactory()
-            defer {
-                isCalibrating = false
-                calibratingVoiceID = nil
-                calibrationTask = nil
-                // Refresh baseline and re-apply global adjustments
-                rateScale = prevScale
-                baseProfiles = selectedProfiles
-                var updated: [TTSVoiceProfile] = []
-                updated.reserveCapacity(baseProfiles.count)
-                for var profile in baseProfiles {
-                    let base: Double = profile.rate
-                    let newRate: Double = {
-                        if rateScale >= 1.0 {
-                            let factor = max(0.0, min(1.0, rateScale - 1.0))
-                            return (base + (1.0 - base) * factor).clamped(to: 0.0...1.0)
-                        } else {
-                            let factor = max(0.0, min(1.0, (1.0 - rateScale) / Metrics.Adjustments.slowRange))
-                            return (base - base * factor).clamped(to: 0.0...1.0)
-                        }
-                    }()
-                    profile.rate = newRate
-                    profile.pitch = (profile.pitch + Float(pitchOffset)).clamped(to: Metrics.Pitch.clampLo...Metrics.Pitch.clampHi)
-                    updated.append(profile)
-                }
-                selectedProfiles = updated
-            }
-
-            // Normalize global speed during calibration to avoid compounding while fitting
-            rateScale = 1.0
-            calibratingVoiceID = voiceID
-            await Task.yield()
-            io.setVoiceProfile(selectedProfiles[index])
-            let result = await VoiceTempoCalibrator.fitRate(
-                io: io, voiceID: voiceID, phrase: phrase,
-                targetSeconds: targetSeconds, tolerance: Metrics.Calibration.tolerance, maxIterations: Metrics.Calibration.maxIterations
-            )
-            selectedProfiles[index].rate = result.finalRate
-            lastDurationByID[voiceID] = result.measured
-            lastChorusSeconds = result.measured
-        }
-    }
-
-    private func startChorus() {
-        Task {
-            isPlaying = true
-            let t0 = Date()
-            await chorus.sing(customText, withVoiceProfiles: selectedProfiles)
-            let elapsed = Date().timeIntervalSince(t0)
-            // Update actual duration shown next to the target stepper
-            self.lastChorusSeconds = elapsed
-            isPlaying = false
-        }
-    }
+    // (moved: startChorus -> ChorusLabView+Logic.swift)
 
     // Cancel any in-flight calibration and stop the chorus immediately.
-    private func stopAll() {
-        // Cancel calibration if running
-        calibrationTask?.cancel()
-        calibrationTask = nil
-        isCalibrating = false
-        // Stop any ongoing chorus playback
-        chorus.stop()
-        // Reflect stop in UI immediately; the sing task will return shortly.
-        if isPlaying {
-            isPlaying = false
-        }
-    }
+    // (moved: stopAll -> ChorusLabView+Logic.swift)
 
     // Use system voices (RealVoiceIO no longer exposes availableVoices()).
     @MainActor
-    internal func availableVoices() -> [TTSVoiceInfo] {
+    func availableVoices() -> [TTSVoiceInfo] {
         voicesProvider.all()
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
@@ -850,59 +704,16 @@ internal struct ChorusLabView: View {
         // Keep baseline aligned to effective list, then re-apply globals
         baseProfiles = selectedProfiles
         // Re-apply global adjustments so effective profiles reflect sliders
-        applyGlobalAdjustments()
+        selectedProfiles = ChorusMath.applyAdjustments(
+            baseProfiles: baseProfiles,
+            rateScale: rateScale,
+            pitchOffset: pitchOffset
+        )
     }
 
-    private func resolvedName(for id: String) -> String {
-        if let voice = availableVoices().first(where: { $0.id == id }) {
-            return voice.name
-        }
-        return "Voice"
-    }
+    // (moved: resolvedName, applyGlobalAdjustments -> ChorusLabView+Logic.swift)
 
-    // Apply global sliders to baseline -> effective profiles
-    private func applyGlobalAdjustments() {
-        guard !baseProfiles.isEmpty else { return }
-        selectedProfiles = baseProfiles.map { base in
-            var profile = base
-            // Amplified relative mapping (Double)
-            let baseRate: Double = profile.rate
-            let newRate: Double = {
-                if rateScale >= 1.0 {
-                    // 1.0→2.0 maps to t: 0…1, push toward 1.0 by headroom
-                    let factor = max(0.0, min(1.0, rateScale - 1.0))
-                    return (baseRate + (1.0 - baseRate) * factor).clamped(to: 0.0...1.0)
-                } else {
-                    // 1.0→0.25 maps to t: 0…1, pull toward 0.0 by fraction of current
-                    let factor = max(0.0, min(1.0, (1.0 - rateScale) / Metrics.Adjustments.slowRange))
-                    return (baseRate - baseRate * factor).clamped(to: 0.0...1.0)
-                }
-            }()
-            profile.rate = newRate
-            profile.pitch = (profile.pitch + Float(pitchOffset)).clamped(to: Metrics.Pitch.clampLo...Metrics.Pitch.clampHi)
-            return profile
-        }
-    }
-
-    // MARK: - Copy-to-clipboard (chorus setup)
-    /// Build minimal Swift one-liners to recreate the current chorus’ voices exactly as tuned,
-    /// copy to clipboard, and print to the console.
-    private func copyChorusSetup() {
-        let snippet = makeChorusSnippet(for: selectedProfiles)
-        // Print nicely for immediate inspection in console
-        print(snippet)
-        // And copy to system clipboard
-        copyToClipboard(snippet)
-    }
-
-    /// Copies text to the system clipboard (platform-aware).
-    private func copyToClipboard(_ text: String) {
-        #if canImport(UIKit)
-        UIPasteboard.general.string = text
-        #elseif canImport(AppKit)
-        let pb = NSPasteboard.general; pb.clearContents(); pb.setString(text, forType: .string)
-        #endif
-    }
+    // (moved: copyChorusSetup, copyToClipboard -> ChorusLabView+Logic.swift)
 }
 
 // MARK: - Snippet building (single source of truth)
@@ -959,7 +770,7 @@ internal enum ChorusMath {
     ///   - rateScale: Global multiplier. 1.0 = unchanged; >1.0 speeds up; <1.0 slows down.
     ///   - slowRange: Denominator for mapping 1.0→0.x into t:0...1 (prevents over-slowing too quickly).
     /// - Returns: New rate in 0...1.
-    internal static func adjustedRate(baseRate: Double, rateScale: Double, slowRange: Double) -> Double {
+    static func adjustedRate(baseRate: Double, rateScale: Double, slowRange: Double) -> Double {
         if rateScale >= 1.0 {
             // Map 1.0→2.0 into t:0...1 and push toward 1.0 by headroom
             let factor = max(0.0, min(1.0, rateScale - 1.0))
@@ -977,7 +788,7 @@ internal enum ChorusMath {
     ///   - rateScale: Global rate multiplier (see adjustedRate).
     ///   - pitchOffset: Global offset added to pitch, then clamped.
     /// - Returns: New profiles array with adjusted rate and pitch.
-    internal static func applyAdjustments(
+    static func applyAdjustments(
         baseProfiles: [TTSVoiceProfile],
         rateScale: Double,
         pitchOffset: Double
@@ -995,7 +806,7 @@ internal enum ChorusMath {
 
 /// Seconds formatting helpers (pure; suitable for tests).
 internal enum SecondsFormatter {
-    internal static func twoDecimals(_ seconds: Double) -> String { String(format: "%.2fs", seconds) }
+    static func twoDecimals(_ seconds: Double) -> String { String(format: "%.2fs", seconds) }
 }
 
 // MARK: - Injected dependencies
@@ -1008,7 +819,7 @@ internal protocol SystemVoicesProvider {
 /// Default provider backed by SystemVoicesCache.
 internal struct DefaultSystemVoicesProvider: SystemVoicesProvider {
     @MainActor
-    internal func all() -> [TTSVoiceInfo] {
+    func all() -> [TTSVoiceInfo] {
         SystemVoicesCache.all()
     }
 }
