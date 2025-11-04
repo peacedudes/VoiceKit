@@ -36,13 +36,12 @@ internal struct ChorusLabSelectedVoiceRow: View {
             // Details (middle)
             DetailsCell(rate: rate, pitch: pitch, volume: volume)
                 .accessibilityLabel("Voice settings")
-                .accessibilityValue(Text(String(format: "Speed %.2f, Pitch %.2f, Volume %.2f",
-                                                rate, pitch, volume)))
+                .accessibilityValue(Text("Speed \(rate.formatted()), Pitch \(pitch.formatted()), Volume \(volume.formatted())"))
 
             // Timing (right)
             DurationCell(duration: duration, isHighlighted: isCalibrating, width: timingCellWidth)
                 .accessibilityLabel("Last duration")
-                .accessibilityValue(Text(duration.map { String(format: "%.2fs", $0) } ?? "Not measured"))
+                .accessibilityValue(Text(duration.map { $0.asSeconds() } ?? "Not measured"))
 
             Image(systemName: "chevron.right")
                 .font(.caption2)
@@ -61,8 +60,7 @@ private struct DetailsCell: View {
     let pitch: Float
     let volume: Float
     var body: some View {
-        Text(String(format: "Speed %.2f · Pitch %.2f · Vol %.2f",
-                    rate, pitch, volume))
+        Text("Speed \(rate.formatted()) · Pitch \(pitch.formatted()) · Vol \(volume.formatted())")
             .font(.caption2)
             .foregroundStyle(.secondary)
             .lineLimit(1)
@@ -79,7 +77,7 @@ private struct DurationCell: View {
     let isHighlighted: Bool
     let width: CGFloat
     var body: some View {
-        let text = duration.map { String(format: "%.2fs", $0) } ?? ""
+        let text = duration.map { $0.asSeconds() } ?? ""
         Text(text)
             .font(.footnote)
             .monospacedDigit()

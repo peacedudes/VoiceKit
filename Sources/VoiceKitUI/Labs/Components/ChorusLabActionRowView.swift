@@ -64,7 +64,7 @@ internal struct ChorusLabActionRowView: View {
                     .controlSize(.small)
                     .accessibilityLabel("Synchronize all")
                     .accessibilityHint("Calibrate all voices to the target time")
-                    .disabled(!hasSelection)
+                    .disabled(!hasSelection || isCalibrating || isPlaying)
                 }
                 Spacer()
             }

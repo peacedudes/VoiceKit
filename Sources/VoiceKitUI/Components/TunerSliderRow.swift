@@ -25,7 +25,7 @@ public struct TunerSliderRow: View {
         value: Binding<Double>,
         range: ClosedRange<Double>,
         step: Double = 0.01,
-        formatted: @escaping (Double) -> String = { String(format: "%.2f", $0) }
+        formatted: @escaping (Double) -> String = { $0.formatted() }
     ) {
         self.title = title
         self.systemImage = systemImage
@@ -76,7 +76,7 @@ private struct TunerSliderRowPreviewContainer: View {
                 value: $speed,
                 range: 0.0...1.0,
                 step: 0.01,
-                formatted: { String(format: "%.2f×", $0) }
+                formatted: { $0.asMultiplier() }
             )
             TunerSliderRow(
                 title: "Pitch",
@@ -84,7 +84,7 @@ private struct TunerSliderRowPreviewContainer: View {
                 value: $pitch,
                 range: 0.5...2.0,
                 step: 0.01,
-                formatted: { String(format: "%.2f", $0) }
+                formatted: { $0.formatted() }
             )
             TunerSliderRow(
                 title: "Volume",

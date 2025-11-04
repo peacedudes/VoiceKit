@@ -24,7 +24,7 @@ internal struct ChorusLabGlobalAdjustmentsView: View {
                 value: $rateScale,
                 range: speedRange,
                 step: sliderStep,
-                formatted: { value in String(format: "%.2f×", Double(value)) }
+                formatted: { value in value.asMultiplier() }
             )
             .onChange(of: rateScale) { _, _ in onChange() }
 
@@ -34,7 +34,7 @@ internal struct ChorusLabGlobalAdjustmentsView: View {
                 value: $pitchOffset,
                 range: pitchOffsetRange,
                 step: sliderStep,
-                formatted: { off in String(format: "%.2f", 1.0 + Double(off)) }
+                formatted: { off in (1.0 + off).formatted() }
             )
             .onChange(of: pitchOffset) { _, _ in onChange() }
         }

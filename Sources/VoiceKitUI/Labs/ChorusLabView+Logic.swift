@@ -146,39 +146,6 @@ internal extension ChorusLabView {
 @MainActor
 internal extension ChorusLabView {
     // MARK: - Play/Stop/Sync
-    /// Synchronize a single voice (row-level). Runs a focused calibration for that index.
-    mutating func synchronizeVoice(at index: Int) async {
-        guard vk_selectedProfiles.indices.contains(index) else { return }
-        // Avoid overlapping with any in-flight calibration or playback.
-        if vk_isCalibrating || vk_isPlaying { return }
-
-        // Enter calibrating state
-        vk_isCalibrating = true
-        let voiceID = vk_selectedProfiles[index].id
-        vk_calibratingVoiceID = voiceID
-        let prevScale = vk_rateScale
-        vk_rateScale = 1.0
-
-        // Run calibration
-        let io = engineFactory()
-        await Task.yield()
-        io.setVoiceProfile(vk_selectedProfiles[index])
-        let result = await VoiceTempoCalibrator.fitRate(
-            io: io, voiceID: voiceID, phrase: vk_customText,
-            targetSeconds: vk_targetSeconds, tolerance: _calTolerance, maxIterations: _calMaxIterations
-        )
-        vk_selectedProfiles[index].rate = result.finalRate
-        vk_lastDurationByID[voiceID] = result.measured
-        vk_lastChorusSeconds = result.measured
-
-        // Exit calibrating, restore globals, re-apply adjustments
-        vk_isCalibrating = false
-        vk_calibratingVoiceID = nil
-        vk_rateScale = prevScale
-        vk_baseProfiles = vk_selectedProfiles
-        applyGlobalAdjustments()
-    }
-
     mutating func startChorus() async {
         vk_isPlaying = true
         let t0 = Date()

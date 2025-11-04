@@ -119,41 +119,19 @@ public struct VoiceChooserView: View {
         NavigationStack {
             VStack(spacing: 10) {
                 // Compact language control: starts as "English voices" and expands one-way to full picker
-                if showFullLanguagePicker == false {
-                    Toggle("\(currentLanguageDisplayName()) voices", isOn: Binding(
-                        get: { languageFilter == LanguageFilter.current },
-                        set: { newVal in
-                            if newVal {
-                                // Stick to current language
-                                applyLanguage(.current)
-                            } else {
-                                // One-way expansion to full picker; default to All
-                                showFullLanguagePicker = true
-                                applyLanguage(.all)
-                            }
-                        }
-                    ))
-                    #if os(macOS)
-                    .toggleStyle(.checkbox)
-                    .controlSize(.small)
-                    #endif
-                    .padding(.horizontal, 20)
-                } else {
-                    // Full language picker (same style/padding as voice picker)
-                    Picker("Language", selection: languageSelectionBinding) {
-                        Text(currentLanguageDisplayName()).tag("_current")
-                        Text("All languages").tag("_all")
-                        ForEach(languageOptions, id: \.code) { opt in
-                            Text(opt.name).tag(opt.code)
-                        }
+                VoiceLanguagePicker(
+                    showFullLanguagePicker: $showFullLanguagePicker,
+                    selection: languageSelectionBinding,
+                    currentLanguageName: currentLanguageDisplayName(),
+                    languageOptions: languageOptions,
+                    onSetCurrent: {
+                        applyLanguage(.current)
+                    },
+                    onExpandToAll: {
+                        showFullLanguagePicker = true
+                        applyLanguage(.all)
                     }
-                    .pickerStyle(pickerStylePlatform())
-                    .frame(maxHeight: pickerMaxHeight())
-                    #if os(macOS)
-                    .controlSize(.small)
-                    #endif
-                    .padding(.horizontal, 20)
-                }
+                )
 
                 // Voice picker (wheel on iOS, default on macOS/tvOS)
                 Picker("Voice", selection: $selectedIDString) {
@@ -190,7 +168,7 @@ public struct VoiceChooserView: View {
                     }
                     // Live preview duration badge
                     if let secs = lastPreviewSeconds {
-                        Text(String(format: "%.2fs", secs))
+                        Text(secs.asSeconds())
                             .font(.footnote)
                             .monospacedDigit()
                             .foregroundStyle(.primary)
@@ -209,26 +187,35 @@ public struct VoiceChooserView: View {
                 // Single set of sliders for the selected voice
                 if let profile = workingProfile {
                     VStack(spacing: 14) {
-                        TunerSliderRow(title: "Speed", systemImage: "speedometer",
-                            value: Binding(
-                                get: { Double(profile.rate) },
-                                set: { workingProfile?.rate = .init($0) }
+                        // Unified tuning controls (Speed, Pitch, Volume) using shared component
+                        VoiceTuningControls(
+                            rate: Binding<Float>(
+                                get: { Float(workingProfile?.rate ?? profile.rate) },
+                                set: { newVal in
+                                    let clamped = newVal.clamped(to: 0.0...1.0)
+                                    workingProfile?.rate = Double(clamped)
+                                }
                             ),
-                            range: 0.0...1.0, step: 0.01, formatted: { String(format: "%.2f×", $0) }
-                        )
-                        TunerSliderRow(title: "Pitch", systemImage: "waveform",
-                            value: Binding(
-                                get: { Double(profile.pitch) },
-                                set: { workingProfile?.pitch = .init($0) }
+                            pitch: Binding<Float>(
+                                get: { Float(workingProfile?.pitch ?? profile.pitch) },
+                                set: { newVal in
+                                    let clamped = newVal.clamped(to: 0.5...2.0)
+                                    workingProfile?.pitch = clamped
+                                }
                             ),
-                            range: 0.5...2.0, step: 0.01, formatted: { String(format: "%.2f", $0) }
-                        )
-                        TunerSliderRow(title: "Volume", systemImage: "speaker.wave.2.fill",
-                            value: Binding(
-                                get: { Double(profile.volume) },
-                                set: { workingProfile?.volume = .init($0) }
+                            volume: Binding<Float>(
+                                get: { Float(workingProfile?.volume ?? profile.volume) },
+                                set: { newVal in
+                                    let clamped = newVal.clamped(to: 0.0...1.0)
+                                    workingProfile?.volume = clamped
+                                }
                             ),
-                            range: 0.0...1.0, step: 0.01, formatted: { String(format: "%.2f", $0) }
+                            config: VoiceTuningConfig(
+                                showVolume: true,
+                                rateRange: 0.0...1.0, pitchRange: 0.5...2.0, volumeRange: 0.0...1.0,
+                                rateStep: 0.01, pitchStep: 0.01, volumeStep: 0.01
+                            ),
+                            labels: .default
                         )
 
                         // Chooser actions (only when callbacks are provided)
