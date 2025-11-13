@@ -84,7 +84,7 @@ private struct TunerSliderRowPreviewContainer: View {
                 value: $pitch,
                 range: 0.5...2.0,
                 step: 0.01,
-                formatted: { $0.formatted() }
+                formatted: { $0.formatted(decimals: 2) }
             )
             TunerSliderRow(
                 title: "Volume",
@@ -92,10 +92,13 @@ private struct TunerSliderRowPreviewContainer: View {
                 value: $volume, range: 0.0...1.0)
         }
         .padding()
-        .frame(width: 360)
     }
 }
 
 internal struct TunerSliderRow_Previews: PreviewProvider {
-    internal static var previews: some View { TunerSliderRowPreviewContainer() }
+    internal static var previews: some View {
+        TunerSliderRowPreviewContainer()
+            .previewDisplayName("TunerSliderRow · iPhone SE (3rd gen)")
+            .previewDevice("iPhone SE (3rd generation)")
+    }
 }

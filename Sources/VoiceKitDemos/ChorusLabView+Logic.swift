@@ -7,6 +7,14 @@
 
 import SwiftUI
 import VoiceKit
+import VoiceKitUI
+
+#if canImport(UIKit)
+import UIKit
+#endif
+#if canImport(AppKit)
+import AppKit
+#endif
 
 @MainActor
 internal extension ChorusLabView {

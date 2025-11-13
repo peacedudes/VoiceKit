@@ -8,7 +8,7 @@
 import SwiftUI
 
 @MainActor
-internal struct ChorusLabActionRowView: View {
+public struct ChorusLabActionRowView: View {
     @Binding var isPlaying: Bool
     @Binding var isCalibrating: Bool
     var hasSelection: Bool
@@ -16,7 +16,7 @@ internal struct ChorusLabActionRowView: View {
     var onStop: () -> Void
     var onSync: () -> Void
 
-    var body: some View {
+    public var body: some View {
         VStack(spacing: 6) {
             HStack(spacing: 12) {
                 Button {

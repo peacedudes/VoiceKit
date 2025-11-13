@@ -9,7 +9,7 @@
 import Foundation
 
 // MARK: - Generic floating-point formatting
-internal extension BinaryFloatingPoint {
+public extension BinaryFloatingPoint {
     /// Format with a fixed number of fractional digits and optional suffix.
     /// Example: 0.5.formatted(decimals: 2) -> "0.50"
     ///          1.2.formatted(decimals: 2, suffix: "×") -> "1.20×"

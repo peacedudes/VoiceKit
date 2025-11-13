@@ -8,6 +8,7 @@
 
 import SwiftUI
 import VoiceKit
+import VoiceKitUI
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -217,8 +218,8 @@ internal struct ChorusLabView: View {
                 }
 
                 ChorusLabTargetTimeRow(
-                    targetSeconds: $targetSeconds,
-                    isPlaying: isPlaying,
+                    seconds: $targetSeconds,
+                    playing: isPlaying,
                     lastChorusSeconds: lastChorusSeconds,
                     targetRange: Metrics.Timing.targetSecondsRange,
                     targetStep: Metrics.Timing.targetSecondsStep,
@@ -517,8 +518,8 @@ internal struct ChorusLabView: View {
     @ViewBuilder
     private func actionButtonsRow() -> some View {
         ChorusLabActionRowView(
-            isPlaying: $isPlaying,
-            isCalibrating: $isCalibrating,
+            playing: $isPlaying,
+            calibrating: $isCalibrating,
             hasSelection: !selectedProfiles.isEmpty,
             onPlay: {
                 // Inline to avoid calling a mutating helper from an immutable context
@@ -703,11 +704,10 @@ internal struct ChorusLabView: View {
 
 // MARK: - Snippet building (single source of truth)
 // Internal so tests can call it via @testable import VoiceKitUI.
-internal func makeChorusSnippet(for profiles: [TTSVoiceProfile]) -> String {
+internal func makeChorusSnippet(_ phrase: String = "Your phrase", for profiles: [TTSVoiceProfile]) -> String {
     guard !profiles.isEmpty else { return "" }
 
-    let body = profiles
-        .map { "    " + $0.initStr() }
+    let body = profiles.map { "    " + $0.initStr }
         .joined(separator: ",\n")
 
     return """
@@ -717,7 +717,8 @@ internal func makeChorusSnippet(for profiles: [TTSVoiceProfile]) -> String {
     let chorusProfiles = [
     \(body)
     ]
-    // Use with VoiceChorus: await VoiceChorus().sing("Your phrase", withVoiceProfiles: chorusProfiles)
+    // Use with VoiceChorus:
+    await VoiceChorus().sing("\(phrase)", withVoiceProfiles: chorusProfiles)
     """
 }
 
@@ -799,12 +800,24 @@ internal struct DefaultSystemVoicesProvider: SystemVoicesProvider {
 }
 
 fileprivate extension TTSVoiceProfile {
-    // Build a Swift initializer string that reproduces this profile exactly.
+    // Build a Swift initializer string that reproduces this profile.
     // Example:
-    // TTSVoiceProfile(id: "com.apple.speech.synthesis.voice.Alex", rate: 0.550, pitch: 1.000, volume: 1.000)
-    func initStr() -> String { """
-        TTSVoiceProfile(id: "\(id)", rate: \(rate.formatted(decimals: 3)), pitch: \(pitch.formatted(decimals: 3)), volume: \(volume.formatted(decimals: 3)))
-        """
+    // TTSVoiceProfile(id: "com.apple.speech.synthesis.voice.Alex", rate: 0.55, pitch: 1, volume: 1)
+    var initStr: String { "TTSVoiceProfile(\(initArgs))" }
+    var initArgs: String {
+        ["id: \"\(id)\"",
+          "rate: \(rate.asArg)",
+          "pitch: \(pitch.asArg)",
+          "volume: \(volume.asArg)"
+        ].joined(separator: ", ")
     }
 }
 
+fileprivate extension BinaryFloatingPoint {
+    // Format to 3 decimals, then trim trailing zeros and any trailing dot.
+    // Always uses "." as the decimal separator (to make valid Swift literal).
+    var asArg: String {
+        String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), Double(self))
+            .replacingOccurrences(of: "\\.?0*$", with: "", options: .regularExpression)
+    }
+}

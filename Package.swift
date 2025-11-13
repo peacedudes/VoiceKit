@@ -18,7 +18,8 @@ let package = Package(
     ],
     products: [
         .library(name: "VoiceKit", targets: ["VoiceKit"]),
-        .library(name: "VoiceKitUI", targets: ["VoiceKitUI"])
+        .library(name: "VoiceKitUI", targets: ["VoiceKitUI"]),
+        .library(name: "VoiceKitDemos", targets: ["VoiceKitDemos"])
     ],
     dependencies: [
         .package(url: "https://github.com/realm/SwiftLint", from: "0.54.0")
@@ -42,6 +43,17 @@ let package = Package(
             name: "VoiceKitUI",
             dependencies: ["VoiceKit"],
             path: "Sources/VoiceKitUI",
+            plugins: [
+                .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLint")
+            ]
+        ),
+        .target(
+            name: "VoiceKitDemos",
+            dependencies: [
+                "VoiceKit",
+                "VoiceKitUI"
+            ],
+            path: "Sources/VoiceKitDemos",
             plugins: [
                 .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLint")
             ]

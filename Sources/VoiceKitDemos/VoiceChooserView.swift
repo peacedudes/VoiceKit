@@ -12,6 +12,7 @@
 import SwiftUI
 import AVFoundation
 import VoiceKit
+import VoiceKitUI
 
 @MainActor
 public struct VoiceChooserView: View {

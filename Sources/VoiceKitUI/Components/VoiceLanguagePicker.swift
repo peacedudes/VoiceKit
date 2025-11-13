@@ -9,7 +9,7 @@
 import SwiftUI
 
 @MainActor
-internal struct VoiceLanguagePicker: View {
+public struct VoiceLanguagePicker: View {
     // State bindings
     @Binding var showFullLanguagePicker: Bool
     @Binding var selection: String // "_current", "_all", or base code like "en"
@@ -22,7 +22,7 @@ internal struct VoiceLanguagePicker: View {
     var onSetCurrent: () -> Void
     var onExpandToAll: () -> Void
 
-    init(
+    public init(
         showFullLanguagePicker: Binding<Bool>,
         selection: Binding<String>,
         currentLanguageName: String,
@@ -38,7 +38,7 @@ internal struct VoiceLanguagePicker: View {
         self.onExpandToAll = onExpandToAll
     }
 
-    var body: some View {
+    public var body: some View {
         Group {
             if showFullLanguagePicker == false {
                 Toggle("\(currentLanguageName) voices", isOn: Binding(
