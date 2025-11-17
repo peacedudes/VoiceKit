@@ -95,7 +95,7 @@ final class VoiceChorusMoreTests: XCTestCase {
         let p2 = TTSVoiceProfile(id: "id.emily", rate: 0.65, pitch: 1.05, volume: 1.0)
 
         // Act
-        await chorus.sing(text, withVoiceProfiles: [p1, p2])
+        await chorus.speak(text, withVoiceProfiles: [p1, p2])
 
         // Assert: two engines created
         XCTAssertEqual(made.count, 2)
@@ -124,7 +124,7 @@ final class VoiceChorusMoreTests: XCTestCase {
         let profileA = TTSVoiceProfile(id: "id.same", rate: 0.50, pitch: 1.0, volume: 1.0)
         let profileB = TTSVoiceProfile(id: "id.same", rate: 0.70, pitch: 0.9, volume: 1.0) // duplicate id, different settings
 
-        await chorus.sing(text, withVoiceProfiles: [profileA, profileB])
+        await chorus.speak(text, withVoiceProfiles: [profileA, profileB])
 
         XCTAssertEqual(made.count, 2)
         // Both engines should have spoken, each with the (same) id
@@ -153,7 +153,7 @@ final class VoiceChorusMoreTests: XCTestCase {
         let profiles = (0..<3).map { i in
             TTSVoiceProfile(id: "id.\(i)", rate: 0.5 + Double(i) * 0.1, pitch: 1.0, volume: 1.0)
         }
-        await chorus.sing(text, withVoiceProfiles: profiles)
+        await chorus.speak(text, withVoiceProfiles: profiles)
         XCTAssertEqual(createCount, 3, "Should create one engine per profile when needed")
     }
 
@@ -171,7 +171,7 @@ final class VoiceChorusMoreTests: XCTestCase {
 
         // Start singing but don't await; cancel shortly after
         let task = Task { @MainActor in
-            await chorus.sing(text, withVoiceProfiles: [p1, p2])
+            await chorus.speak(text, withVoiceProfiles: [p1, p2])
         }
         // Give the tasks time to start
         try? await Task.sleep(nanoseconds: 60_000_000) // 60ms

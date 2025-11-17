@@ -35,7 +35,7 @@ public final class VoiceChorus {
 
     /// Sing the same text with multiple voices in parallel.
     /// Enable custom settings for each engine.
-    public func sing(_ text: String, withVoiceProfiles profiles: [TTSVoiceProfile]) async {
+    public func speak(_ text: String, withVoiceProfiles profiles: [TTSVoiceProfile]) async {
         guard !profiles.isEmpty else { return }
         stop() // reset any previous run
         isRunning = true

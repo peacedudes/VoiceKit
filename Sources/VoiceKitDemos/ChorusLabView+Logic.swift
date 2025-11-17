@@ -157,7 +157,7 @@ internal extension ChorusLabView {
     mutating func startChorus() async {
         vk_isPlaying = true
         let t0 = Date()
-        await chorus.sing(vk_customText, withVoiceProfiles: vk_selectedProfiles)
+        await chorus.speak(vk_customText, withVoiceProfiles: vk_selectedProfiles)
         let elapsed = Date().timeIntervalSince(t0)
         vk_lastChorusSeconds = elapsed
         vk_isPlaying = false

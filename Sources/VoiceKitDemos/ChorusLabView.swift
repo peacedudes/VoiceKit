@@ -526,7 +526,7 @@ internal struct ChorusLabView: View {
                 Task { @MainActor in
                     isPlaying = true
                     let t0 = Date()
-                    await chorus.sing(customText, withVoiceProfiles: selectedProfiles)
+                    await chorus.speak(customText, withVoiceProfiles: selectedProfiles)
                     let elapsed = Date().timeIntervalSince(t0)
                     lastChorusSeconds = elapsed
                     isPlaying = false
@@ -718,7 +718,7 @@ internal func makeChorusSnippet(_ phrase: String = "Your phrase", for profiles: 
     \(body)
     ]
     // Use with VoiceChorus:
-    await VoiceChorus().sing("\(phrase)", withVoiceProfiles: chorusProfiles)
+    await VoiceChorus().speak("\(phrase)", withVoiceProfiles: chorusProfiles)
     """
 }
 
