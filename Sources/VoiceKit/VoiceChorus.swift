@@ -26,6 +26,14 @@ public final class VoiceChorus {
         self.makeEngine = makeEngine
     }
 
+    /// Default initializer: creates a chorus that uses a new RealVoiceIO per channel.
+    /// Hides the existential cast for casual use.
+    public convenience init() {
+        self.init(makeEngine: {
+            RealVoiceIO() as (any VoiceIO & TTSConfigurable)
+        })
+    }
+
     /// Ensure we have at least the needed number of engines ready.
     private func ensureEngines(count neededCount: Int) {
         while engines.count < neededCount {

@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import VoiceKitUI
 
 @MainActor
 public struct ChorusLabSelectedVoiceRow: View {
@@ -44,7 +45,7 @@ public struct ChorusLabSelectedVoiceRow: View {
             // Timing (right)
             DurationCell(duration: duration, isHighlighted: isCalibrating, width: timingCellWidth)
                 .accessibilityLabel("Last duration")
-                .accessibilityValue(Text(duration.map { $0.asSeconds() } ?? "Not measured"))
+                .accessibilityValue(Text(duration.map { $0.formatted(suffix: "s") } ?? "Not measured"))
 
             Image(systemName: "chevron.right")
                 .font(.caption2)
@@ -80,7 +81,7 @@ private struct DurationCell: View {
     let isHighlighted: Bool
     let width: CGFloat
     var body: some View {
-        let text = duration.map { $0.asSeconds() } ?? ""
+        let text = duration.map { $0.formatted(suffix: "s") } ?? ""
         Text(text)
             .font(.footnote)
             .monospacedDigit()

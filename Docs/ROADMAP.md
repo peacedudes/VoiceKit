@@ -24,8 +24,7 @@ Structure (folders by concern)
   - Screens: VoiceChooserView.swift
   - ViewModels: VoiceChooserViewModel.swift
   - Stores: VoiceProfilesStore.swift
-  - Components: Components/TunerSliderRow.swift
-  - Labs: ChorusLabView.swift, ChorusAdjustments.swift
+  - Components: Components/TunerSliderRow.swift, VoiceLanguagePicker.swift, VoiceTuningControls.swift
 
 Status
 - Tests: Core and UI tests are wired and green.

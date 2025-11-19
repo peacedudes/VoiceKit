@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import VoiceKitUI
 
 @MainActor
 public struct ChorusLabGlobalAdjustmentsView: View {
@@ -38,25 +39,40 @@ public struct ChorusLabGlobalAdjustmentsView: View {
 
     public var body: some View {
         VStack(spacing: 8) {
-            TunerSliderRow(
-                title: "Speed",
-                systemImage: "speedometer",
-                value: $rateScale,
-                range: speedRange,
-                step: sliderStep,
-                formatted: { value in value.asMultiplier() }
+            // VoiceTuningControls expects Float bindings; project from our Double state.
+            VoiceTuningControls(
+                rate: Binding<Float>(
+                    get: { Float(rateScale) },
+                    set: { newValue in
+                        rateScale = Double(newValue)
+                        onChange()
+                    }
+                ),
+                pitch: Binding<Float>(
+                    get: { Float(1.0 + pitchOffset) },
+                    set: { newValue in
+                        // newValue is absolute factor; convert back to offset around 1.0
+                        pitchOffset = Double(newValue) - 1.0
+                        onChange()
+                    }
+                ),
+                volume: nil,
+                config: VoiceTuningConfig(
+                    showVolume: false,
+                    rateRange: Float(speedRange.lowerBound)...Float(speedRange.upperBound),
+                    pitchRange: Float(1.0 + pitchOffsetRange.lowerBound)...Float(1.0 + pitchOffsetRange.upperBound),
+                    volumeRange: 0.0...1.0,
+                    rateStep: Float(sliderStep),
+                    pitchStep: Float(sliderStep),
+                    volumeStep: nil,
+                    rateDecimals: 2,
+                    pitchDecimals: 2,
+                    volumeDecimals: 2,
+                    labelWidth: 64,
+                    readoutWidth: 44
+                ),
+                labels: .default
             )
-            .onChange(of: rateScale) { _, _ in onChange() }
-
-            TunerSliderRow(
-                title: "Pitch",
-                systemImage: "waveform.path.ecg",
-                value: $pitchOffset,
-                range: pitchOffsetRange,
-                step: sliderStep,
-                formatted: { off in (1.0 + off).formatted() }
-            )
-            .onChange(of: pitchOffset) { _, _ in onChange() }
         }
     }
 }

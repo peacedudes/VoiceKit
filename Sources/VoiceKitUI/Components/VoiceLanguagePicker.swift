@@ -72,8 +72,8 @@ public struct VoiceLanguagePicker: View {
                         Text(opt.name).tag(opt.code)
                     }
                 }
-                .pickerStyle(pickerStylePlatform())
-                .frame(maxHeight: pickerMaxHeight())
+                .pickerStyle(pickerStyle)
+                .frame(maxHeight: pickerMaxHeight)
                 #if os(macOS)
                 .controlSize(.small)
                 #endif
@@ -85,20 +85,13 @@ public struct VoiceLanguagePicker: View {
 
 // MARK: - Local platform helpers (mirror VoiceChooserView behavior)
 extension VoiceLanguagePicker {
-    fileprivate func pickerStylePlatform() -> some PickerStyle {
-        #if os(iOS)
-        return WheelPickerStyle()
-        #else
-        return DefaultPickerStyle()
-        #endif
-    }
-    fileprivate func pickerMaxHeight() -> CGFloat? {
-        #if os(iOS)
-        return 180
-        #else
-        return nil
-        #endif
-    }
+    #if os(iOS)
+    var pickerStyle: some PickerStyle { WheelPickerStyle() }
+    var pickerMaxHeight: CGFloat? { 180 }
+    #else
+    var pickerStyle: some PickerStyle { DefaultPickerStyle() }
+    var pickerMaxHeight: CGFloat? { nil }
+    #endif
 }
 
 // MARK: - Preview
@@ -107,7 +100,7 @@ extension VoiceLanguagePicker {
 internal struct VoiceLanguagePicker_Previews: PreviewProvider {
     internal static var previews: some View {
         PreviewContainer()
-            .frame(width: 420)
+//            .frame(width: 420)
             .padding(.vertical, 12)
     }
 

@@ -4,7 +4,7 @@ Reusable voice I/O for SwiftUI apps (iOS 17+, macOS 14+). Swift 6–safe, test�
 
 Modules at a glance
 - VoiceKit: RealVoiceIO (TTS with a simple STT test shim), ScriptedVoiceIO (deterministic tests/demos), NameMatch/NameResolver, VoiceQueue, models.
-- VoiceKitUI: VoiceChooserView (select a system voice and tune rate/pitch/volume with live preview), and ChorusLabView (developer playground for multi‑voice experiments; not intended for production apps).
+- VoiceKitUI: VoiceChooserView (select a system voice and tune rate/pitch/volume with live preview).
 
 Highlights
 - Swift 6 actor-safety (@MainActor public API), safe permission bridging.

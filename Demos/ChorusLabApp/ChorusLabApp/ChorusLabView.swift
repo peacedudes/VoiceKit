@@ -21,6 +21,14 @@ private enum Metrics {
         static let headerV: CGFloat = 4
         static let iosH: CGFloat = 16
         static let macH: CGFloat = 32
+        #if os(macOS)
+        static let headerH: CGFloat = macH
+        static let listH: CGFloat = macH
+        #else
+        static let headerH: CGFloat = iosH
+        // On iOS, keep the list edge-to-edge; only macOS gets extra horizontal padding.
+        static let listH: CGFloat = 0
+        #endif
     }
     enum Layout {
         static let inlineHintSpacer: CGFloat = 50
@@ -41,6 +49,16 @@ private enum Metrics {
         static let playTextMinWidth: CGFloat = 100
         static let horizontalPad: CGFloat = 14
         static let verticalPad: CGFloat = 4
+
+        #if os(macOS)
+        static func applyHeaderStyle<V: View>(_ view: V) -> some View {
+            view.buttonStyle(.bordered).controlSize(.small)
+        }
+        #else
+        static func applyHeaderStyle<V: View>(_ view: V) -> some View {
+            view.buttonStyle(.plain)
+        }
+        #endif
     }
     enum Calibration {
         static let tolerance: Double = 0.05
@@ -251,43 +269,35 @@ internal struct ChorusLabView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 // Trailing action: simple Add button
-                Button {
-                    presentAddVoice()
-                } label: {
-                    // Professionals commonly use an icon-only + in toolbars/headers
-                    Image(systemName: "plus")
-                }
-                .accessibilityLabel("Add voice")
-                #if os(macOS)
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help("Add")
-                #else
-                .buttonStyle(.plain)
-                #endif
+                Metrics.Buttons.applyHeaderStyle(
+                    Button {
+                        presentAddVoice()
+                    } label: {
+                        // Professionals commonly use an icon-only + in toolbars/headers
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("Add voice")
+                    .help("Add")
+                )
 
                 // Copy-to-clipboard: generate one-liners to recreate the current chorus.
-                Button {
-                    copyChorusSetup()
-                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                        didCopy = true
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
-                        withAnimation(.easeOut(duration: 0.35)) {
-                            didCopy = false
+                Metrics.Buttons.applyHeaderStyle(
+                    Button {
+                        copyChorusSetup()
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                            didCopy = true
                         }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+                            withAnimation(.easeOut(duration: 0.35)) {
+                                didCopy = false
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "doc.on.doc")
                     }
-                } label: {
-                    Image(systemName: "doc.on.doc")
-                }
-                .accessibilityLabel("Copy setup")
-                .help("Copy Swift one-liners to recreate these voices")
-                #if os(macOS)
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                #else
-                .buttonStyle(.plain)
-                #endif
+                    .accessibilityLabel("Copy setup")
+                    .help("Copy Swift one-liners to recreate these voices")
+                )
             }
             .overlay(alignment: .topTrailing) {
                 if didCopy {
@@ -306,12 +316,7 @@ internal struct ChorusLabView: View {
                 }
             }
             .padding(.vertical, 4)
-            #if os(macOS)
-            // On macOS, give the "Voices" header comparable horizontal margins to the control area.
-            .padding(.horizontal, Metrics.Padding.macH)
-            #else
-            .padding(.horizontal, Metrics.Padding.iosH)
-            #endif
+            .padding(.horizontal, Metrics.Padding.headerH)
             .padding(.bottom, 0)
             // List area (enables swipe actions)
             List {
@@ -320,10 +325,8 @@ internal struct ChorusLabView: View {
             .listStyle(.plain)
             // Subtle animation for row add/remove or reordering
             .animation(.easeInOut(duration: 0.20), value: selectedProfiles.count)
-            #if os(macOS)
             // On macOS, add horizontal padding so the list aligns with the rest of the view.
-            .padding(.horizontal, Metrics.Padding.macH)
-            #endif
+            .padding(.horizontal, Metrics.Padding.listH)
         }
         .sheet(isPresented: $showTuner) {
             // Wrap in a padded container so margins are guaranteed even if VoiceChooserView is edge-to-edge.
@@ -575,7 +578,7 @@ internal struct ChorusLabView: View {
         )
     }
 
-    // Extracted views are now in Labs/Components as internal types:
+    // Extracted views are now in Components as internal types:
     // - ChorusLabActionRowView
     // - ChorusLabGlobalAdjustmentsView
     // - ChorusLabSelectedVoiceRow
@@ -720,9 +723,8 @@ internal func makeChorusSnippet(_ phrase: String = "Your phrase", for profiles: 
 
     let body = profiles.map { "    " + $0.initStr }
         .joined(separator: ",\n")
-
     return """
-    // VoiceKit chorus setup (generated by Chorus Lab)
+    // VoiceKit chorus setup example
     import VoiceKit
 
     let chorusProfiles = [
@@ -817,18 +819,9 @@ fileprivate extension TTSVoiceProfile {
     var initStr: String { "TTSVoiceProfile(\(initArgs))" }
     var initArgs: String {
         ["id: \"\(id)\"",
-          "rate: \(rate.asArg)",
-          "pitch: \(pitch.asArg)",
-          "volume: \(volume.asArg)"
+          "rate: \(rate.formatted(decimals: 3))",
+          "pitch: \(pitch.formatted(decimals: 3))",
+          "volume: \(volume.formatted(decimals: 3))"
         ].joined(separator: ", ")
-    }
-}
-
-fileprivate extension BinaryFloatingPoint {
-    // Format to 3 decimals, then trim trailing zeros and any trailing dot.
-    // Always uses "." as the decimal separator (to make valid Swift literal).
-    var asArg: String {
-        String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), Double(self))
-            .replacingOccurrences(of: "\\.?0*$", with: "", options: .regularExpression)
     }
 }

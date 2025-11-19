@@ -53,7 +53,7 @@ public struct VoiceTuningControls: View {
                 ),
                 range: Double(config.rateRange.lowerBound)...Double(config.rateRange.upperBound),
                 step: Double(config.rateStep ?? 0.0),
-                formatted: { value in value.asMultiplier(decimals: config.rateDecimals) }
+                formatted: { value in value.formatted(decimals: config.rateDecimals, suffix: "x") }
             )
             .onChange(of: rate) { _, _ in onEditingChanged?(false) }
 
@@ -78,7 +78,7 @@ public struct VoiceTuningControls: View {
             if let volume = volume, config.showVolume {
                 TunerSliderRow(
                     title: labels.volume,
-                    systemImage: "speaker.wave.2",
+                    systemImage: "speaker.wave.2.fill",
                     value: Binding(
                         get: { Double(volume.wrappedValue) },
                         set: { newValue in
@@ -93,6 +93,58 @@ public struct VoiceTuningControls: View {
                 .onChange(of: volume.wrappedValue) { _, _ in onEditingChanged?(false) }
             }
         }
+    }
+}
+
+// MARK: - TunerSliderRow
+
+/// Not part of the primary public surface; most callers should use `VoiceTuningControls`.
+private struct TunerSliderRow: View {
+    var title: String
+    var systemImage: String
+    @Binding var value: Double
+    var range: ClosedRange<Double>
+    var step: Double
+    var formatted: (Double) -> String
+
+    init(
+        title: String,
+        systemImage: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        step: Double = 0.01,
+        formatted: @escaping (Double) -> String = { $0.formatted() }
+    ) {
+        self.title = title
+        self.systemImage = systemImage
+        self._value = value
+        self.range = range
+        self.step = step
+        self.formatted = formatted
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            VStack(spacing: 2) {
+                Image(systemName: systemImage)
+                    .imageScale(.medium)
+                    .font(.footnote)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.primary)
+                Text(title)
+                    .font(.footnote)
+                    .foregroundStyle(.primary)
+                Text(formatted(value))
+                    .font(.footnote)
+                    .monospacedDigit()
+                    .foregroundStyle(.primary)
+            }
+            .frame(width: 60)
+
+            Slider(value: $value, in: range, step: step)
+                .tint(.blue)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
