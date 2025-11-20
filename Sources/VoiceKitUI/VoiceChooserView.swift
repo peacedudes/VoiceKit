@@ -17,12 +17,12 @@ import VoiceKit
 public struct VoiceChooserView: View {
     private let tts: TTSConfigurable
     @ObservedObject private var store: VoiceProfilesStore
-
+    
     // Optional chooser wiring
     private var onChoose: (() -> Void)?
     private var onCancel: (() -> Void)?
     @Binding private var selectedIDBinding: String?
-
+    
     @State private var voices: [TTSVoiceInfo] = []
     @State private var selectedID: String?
     @State private var workingProfile: TTSVoiceProfile?
@@ -34,19 +34,19 @@ public struct VoiceChooserView: View {
     @State private var isPreviewing: Bool = false
     
     private enum SliderKind { case speed, pitch, volume }
-
+    
     @State private var activeSlider: SliderKind?
     @State private var didAnnounceLabelForActiveDrag: Bool = false
-
+    
     // Language filtering
     private enum LanguageFilter: Equatable { case current, all, specific(String) } // specific = base code like "en"
-
+    
     @State private var languageFilter: LanguageFilter = .current
     @State private var allVoices: [TTSVoiceInfo] = []
     @State private var languageOptions: [(code: String, name: String)] = []
     @State private var showFullLanguagePicker: Bool = false
     @State private var enhancedVoiceIDs: Set<String> = []
-
+    
     // Map LanguageFilter <-> String for a native Picker. Reserved tags:
     // "_current" and "_all"; otherwise use base language codes like "en", "es".
     private var languageSelectionBinding: Binding<String> {
@@ -67,7 +67,7 @@ public struct VoiceChooserView: View {
             }
         )
     }
-
+    
     // Standard use
     public init(tts: TTSConfigurable, store: VoiceProfilesStore) {
         self.tts = tts
@@ -76,7 +76,7 @@ public struct VoiceChooserView: View {
         self.onCancel = nil
         self._selectedIDBinding = .constant(nil)
     }
-
+    
     // Chooser mode
     public init(tts: TTSConfigurable,
                 store: VoiceProfilesStore,
@@ -89,7 +89,7 @@ public struct VoiceChooserView: View {
         self.onCancel = onCancel
         self._selectedIDBinding = selectedID
     }
-
+    
     // Convenience: ephemeral store (no persistence). Keeps API simple for apps that don't need a store.
     public init(tts: TTSConfigurable) {
         self.tts = tts
@@ -100,7 +100,7 @@ public struct VoiceChooserView: View {
         self.onCancel = nil
         self._selectedIDBinding = .constant(nil)
     }
-
+    
     // Convenience chooser: ephemeral store + binding for selection.
     public init(
         tts: TTSConfigurable,
@@ -114,7 +114,7 @@ public struct VoiceChooserView: View {
         self.onChoose = onChoose; self.onCancel = onCancel
         self._selectedIDBinding = selectedID
     }
-
+    
     public var body: some View {
         NavigationStack {
             VStack(spacing: 10) {
@@ -132,7 +132,7 @@ public struct VoiceChooserView: View {
                         applyLanguage(.all)
                     }
                 )
-
+                
                 // Voice picker (wheel on iOS, default on macOS/tvOS)
                 Picker("Voice", selection: $selectedIDString) {
                     ForEach(voices, id: \.id) { info in
@@ -141,11 +141,8 @@ public struct VoiceChooserView: View {
                         Text("\(name) · \(info.language)").tag(info.id)
                     }
                 }
-                .pickerStyle(pickerStylePlatform())
-                .frame(maxHeight: pickerMaxHeight())
-                #if os(macOS)
-                .controlSize(.small)
-                #endif
+                .pickerStyle(pickerStyle)
+                .frame(maxHeight: pickerMaxHeight)
                 .padding(.horizontal, 20)
                 .onChange(of: selectedIDString) { _, newID in
                     selectedID = newID.isEmpty ? nil : newID
@@ -156,7 +153,7 @@ public struct VoiceChooserView: View {
                     commitChanges()
                     previewSpeak(samplePhrase())
                 }
-
+                
                 // Centered Sample between pickers and sliders
                 HStack {
                     Spacer()
@@ -168,7 +165,7 @@ public struct VoiceChooserView: View {
                     }
                     // Live preview duration badge
                     if let secs = lastPreviewSeconds {
-                        Text(secs.asSeconds())
+                        Text(secs.formatted(suffix: "s"))
                             .font(.footnote)
                             .monospacedDigit()
                             .foregroundStyle(.primary)
@@ -176,14 +173,14 @@ public struct VoiceChooserView: View {
                     }
                     Spacer()
                 }
-
+                
                 // Lightweight indicator that voices are still loading
                 if isLoadingVoices && voices.isEmpty {
                     ProgressView()
                         .controlSize(.small)
                         .padding(.top, -8)
                 }
-
+                
                 // Single set of sliders for the selected voice
                 if let profile = workingProfile {
                     VStack(spacing: 14) {
@@ -192,22 +189,19 @@ public struct VoiceChooserView: View {
                             rate: Binding<Float>(
                                 get: { Float(workingProfile?.rate ?? profile.rate) },
                                 set: { newVal in
-                                    let clamped = newVal.clamped(to: 0.0...1.0)
-                                    workingProfile?.rate = Double(clamped)
+                                    workingProfile?.rate = Double(newVal.clamped(to: 0.0...1.0))
                                 }
                             ),
                             pitch: Binding<Float>(
                                 get: { Float(workingProfile?.pitch ?? profile.pitch) },
                                 set: { newVal in
-                                    let clamped = newVal.clamped(to: 0.5...2.0)
-                                    workingProfile?.pitch = clamped
+                                    workingProfile?.pitch = newVal.clamped(to: 0.5...2.0)
                                 }
                             ),
                             volume: Binding<Float>(
                                 get: { Float(workingProfile?.volume ?? profile.volume) },
                                 set: { newVal in
-                                    let clamped = newVal.clamped(to: 0.0...1.0)
-                                    workingProfile?.volume = clamped
+                                    workingProfile?.volume = newVal.clamped(to: 0.0...1.0)
                                 }
                             ),
                             config: VoiceTuningConfig(
@@ -217,7 +211,7 @@ public struct VoiceChooserView: View {
                             ),
                             labels: .default
                         )
-
+                        
                         // Chooser actions (only when callbacks are provided)
                         if onChoose != nil || onCancel != nil {
                             HStack(spacing: 12) {
@@ -233,7 +227,7 @@ public struct VoiceChooserView: View {
                                         commitChanges()
                                         onChoose()
                                     } label: { Text("Choose") }
-                                    .buttonStyle(.borderedProminent)
+                                        .buttonStyle(.borderedProminent)
                                 }
                             }
                             .padding(.top, 2)
@@ -249,7 +243,7 @@ public struct VoiceChooserView: View {
             .onAppear { seedVoicesFast() }
         }
     }
-
+    
     // MARK: - Data / State
     private func loadVoices() {
         // Use cached system voices and pick default/first voice
@@ -258,12 +252,12 @@ public struct VoiceChooserView: View {
             return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
         voices = list
-
+        
         // Initialize from external binding if valid
         if selectedID == nil, let bound = selectedIDBinding, list.contains(where: { $0.id == bound }) {
             selectedID = bound
         }
-
+        
         if selectedID == nil {
             if let def = store.defaultVoiceID, list.contains(where: { $0.id == def }) {
                 selectedID = def
@@ -274,7 +268,7 @@ public struct VoiceChooserView: View {
         selectedIDString = selectedID ?? ""
         loadWorkingProfile()
     }
-
+    
     // MARK: - Language filtering
     private func baseLanguageCode(_ tag: String) -> String {
         if let dash = tag.firstIndex(of: "-") {
@@ -331,7 +325,7 @@ public struct VoiceChooserView: View {
         selectedIDString = selectedID ?? ""
         loadWorkingProfile()
     }
-
+    
     // Seed quickly from AVFoundation so the UI is interactive immediately,
     // then the background loader will reconcile with SystemVoicesCache.
     private func seedVoicesFast() {
@@ -374,7 +368,7 @@ public struct VoiceChooserView: View {
             self.loadWorkingProfile()
         }
     }
-
+    
     private func startBackgroundLoad() {
         isLoadingVoices = true
         let store = self.store
@@ -424,7 +418,7 @@ public struct VoiceChooserView: View {
             self.isLoadingVoices = false
         }
     }
-
+    
     private func loadWorkingProfile() {
         guard let id = selectedID, let info = voices.first(where: { $0.id == id }) else {
             workingProfile = nil
@@ -441,18 +435,18 @@ public struct VoiceChooserView: View {
         }
         workingProfile = profile
     }
-
+    
     private func commitChanges() {
         guard let profile = workingProfile else { return }
         store.setProfile(profile)
         tts.setVoiceProfile(profile)
     }
-
+    
     private func commitForSpeak() {
         if let profile = workingProfile { tts.setVoiceProfile(profile) }
         previewSpeak(livePhrase())
     }
-
+    
     // MARK: - Speaking
     private func livePhrase() -> String { "Adjusting voice settings." }
     private func samplePhrase() -> String { "The quick brown fox jumps over the lazy dog." }
@@ -472,21 +466,14 @@ public struct VoiceChooserView: View {
             }
         }
     }
-
-    private func pickerStylePlatform() -> some PickerStyle {
-        #if os(iOS)
-        return WheelPickerStyle()
-        #else
-        return DefaultPickerStyle()
-        #endif
-    }
-    private func pickerMaxHeight() -> CGFloat? {
-        #if os(iOS)
-        return 180
-        #else
-        return nil
-        #endif
-    }
+    
+#if os(iOS)
+    private var pickerStyle: some PickerStyle { WheelPickerStyle() }
+    private var pickerMaxHeight: CGFloat? { 180 }
+#else
+    private var pickerStyle: some PickerStyle { DefaultPickerStyle() }
+    private var pickerMaxHeight: CGFloat? { nil }
+#endif
 }
 
 // MARK: - Preview
@@ -501,21 +488,13 @@ private struct VoiceChooserPreviewContainer: View {
     private let tts: TTSConfigurable = RealVoiceIO()
 
     var body: some View {
-        #if os(macOS)
-        VoiceChooserView(
+        let chooser = VoiceChooserView(
             tts: tts,
             selectedID: $pickedVoiceID,
             onChoose: {},
             onCancel: {}
         )
-        .frame(minWidth: 400, minHeight: 520)
-        #else
-        VoiceChooserView(
-            tts: tts,
-            selectedID: $pickedVoiceID,
-            onChoose: {},
-            onCancel: {}
-        )
-        #endif
+        chooser
+            .frame(minWidth: 375, minHeight: 520) // “SE-friendly” preview size
     }
 }

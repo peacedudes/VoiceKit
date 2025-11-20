@@ -8,7 +8,7 @@
 //  Updates for current API:
 //  - TTSVoiceProfile no longer has displayName; tests use ids and system names when needed.
 //  - TTSVoiceProfile fields are: id: String, rate: Double, pitch: Float, volume: Float.
-//  - VoiceChorus.sing(...) is async; ensure awaits correspond to async calls only.
+//  - VoiceChorus.speak(...) is async; ensure awaits correspond to async calls only.
 //  - Removed all 'displayName' arguments and property assertions.
 //
 //  These tests validate VoiceChorus sequencing and engine invocations at a high level.
@@ -79,7 +79,7 @@ final class VoiceChorusTests: XCTestCase {
         let p3 = TTSVoiceProfile(id: "com.apple.speech.synthesis.voice.Fred", rate: 0.50, pitch: 0.95, volume: 0.9)
 
         // Act
-        await chorus.sing(text, withVoiceProfiles: [p1, p2, p3])
+        await chorus.speak(text, withVoiceProfiles: [p1, p2, p3])
 
         // Assert
         // Chorus should have asked engine to speak for each profile in sequence.
@@ -106,7 +106,7 @@ final class VoiceChorusTests: XCTestCase {
         let p2 = TTSVoiceProfile(id: "com.apple.speech.synthesis.voice.Fred", rate: 0.50, pitch: 0.95, volume: 0.9)
 
         // Act
-        await chorus.sing(text, withVoiceProfiles: [p1, p2])
+        await chorus.speak(text, withVoiceProfiles: [p1, p2])
 
         // Assert: calls should include the overridden IDs (not just the default)
         let ids = engine.spoken.compactMap { $0.voiceID }
@@ -120,7 +120,7 @@ final class VoiceChorusTests: XCTestCase {
         let chorus = VoiceChorus(makeEngine: { engine })
 
         // Act: with empty array
-        await chorus.sing("Nothing to sing.", withVoiceProfiles: [])
+        await chorus.speak("Nothing to sing.", withVoiceProfiles: [])
 
         // Assert: no calls recorded
         XCTAssertTrue(engine.spoken.isEmpty)

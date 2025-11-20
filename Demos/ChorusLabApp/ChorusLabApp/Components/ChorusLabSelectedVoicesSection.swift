@@ -11,7 +11,7 @@ import SwiftUI
 import VoiceKit
 
 @MainActor
-internal struct ChorusLabSelectedVoicesSection: View {
+public struct ChorusLabSelectedVoicesSection: View {
     // Data
     @Binding var profiles: [TTSVoiceProfile]
     @Binding var lastDurationByID: [String: TimeInterval]
@@ -30,7 +30,7 @@ internal struct ChorusLabSelectedVoicesSection: View {
     var onSync: (_ voiceID: String) -> Void
     var onDelete: (_ voiceID: String) -> Void
 
-    init(
+    public init(
         profiles: Binding<[TTSVoiceProfile]>,
         lastDurationByID: Binding<[String: TimeInterval]>,
         isCalibrating: Bool,
@@ -54,7 +54,7 @@ internal struct ChorusLabSelectedVoicesSection: View {
         self.onDelete = onDelete
     }
 
-    var body: some View {
+    public var body: some View {
         ForEach($profiles, id: \.id) { profile in
             // Unwrap binding element for read-only UI usage in this row
             let profileValue = profile.wrappedValue

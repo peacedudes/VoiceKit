@@ -8,18 +8,22 @@
 
 import SwiftUI
 import VoiceKit
-#if canImport(UIKit)
-import UIKit
-#endif
-#if canImport(AppKit)
-import AppKit
-#endif
+import VoiceKitUI
+
 // MARK: - Design tokens
 private enum Metrics {
     enum Padding {
         static let headerV: CGFloat = 4
         static let iosH: CGFloat = 16
         static let macH: CGFloat = 32
+        #if os(macOS)
+        static let headerH: CGFloat = macH
+        static let listH: CGFloat = macH
+        #else
+        static let headerH: CGFloat = iosH
+        // On iOS, keep the list edge-to-edge; only macOS gets extra horizontal padding.
+        static let listH: CGFloat = 0
+        #endif
     }
     enum Layout {
         static let inlineHintSpacer: CGFloat = 50
@@ -40,6 +44,16 @@ private enum Metrics {
         static let playTextMinWidth: CGFloat = 100
         static let horizontalPad: CGFloat = 14
         static let verticalPad: CGFloat = 4
+
+        #if os(macOS)
+        static func applyHeaderStyle<V: View>(_ view: V) -> some View {
+            view.buttonStyle(.bordered).controlSize(.small)
+        }
+        #else
+        static func applyHeaderStyle<V: View>(_ view: V) -> some View {
+            view.buttonStyle(.plain)
+        }
+        #endif
     }
     enum Calibration {
         static let tolerance: Double = 0.05
@@ -166,10 +180,13 @@ internal struct ChorusLabView: View {
     /// Create the Chorus Lab view with injectable dependencies.
     /// - Parameters:
     ///   - voicesProvider: Source of system voices (defaults to SystemVoicesCache).
-    ///   - engineFactory: Factory for engines (defaults to RealVoiceIO()).
+    ///   - engineFactory: Factory for engines.
+    ///
+    /// Note: The zero-argument convenience init supplies the defaults from a
+    /// @MainActor context to keep Swift 6 isolation happy.
     init(
-        voicesProvider: any SystemVoicesProvider = DefaultSystemVoicesProvider(),
-        engineFactory: @escaping () -> RealVoiceIO = { RealVoiceIO() }
+        voicesProvider: any SystemVoicesProvider,
+        engineFactory: @escaping () -> RealVoiceIO
     ) {
         self.voicesProvider = voicesProvider
         self.engineFactory = engineFactory
@@ -177,6 +194,14 @@ internal struct ChorusLabView: View {
         self.chorus = VoiceChorus(makeEngine: {
             engineFactory() as (any TTSConfigurable & VoiceIO)
         })
+    }
+
+    /// Convenience initializer using the default voices provider and engine factory.
+    init() {
+        self.init(
+            voicesProvider: DefaultSystemVoicesProvider(),
+            engineFactory: { RealVoiceIO() }
+        )
     }
 
     var body: some View {
@@ -217,8 +242,8 @@ internal struct ChorusLabView: View {
                 }
 
                 ChorusLabTargetTimeRow(
-                    targetSeconds: $targetSeconds,
-                    isPlaying: isPlaying,
+                    seconds: $targetSeconds,
+                    playing: isPlaying,
                     lastChorusSeconds: lastChorusSeconds,
                     targetRange: Metrics.Timing.targetSecondsRange,
                     targetStep: Metrics.Timing.targetSecondsStep,
@@ -239,43 +264,35 @@ internal struct ChorusLabView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 // Trailing action: simple Add button
-                Button {
-                    presentAddVoice()
-                } label: {
-                    // Professionals commonly use an icon-only + in toolbars/headers
-                    Image(systemName: "plus")
-                }
-                .accessibilityLabel("Add voice")
-                #if os(macOS)
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help("Add")
-                #else
-                .buttonStyle(.plain)
-                #endif
+                Metrics.Buttons.applyHeaderStyle(
+                    Button {
+                        presentAddVoice()
+                    } label: {
+                        // Professionals commonly use an icon-only + in toolbars/headers
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("Add voice")
+                    .help("Add")
+                )
 
                 // Copy-to-clipboard: generate one-liners to recreate the current chorus.
-                Button {
-                    copyChorusSetup()
-                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                        didCopy = true
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
-                        withAnimation(.easeOut(duration: 0.35)) {
-                            didCopy = false
+                Metrics.Buttons.applyHeaderStyle(
+                    Button {
+                        copyChorusSetup()
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                            didCopy = true
                         }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+                            withAnimation(.easeOut(duration: 0.35)) {
+                                didCopy = false
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "doc.on.doc")
                     }
-                } label: {
-                    Image(systemName: "doc.on.doc")
-                }
-                .accessibilityLabel("Copy setup")
-                .help("Copy Swift one-liners to recreate these voices")
-                #if os(macOS)
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                #else
-                .buttonStyle(.plain)
-                #endif
+                    .accessibilityLabel("Copy setup")
+                    .help("Copy Swift one-liners to recreate these voices")
+                )
             }
             .overlay(alignment: .topTrailing) {
                 if didCopy {
@@ -294,12 +311,7 @@ internal struct ChorusLabView: View {
                 }
             }
             .padding(.vertical, 4)
-            #if os(macOS)
-            // On macOS, give the "Voices" header comparable horizontal margins to the control area.
-            .padding(.horizontal, Metrics.Padding.macH)
-            #else
-            .padding(.horizontal, Metrics.Padding.iosH)
-            #endif
+            .padding(.horizontal, Metrics.Padding.headerH)
             .padding(.bottom, 0)
             // List area (enables swipe actions)
             List {
@@ -308,10 +320,8 @@ internal struct ChorusLabView: View {
             .listStyle(.plain)
             // Subtle animation for row add/remove or reordering
             .animation(.easeInOut(duration: 0.20), value: selectedProfiles.count)
-            #if os(macOS)
             // On macOS, add horizontal padding so the list aligns with the rest of the view.
-            .padding(.horizontal, Metrics.Padding.macH)
-            #endif
+            .padding(.horizontal, Metrics.Padding.listH)
         }
         .sheet(isPresented: $showTuner) {
             // Wrap in a padded container so margins are guaranteed even if VoiceChooserView is edge-to-edge.
@@ -517,15 +527,15 @@ internal struct ChorusLabView: View {
     @ViewBuilder
     private func actionButtonsRow() -> some View {
         ChorusLabActionRowView(
-            isPlaying: $isPlaying,
-            isCalibrating: $isCalibrating,
+            playing: $isPlaying,
+            calibrating: $isCalibrating,
             hasSelection: !selectedProfiles.isEmpty,
             onPlay: {
                 // Inline to avoid calling a mutating helper from an immutable context
                 Task { @MainActor in
                     isPlaying = true
                     let t0 = Date()
-                    await chorus.sing(customText, withVoiceProfiles: selectedProfiles)
+                    await chorus.speak(customText, withVoiceProfiles: selectedProfiles)
                     let elapsed = Date().timeIntervalSince(t0)
                     lastChorusSeconds = elapsed
                     isPlaying = false
@@ -563,7 +573,7 @@ internal struct ChorusLabView: View {
         )
     }
 
-    // Extracted views are now in Labs/Components as internal types:
+    // Extracted views are now in Components as internal types:
     // - ChorusLabActionRowView
     // - ChorusLabGlobalAdjustmentsView
     // - ChorusLabSelectedVoiceRow
@@ -703,21 +713,20 @@ internal struct ChorusLabView: View {
 
 // MARK: - Snippet building (single source of truth)
 // Internal so tests can call it via @testable import VoiceKitUI.
-internal func makeChorusSnippet(for profiles: [TTSVoiceProfile]) -> String {
+internal func makeChorusSnippet(_ phrase: String = "Your phrase", for profiles: [TTSVoiceProfile]) -> String {
     guard !profiles.isEmpty else { return "" }
 
-    let body = profiles
-        .map { "    " + $0.initStr() }
+    let body = profiles.map { "    " + $0.initStr }
         .joined(separator: ",\n")
-
     return """
-    // VoiceKit chorus setup (generated by Chorus Lab)
+    // VoiceKit chorus setup example
     import VoiceKit
 
     let chorusProfiles = [
     \(body)
     ]
-    // Use with VoiceChorus: await VoiceChorus().sing("Your phrase", withVoiceProfiles: chorusProfiles)
+    // Use with VoiceChorus:
+    await VoiceChorus().speak("\(phrase)", withVoiceProfiles: chorusProfiles)
     """
 }
 
@@ -799,12 +808,15 @@ internal struct DefaultSystemVoicesProvider: SystemVoicesProvider {
 }
 
 fileprivate extension TTSVoiceProfile {
-    // Build a Swift initializer string that reproduces this profile exactly.
+    // Build a Swift initializer string that reproduces this profile.
     // Example:
-    // TTSVoiceProfile(id: "com.apple.speech.synthesis.voice.Alex", rate: 0.550, pitch: 1.000, volume: 1.000)
-    func initStr() -> String { """
-        TTSVoiceProfile(id: "\(id)", rate: \(rate.formatted(decimals: 3)), pitch: \(pitch.formatted(decimals: 3)), volume: \(volume.formatted(decimals: 3)))
-        """
+    // TTSVoiceProfile(id: "com.apple.speech.synthesis.voice.Alex", rate: 0.55, pitch: 1, volume: 1)
+    var initStr: String { "TTSVoiceProfile(\(initArgs))" }
+    var initArgs: String {
+        ["id: \"\(id)\"",
+          "rate: \(rate.formatted(decimals: 3))",
+          "pitch: \(pitch.formatted(decimals: 3))",
+          "volume: \(volume.formatted(decimals: 3))"
+        ].joined(separator: ", ")
     }
 }
-

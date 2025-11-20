@@ -9,7 +9,7 @@
 import SwiftUI
 
 @MainActor
-internal struct VoiceLanguagePicker: View {
+public struct VoiceLanguagePicker: View {
     // State bindings
     @Binding var showFullLanguagePicker: Bool
     @Binding var selection: String // "_current", "_all", or base code like "en"
@@ -22,7 +22,7 @@ internal struct VoiceLanguagePicker: View {
     var onSetCurrent: () -> Void
     var onExpandToAll: () -> Void
 
-    init(
+    public init(
         showFullLanguagePicker: Binding<Bool>,
         selection: Binding<String>,
         currentLanguageName: String,
@@ -38,7 +38,7 @@ internal struct VoiceLanguagePicker: View {
         self.onExpandToAll = onExpandToAll
     }
 
-    var body: some View {
+    public var body: some View {
         Group {
             if showFullLanguagePicker == false {
                 Toggle("\(currentLanguageName) voices", isOn: Binding(
@@ -72,8 +72,8 @@ internal struct VoiceLanguagePicker: View {
                         Text(opt.name).tag(opt.code)
                     }
                 }
-                .pickerStyle(pickerStylePlatform())
-                .frame(maxHeight: pickerMaxHeight())
+                .pickerStyle(pickerStyle)
+                .frame(maxHeight: pickerMaxHeight)
                 #if os(macOS)
                 .controlSize(.small)
                 #endif
@@ -85,20 +85,13 @@ internal struct VoiceLanguagePicker: View {
 
 // MARK: - Local platform helpers (mirror VoiceChooserView behavior)
 extension VoiceLanguagePicker {
-    fileprivate func pickerStylePlatform() -> some PickerStyle {
-        #if os(iOS)
-        return WheelPickerStyle()
-        #else
-        return DefaultPickerStyle()
-        #endif
-    }
-    fileprivate func pickerMaxHeight() -> CGFloat? {
-        #if os(iOS)
-        return 180
-        #else
-        return nil
-        #endif
-    }
+    #if os(iOS)
+    var pickerStyle: some PickerStyle { WheelPickerStyle() }
+    var pickerMaxHeight: CGFloat? { 180 }
+    #else
+    var pickerStyle: some PickerStyle { DefaultPickerStyle() }
+    var pickerMaxHeight: CGFloat? { nil }
+    #endif
 }
 
 // MARK: - Preview
@@ -107,7 +100,7 @@ extension VoiceLanguagePicker {
 internal struct VoiceLanguagePicker_Previews: PreviewProvider {
     internal static var previews: some View {
         PreviewContainer()
-            .frame(width: 420)
+//            .frame(width: 420)
             .padding(.vertical, 12)
     }
 

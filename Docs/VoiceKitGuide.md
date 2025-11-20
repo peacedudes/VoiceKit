@@ -44,7 +44,6 @@ Modules and primary types
   - Models: TTSVoiceInfo, TTSVoiceProfile (rate: Double; pitch/volume: Float), Tuning, RecognitionContext, VoiceResult.
 - VoiceKitUI
   - VoiceChooserView: pick a system voice and tune its settings (rate, pitch, volume) with live preview.
-  - ChorusLabView: experiment with multiple voices speaking in parallel and calibrate timing.
   - VoiceProfilesStore: JSON persistence for profiles/tuning/flags; deterministic in tests.
 
 Speak and listen
@@ -77,9 +76,6 @@ UI components (summary)
   - Lets users pick a system TTS voice and tune rate/pitch/volume with live previews.
   - Persists default voice, master control, and per-voice profiles via VoiceProfilesStore.
   - Typical embedding: a Settings screen in SwiftUI.
-- ChorusLabView (VoiceKitUI):
-  - A multi-voice playground for experimenting with several voices in parallel and calibrating timing.
-  - Useful for demos and tuning voice mixes; keep it behind a developer toggle in production apps.
 
 Formatting tip for contributors
 - Use ~~~ fenced code blocks (not backticks) in docs for clipboard-friendly patches.

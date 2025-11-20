@@ -7,7 +7,7 @@
 
 import SwiftUI
 import VoiceKit
-
+import VoiceKitUI
 @MainActor
 internal extension ChorusLabView {
     // MARK: - Copy-to-clipboard (chorus setup)
@@ -23,13 +23,9 @@ internal extension ChorusLabView {
 
     /// Copies text to the system clipboard (platform-aware).
     func copyToClipboard(_ text: String) {
-        #if canImport(UIKit)
-        UIPasteboard.general.string = text
-        #elseif canImport(AppKit)
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        pb.setString(text, forType: .string)
-        #endif
+        // Delegate to a small, standalone helper so all platform
+        // conditionals live in one place (Clipboard.swift).
+        Clipboard.set(text)
     }
 }
 
@@ -149,7 +145,7 @@ internal extension ChorusLabView {
     mutating func startChorus() async {
         vk_isPlaying = true
         let t0 = Date()
-        await chorus.sing(vk_customText, withVoiceProfiles: vk_selectedProfiles)
+        await chorus.speak(vk_customText, withVoiceProfiles: vk_selectedProfiles)
         let elapsed = Date().timeIntervalSince(t0)
         vk_lastChorusSeconds = elapsed
         vk_isPlaying = false
