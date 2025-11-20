@@ -93,7 +93,7 @@ final class VoiceChooserViewModelTests: TestSupport.QoSNeutralizingTestCase {
         defer { cleanup(filename) }
 
         let tts = RealVoiceIO()
-        var vm = VoicePickerViewModel(tts: tts, store: store)
+        var vm = VoiceChooserViewModel(tts: tts, store: store)
         vm.refreshAvailableVoices()
 
         // Fallback for environments without system voices (e.g., some simulators)

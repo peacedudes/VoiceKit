@@ -21,7 +21,7 @@ final class RuntimeHygieneExamplesTests: XCTestCase {
         let store = VoiceProfilesStore(filename: "hygiene-quiet.json")
         defer { cleanup("hygiene-quiet.json") }
 
-        let vm = VoicePickerViewModel(tts: RealVoiceIO(), store: store, allowSystemVoices: false)
+        let vm = VoiceChooserViewModel(tts: RealVoiceIO(), store: store, allowSystemVoices: false)
         vm.refreshAvailableVoices()
 
         // In this mode, the VM doesn’t query system voices; lists are empty unless a VoiceListProvider is used.
@@ -36,7 +36,7 @@ final class RuntimeHygieneExamplesTests: XCTestCase {
         defer { cleanup("hygiene-optin.json") }
 
         let io = RealVoiceIO()
-        let vm = VoicePickerViewModel(tts: io, store: store, allowSystemVoices: true)
+        let vm = VoiceChooserViewModel(tts: io, store: store, allowSystemVoices: true)
 
         // Avoid enumerating the entire list; use a known identifier.
         let id = "com.apple.speech.synthesis.voice.Alex"

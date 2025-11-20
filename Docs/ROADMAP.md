@@ -10,7 +10,6 @@ Naming
   - VoiceKit (core)
   - VoiceKitUI (UI)
 - Public docs should refer to “VoiceKit” (core) and “VoiceKitUI”.
-- Back-compat typealias: VoicePickerViewModel → VoiceChooserViewModel (present now).
 
 Structure (folders by concern)
 - VoiceKit (core):
