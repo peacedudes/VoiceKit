@@ -41,6 +41,7 @@ final class DemoVM: ObservableObject {
 Sequencing and lifecycle
 - Public API is @MainActor. Call from the main actor.
 - Typical flow (minimal RealVoiceIO with current package stubs):
+  - You can use RealVoiceIO directly, or wrap it in a VoiceQueue for higher-level sequencing.
   1) await voice.speak("…")
   2) let result = try await voice.listen(timeout:…, inactivity:…, record: …, context: …)
   3) voice.stopAll() or voice.hardReset() to cancel/cleanup if needed
@@ -63,6 +64,37 @@ Short SFX clips (clip path)
 - Notes:
   - prepareClip/startPreparedClip exist to minimize gap when chaining “speak → clip” by pre-rolling the clip; whether this is needed depends on your audio path. Measure in your app; playClip may be sufficient.
   - Streaming multiple clips back-to-back may benefit from prepare/start for seamlessness.
+
+VoiceQueue (sequencing helper)
+- Purpose
+  - Small helper that sequences speech, short sound effects, and pauses.
+  - Runs on @MainActor; accepts any VoiceIO, and uses TTSConfigurable when available.
+- Core concepts
+  - Items:
+    - speak(text: String, voiceID: String? = nil) — say some text, optionally with a specific profile id.
+    - sfx(url: URL, gainDB: Float = 0) — play a short clip.
+    - pause(seconds: TimeInterval) — wait between items.
+  - Channels:
+    - Channel 0 uses the primary VoiceIO you pass in.
+    - Extra channels can be created via an optional factory for simple parallel playback.
+- Simple example
+  ~~~swift
+  let io = RealVoiceIO()
+  let q = VoiceQueue(primary: io)
+  let ding = Bundle.main.url(forResource: "ding", withExtension: "caf")!
+
+  q.enqueueSpeak("A", voiceID: nil)
+  q.enqueueSFX(ding, gainDB: 3)
+  q.enqueuePause(0.2)
+  q.enqueueSpeak("B", voiceID: nil)
+  await q.play()
+  ~~~
+- Embedded SFX in text
+  - You can also let VoiceQueue parse inline SFX tokens in text:
+    - Syntax: `[sfx:NAME]`
+    - Resolver: `(String) -> URL?` maps NAME → audio file URL.
+  - Helper:
+    - enqueueParsingSFX(text:resolver:defaultVoiceID:on:) — splits the text into speak and sfx items and enqueues them for you.
 
 UI components (summary)
 - VoiceChooserView (VoiceKitUI):
@@ -107,6 +139,41 @@ Deterministic testing and previews
   - Tests should prefer a FakeTTS conforming to TTSConfigurable & VoiceListProvider to avoid AV/locale variability.
 - Name utilities:
   - NameMatch and NameResolver provide robust normalization and exact matching for kid-friendly inputs.
+
+Config & diagnostics
+- VoiceIOConfig
+  - Controls a few advanced behaviors of RealVoiceIO. All values have sensible defaults.
+  - Fields:
+    - trimPrePad: Double — seconds of audio to keep *before* detected speech when trimming recordings.
+    - trimPostPad: Double — seconds of audio to keep *after* detected speech.
+    - clipWaitTimeoutSeconds: Double — how long to wait for a short clip (“boosted” path) to complete before timing out.
+    - ttsSuppressAfterFinish: Double — brief suppression window after TTS to avoid the mic “hearing” its own output.
+  - Usage example:
+    ~~~swift
+    let cfg = VoiceIOConfig(
+        trimPrePad: 0.10,
+        trimPostPad: 0.30,
+        clipWaitTimeoutSeconds: 1.5,
+        ttsSuppressAfterFinish: 0.25
+    )
+    let io = RealVoiceIO(config: cfg)
+    ~~~
+
+- VoiceIOError
+  - Canonical error cases RealVoiceIO may surface when you wire real STT/audio:
+    - micUnavailable, recognizerUnavailable, audioFormatInvalid
+    - timedOut, cancelled
+    - underlying(String) — preserves a short message from deeper layers.
+  - Current core stubs do not throw these in CI by default, but applications integrating real audio should be prepared to switch on them.
+
+- VoiceKitInfo
+  - Light runtime metadata for logging and diagnostics:
+    - VoiceKitInfo.version — semantic version string (e.g., "0.1.2").
+    - VoiceKitInfo.buildTimestampISO8601 — build-time timestamp string in ISO‑8601 form.
+  - Example:
+    ~~~swift
+    print("VoiceKit \(VoiceKitInfo.version) @ \(VoiceKitInfo.buildTimestampISO8601)")
+    ~~~
 
 Build/test one-liner (clipboard-first)
 - Keep the loop fast and calm. A simple alias we recommend:

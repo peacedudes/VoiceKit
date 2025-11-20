@@ -8,14 +8,6 @@
 import SwiftUI
 import VoiceKit
 import VoiceKitUI
-
-#if canImport(UIKit)
-import UIKit
-#endif
-#if canImport(AppKit)
-import AppKit
-#endif
-
 @MainActor
 internal extension ChorusLabView {
     // MARK: - Copy-to-clipboard (chorus setup)
@@ -31,13 +23,9 @@ internal extension ChorusLabView {
 
     /// Copies text to the system clipboard (platform-aware).
     func copyToClipboard(_ text: String) {
-        #if canImport(UIKit)
-        UIPasteboard.general.string = text
-        #elseif canImport(AppKit)
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        pb.setString(text, forType: .string)
-        #endif
+        // Delegate to a small, standalone helper so all platform
+        // conditionals live in one place (Clipboard.swift).
+        Clipboard.set(text)
     }
 }
 

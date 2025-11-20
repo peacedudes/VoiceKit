@@ -9,12 +9,7 @@
 import SwiftUI
 import VoiceKit
 import VoiceKitUI
-#if canImport(UIKit)
-import UIKit
-#endif
-#if canImport(AppKit)
-import AppKit
-#endif
+
 // MARK: - Design tokens
 private enum Metrics {
     enum Padding {
