@@ -9,7 +9,7 @@
 import XCTest
 import VoiceKit
 
-final class VoiceOpGateTests: XCTestCase {
+internal final class VoiceOpGateTests: XCTestCase {
 
     func testGateSerializesAccess() async throws {
         let gate = VoiceOpGate()

@@ -8,7 +8,7 @@
 import XCTest
 @testable import VoiceKit
 
-final class IsCITests: XCTestCase {
+internal final class IsCITests: XCTestCase {
     override func tearDown() {
         // Clean up override environment for isolation between tests
         unsetenv("VOICEKIT_FORCE_CI")

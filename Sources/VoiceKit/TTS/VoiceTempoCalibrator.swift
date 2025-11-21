@@ -45,8 +45,15 @@ public enum VoiceTempoCalibrator {
         var lastMeasured: TimeInterval = 0
 
         for i in 0..<maxIterations {
+            // Allow callers to cancel calibration (e.g. a "Stop" button).
+            if Task.isCancelled {
+                io.stopAll()
+                break
+            }
+
             // Measure
             lastMeasured = await io.speakAndMeasure(phrase, using: voiceID)
+            if Task.isCancelled { break }
 
             // CI / fallback safety: if measurement is zero, stop adjustments
             if lastMeasured <= 0 {

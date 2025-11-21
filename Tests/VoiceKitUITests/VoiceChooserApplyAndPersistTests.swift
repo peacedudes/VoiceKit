@@ -15,7 +15,7 @@ import XCTest
 @testable import VoiceKit
 
 @MainActor
-final class VoiceChooserApplyAndPersistTests: XCTestCase {
+internal final class VoiceChooserApplyAndPersistTests: XCTestCase {
 
     func testApplyUpdatesTTSAndPersists() throws {
         let filename = "picker_apply_persist.json"

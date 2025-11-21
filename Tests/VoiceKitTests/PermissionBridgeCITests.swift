@@ -9,7 +9,7 @@ import XCTest
 @testable import VoiceKit
 @preconcurrency import Speech
 
-final class PermissionBridgeCITests: XCTestCase {
+internal final class PermissionBridgeCITests: XCTestCase {
     override func setUp() {
         super.setUp()
         setenv("VOICEKIT_FORCE_CI", "true", 1)

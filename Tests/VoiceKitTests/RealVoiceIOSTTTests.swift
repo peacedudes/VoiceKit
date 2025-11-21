@@ -10,7 +10,7 @@ import XCTest
 @testable import VoiceKit
 
 @MainActor
-final class RealVoiceIOSTTTests: XCTestCase {
+internal final class RealVoiceIOSTTTests: XCTestCase {
 
     func testNormalizeNumeric() {
         XCTAssertEqual(RealVoiceIO.normalizeNumeric(from: "  42 "), "42")

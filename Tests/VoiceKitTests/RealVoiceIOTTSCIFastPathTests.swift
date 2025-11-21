@@ -10,7 +10,7 @@ import XCTest
 import TestSupport
 
 @MainActor
-final class RealVoiceIOTTSCIFastPathTests: TestSupport.QoSNeutralizingTestCase {
+internal final class RealVoiceIOTTSCIFastPathTests: TestSupport.QoSNeutralizingTestCase {
     override func setUp() {
         super.setUp()
         setenv("VOICEKIT_FORCE_CI", "true", 1)

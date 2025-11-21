@@ -15,7 +15,7 @@ import XCTest
 import AVFoundation
 
 @MainActor
-final class RealVoiceIOBoostedTests: XCTestCase {
+internal final class RealVoiceIOBoostedTests: XCTestCase {
 
     func testNewlyAddedWaitersAreImmediatelyResumedAndNotRetained() async throws {
         let io = RealVoiceIO()

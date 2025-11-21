@@ -10,7 +10,7 @@ import XCTest
 @testable import VoiceKit
 @preconcurrency import Speech
 
-final class PermissionBridgeTests: XCTestCase {
+internal final class PermissionBridgeTests: XCTestCase {
 
     func testAwaitSpeechAuthReturnsStatus() async {
         // This should complete quickly and return a valid enum value.

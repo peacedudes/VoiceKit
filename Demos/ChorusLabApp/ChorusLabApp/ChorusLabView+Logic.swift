@@ -132,10 +132,15 @@ internal extension ChorusLabView {
         // Clear edit state
         vk_editingIndex = nil
         vk_tunerSelection = nil
-        // Keep baseline aligned to effective list, then re-apply globals
+        // Keep baseline aligned to effective list
         vk_baseProfiles = vk_selectedProfiles
-        // Re-apply global adjustments so effective profiles reflect sliders
-        applyGlobalAdjustments()
+        // Only re-apply global adjustments if sliders are not at identity.
+        // This avoids washing out the very first per-voice edit when the chorus
+        // is still at its default global scaling.
+        let hasGlobalAdjustments = (vk_rateScale != 1.0) || (vk_pitchOffset != 0.0)
+        if hasGlobalAdjustments {
+            applyGlobalAdjustments()
+        }
     }
 }
 

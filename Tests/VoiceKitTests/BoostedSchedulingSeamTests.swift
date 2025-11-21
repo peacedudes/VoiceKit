@@ -11,7 +11,7 @@ import XCTest
 import AVFoundation
 
 @MainActor
-final class BoostedSchedulingSeamTests: XCTestCase {
+internal final class BoostedSchedulingSeamTests: XCTestCase {
 
     // A fake provider to observe scheduling without driving real audio
     final class FakeBoostedNodesProvider: BoostedNodesProvider {

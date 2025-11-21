@@ -10,7 +10,7 @@ import VoiceKit
 import VoiceKitUI
 
 @MainActor
-final class VoiceChooserPreviewSelectionTests: XCTestCase {
+internal final class VoiceChooserPreviewSelectionTests: XCTestCase {
 
     @MainActor
     final class FakeTTS: TTSConfigurable, VoiceListProvider {

@@ -10,7 +10,7 @@ import XCTest
 import VoiceKit
 
 @MainActor
-final class VoiceQueueTests: XCTestCase {
+internal final class VoiceQueueTests: XCTestCase {
 
     // A tiny fake engine to validate sequencing without AV/Speech.
     @MainActor

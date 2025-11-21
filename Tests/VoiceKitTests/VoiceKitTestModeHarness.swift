@@ -10,7 +10,7 @@ import XCTest
 @testable import VoiceKit
 
 @MainActor
-final class VoiceKitTestModeHarness: XCTestCase {
+internal final class VoiceKitTestModeHarness: XCTestCase {
 
     override func setUp() {
         super.setUp()

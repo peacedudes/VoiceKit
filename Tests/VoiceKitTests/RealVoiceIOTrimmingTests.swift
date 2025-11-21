@@ -11,7 +11,7 @@ import XCTest
 @preconcurrency import AVFoundation
 
 @MainActor
-final class RealVoiceIOTrimmingTests: XCTestCase {
+internal final class RealVoiceIOTrimmingTests: XCTestCase {
 
     // Create a tiny mono PCM buffer and write to file
     private func makeTempAudio(duration: Double = 0.25,

@@ -7,7 +7,7 @@
 
 import XCTest
 
-final class ChorusLabAppUITestsLaunchTests: XCTestCase {
+internal final class ChorusLabAppUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

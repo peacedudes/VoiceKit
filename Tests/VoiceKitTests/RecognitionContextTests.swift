@@ -9,7 +9,7 @@
 import XCTest
 import VoiceKit
 
-final class RecognitionContextTests: XCTestCase {
+internal final class RecognitionContextTests: XCTestCase {
 
     func testNumericContextualStringsContainDigitsAndWords() {
         let set = Set(RecognitionContext.numericContextualStrings)

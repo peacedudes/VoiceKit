@@ -10,7 +10,7 @@ import XCTest
 import VoiceKit
 
 @MainActor
-final class ScriptedVoiceIOEdgeTests: XCTestCase {
+internal final class ScriptedVoiceIOEdgeTests: XCTestCase {
 
     private func base64(of strings: [String]) -> String {
         let data = (try? JSONSerialization.data(withJSONObject: strings, options: [])) ?? Data()

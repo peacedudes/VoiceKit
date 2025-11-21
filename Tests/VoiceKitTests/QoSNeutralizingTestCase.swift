@@ -16,7 +16,7 @@ import Darwin // for pthread_* QoS APIs
 /// detections from the Thread Performance Checker.
 ///
 /// Use by subclassing this instead of XCTestCase in tests that trip the checker.
-class QoSNeutralizingTestCase: XCTestCase {
+internal class QoSNeutralizingTestCase: XCTestCase {
     override func invokeTest() {
         var oldClass: qos_class_t = QOS_CLASS_DEFAULT
         var oldRelPri: Int32 = 0

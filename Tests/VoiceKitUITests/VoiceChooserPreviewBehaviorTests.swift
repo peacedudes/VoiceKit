@@ -18,7 +18,7 @@ import AVFoundation
 
 import TestSupport
 @MainActor
-final class VoiceChooserPreviewBehaviorTests: TestSupport.QoSNeutralizingTestCase {
+internal final class VoiceChooserPreviewBehaviorTests: TestSupport.QoSNeutralizingTestCase {
 
     private func cleanup(_ filename: String) {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first

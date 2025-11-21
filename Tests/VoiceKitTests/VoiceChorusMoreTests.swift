@@ -14,7 +14,7 @@ import XCTest
 import CoreGraphics
 
 @MainActor
-final class VoiceChorusMoreTests: XCTestCase {
+internal final class VoiceChorusMoreTests: XCTestCase {
 
     // Minimal fake engine for chorus tests
     @MainActor

@@ -10,7 +10,7 @@ import XCTest
 @testable import VoiceKit
 
 @MainActor
-final class VoiceProfilesSeedTests: XCTestCase {
+internal final class VoiceProfilesSeedTests: XCTestCase {
 
     @MainActor
     final class FakeTTS: TTSConfigurable, VoiceListProvider {

@@ -12,7 +12,7 @@ import AVFoundation
 @testable import VoiceKit
 
 @MainActor
-final class VoiceChooserViewModelExtrasTests: XCTestCase {
+internal final class VoiceChooserViewModelExtrasTests: XCTestCase {
 
     private func systemDisplayName(for id: String) -> String {
         AVSpeechSynthesisVoice(identifier: id)?.name ?? "Voice"

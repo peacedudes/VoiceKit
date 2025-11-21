@@ -11,7 +11,7 @@ import XCTest
 import TestSupport
 
 @MainActor
-final class RealVoiceIOTTSTests: TestSupport.QoSNeutralizingTestCase {
+internal final class RealVoiceIOTTSTests: TestSupport.QoSNeutralizingTestCase {
 
     func testApplyProfileAndSpeak() async throws {
         let io = RealVoiceIO()

@@ -146,6 +146,19 @@ public final class VoiceChooserViewModel: ObservableObject {
         }
     }
 
+    /// Best-effort lookup of the current profile from the TTS engine itself.
+    /// Useful when another client (like ChorusLab) has already tuned a profile
+    /// on the engine and we want the chooser to start from those values.
+    public func profileFromTTS(id: String) -> TTSVoiceProfile? {
+        if let fromID = tts.getVoiceProfile(id: id) {
+            return fromID
+        }
+        if let def = tts.getDefaultVoiceProfile(), def.id == id {
+            return def
+        }
+        return nil
+    }
+
     // MARK: - Samples and previews
 
     public func samplePhrase(for profile: TTSVoiceProfile, suffix: String? = nil) -> String {

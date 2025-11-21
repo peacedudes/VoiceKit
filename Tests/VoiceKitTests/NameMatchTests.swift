@@ -9,7 +9,7 @@
 import XCTest
 import VoiceKit
 
-final class NameMatchTests: XCTestCase {
+internal final class NameMatchTests: XCTestCase {
 
     func testNormalizeKeyHandlesDiacriticsLigaturesApostrophes() {
         // Zoë O’Connor → "zoe oconnor"

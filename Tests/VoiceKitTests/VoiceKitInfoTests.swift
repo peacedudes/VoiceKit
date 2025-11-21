@@ -9,7 +9,7 @@
 import XCTest
 import VoiceKit
 
-final class VoiceKitInfoTests: XCTestCase {
+internal final class VoiceKitInfoTests: XCTestCase {
 
     func testVersionNonEmpty() {
         XCTAssertFalse(VoiceKitInfo.version.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)

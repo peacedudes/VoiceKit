@@ -10,7 +10,7 @@ import XCTest
 @testable import VoiceKit
 
 @MainActor
-final class VoiceChooserBootstrappingTests: XCTestCase {
+internal final class VoiceChooserBootstrappingTests: XCTestCase {
 
     @MainActor
     final class FakeTTS: TTSConfigurable, VoiceListProvider {

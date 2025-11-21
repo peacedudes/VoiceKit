@@ -12,7 +12,7 @@ import AVFoundation
 @testable import VoiceKit
 
 @MainActor
-final class RuntimeHygieneExamplesTests: XCTestCase {
+internal final class RuntimeHygieneExamplesTests: XCTestCase {
 
     // Pattern 1: Quiet list building in tests/CI without enumerating system voices.
     // Avoids XPC/SQLite log noise from AVSpeechSynthesisVoice.speechVoices() on simulators.

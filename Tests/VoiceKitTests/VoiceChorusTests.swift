@@ -19,7 +19,7 @@ import AVFoundation
 @testable import VoiceKit
 
 @MainActor
-final class VoiceChorusTests: XCTestCase {
+internal final class VoiceChorusTests: XCTestCase {
 
     // A simple fake engine that conforms to TTSConfigurable & VoiceIO and records calls.
     final class FakeEngine: TTSConfigurable, VoiceIO {

@@ -11,7 +11,7 @@ import XCTest
 @testable import VoiceKit
 
 @MainActor
-final class VoiceProfilesStoreTests: XCTestCase {
+internal final class VoiceProfilesStoreTests: XCTestCase {
 
     func testSetAndGetProfile() throws {
         let filename = "test_store.json"

@@ -31,6 +31,11 @@ public struct ChorusLabTargetTimeRow: View {
             Text(targetSeconds.formatted(suffix: "s"))
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
+                // Keep +/- buttons from "dancing" as text width changes,
+                // but allow slight shrink for larger values.
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(minWidth: 40, maxWidth: 48, alignment: .leading)
             Stepper(value: $targetSeconds, in: targetRange, step: targetStep) {
                 EmptyView()
             }

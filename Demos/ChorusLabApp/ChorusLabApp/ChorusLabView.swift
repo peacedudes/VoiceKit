@@ -78,8 +78,12 @@ internal struct ChorusLabView: View {
     @State private var selectedProfiles: [TTSVoiceProfile] = []
     @State private var pitch: Float = 1.0
     @State private var rate: Float = 0.55
-    @State private var customText: String = "Six swift ships."
-    @State private var targetSeconds: Double = 3.0
+    @State private var customText: String =  """
+        Hey diddle diddle, the cat and the fiddle,
+        the cow jumped over the moon.
+        The little boy laughed
+        """
+    @State private var targetSeconds: Double = 5.0
     @State private var isCalibrating: Bool = false
     @State private var calibrationTask: Task<Void, Never>?
     @State private var lastDurationByID: [String: TimeInterval] = [:]
@@ -98,6 +102,8 @@ internal struct ChorusLabView: View {
     @State private var editingIndex: Int?
     // Copy-to-clipboard feedback
     @State private var didCopy: Bool = false
+
+    @FocusState private var isTextEditorFocused: Bool
 
     // MARK: - Internal proxies for logic extension (keep @State private)
     // These expose controlled access for helpers in ChorusLabView+Logic.swift.
@@ -208,10 +214,6 @@ internal struct ChorusLabView: View {
         VStack {
             // Fixed control area
             VStack {
-                // Title
-                Text("Chorus Lab")
-                    .font(.largeTitle)
-
                 // Text input moved to the top
                 ZStack(alignment: .topLeading) {
                     ZStack(alignment: .topLeading) {
@@ -233,6 +235,7 @@ internal struct ChorusLabView: View {
                         TextEditor(text: $customText)
                             .frame(height: 72, alignment: .topLeading) // ~3 lines, fixed
                             .scrollIndicators(.automatic)
+                            .focused($isTextEditorFocused)
                             .border(Color.gray, width: 0.5)
                             .accessibilityLabel("Chorus text")
                             .accessibilityHint("Enter the phrase the chorus will speak")
@@ -317,6 +320,7 @@ internal struct ChorusLabView: View {
             List {
                 selectedVoicesSection()
             }
+            .frame(minHeight: 140)
             .listStyle(.plain)
             // Subtle animation for row add/remove or reordering
             .animation(.easeInOut(duration: 0.20), value: selectedProfiles.count)
@@ -346,6 +350,15 @@ internal struct ChorusLabView: View {
             .presentationDragIndicator(.visible)
             #endif
         }
+        #if os(iOS)
+        .toolbar {
+            ToolbarItem(placement: .keyboard) {
+                Button("Done") {
+                    isTextEditorFocused = false
+                }
+            }
+        }
+        #endif
         .onAppear {
             // Keep baseline in sync on first load.
             if baseProfiles.isEmpty, !selectedProfiles.isEmpty {
@@ -395,13 +408,28 @@ internal struct ChorusLabView: View {
                 },
                 onSync: { voiceID in
                     guard let idx = selectedProfiles.firstIndex(where: { $0.id == voiceID }) else { return }
-                    Task { @MainActor in
+                    // Route row-level sync through the shared calibrationTask so the
+                    // global Stop button can cancel it.
+                    calibrationTask?.cancel()
+                    calibrationTask = Task { @MainActor in
                         if isCalibrating || isPlaying { return }
                         isCalibrating = true
                         calibratingVoiceID = voiceID
                         let prevScale = rateScale
                         rateScale = 1.0
                         let io = engineFactory()
+                        defer {
+                            isCalibrating = false
+                            calibratingVoiceID = nil
+                            rateScale = prevScale
+                            baseProfiles = selectedProfiles
+                            selectedProfiles = ChorusMath.applyAdjustments(
+                                baseProfiles: baseProfiles,
+                                rateScale: rateScale,
+                                pitchOffset: pitchOffset
+                            )
+                            calibrationTask = nil
+                        }
                         await Task.yield()
                         io.setVoiceProfile(selectedProfiles[idx])
                         let result = await VoiceTempoCalibrator.fitRate(
@@ -416,18 +444,10 @@ internal struct ChorusLabView: View {
                                 lastChorusSeconds = measured
                             }
                         )
+                        if Task.isCancelled { return }
                         selectedProfiles[idx].rate = result.finalRate
                         lastDurationByID[voiceID] = result.measured
                         lastChorusSeconds = result.measured
-                        isCalibrating = false
-                        calibratingVoiceID = nil
-                        rateScale = prevScale
-                        baseProfiles = selectedProfiles
-                        selectedProfiles = ChorusMath.applyAdjustments(
-                            baseProfiles: baseProfiles,
-                            rateScale: rateScale,
-                            pitchOffset: pitchOffset
-                        )
                     }
                 },
                 onDelete: { removedID in

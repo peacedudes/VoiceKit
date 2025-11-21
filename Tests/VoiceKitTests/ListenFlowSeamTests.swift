@@ -13,7 +13,7 @@ import XCTest
 
 // Fake seams for deterministic listen tests.
 
-struct FakeSpeechTaskDriver: SpeechTaskDriver {
+internal struct FakeSpeechTaskDriver: SpeechTaskDriver {
     let scripted: [SpeechEvent]
 
     func startTask(recognizer: SFSpeechRecognizer,
@@ -57,7 +57,7 @@ struct FakeSpeechTaskDriver: SpeechTaskDriver {
     static func live() -> SpeechTaskDriver { self.init(scripted: []) }
 }
 
-final class FakeTapSource: RecognitionTapSource {
+internal final class FakeTapSource: RecognitionTapSource {
     private var isInstalled = false
 
     // Main-actor box to hold the callback.
@@ -110,7 +110,7 @@ final class FakeTapSource: RecognitionTapSource {
     static func live() -> RecognitionTapSource { FakeTapSource() }
 }
 
-final class FakeBoostedProvider: BoostedNodesProvider {
+internal final class FakeBoostedProvider: BoostedNodesProvider {
     var engine: AVAudioEngine?
     var player: AVAudioPlayerNode?
     var eq: AVAudioUnitEQ?
@@ -121,7 +121,7 @@ final class FakeBoostedProvider: BoostedNodesProvider {
 }
 
 @MainActor
-final class ListenFlowSeamTests: XCTestCase {
+internal final class ListenFlowSeamTests: XCTestCase {
 
     func testListenEmitsTranscriptAndFinishesOnFinal() async throws {
         let scriptedEvents = [

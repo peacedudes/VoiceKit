@@ -11,7 +11,7 @@ import XCTest
 @testable import VoiceKit
 
 @MainActor
-final class VoiceProfilesStoreToggleTests: XCTestCase {
+internal final class VoiceProfilesStoreToggleTests: XCTestCase {
 
     func testHiddenTogglePersists() throws {
         let store = VoiceProfilesStore(filename: "test_hidden.json")

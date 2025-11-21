@@ -19,7 +19,7 @@ import AVFoundation
 import TestSupport
 
 @MainActor
-final class VoiceChooserViewModelTests: TestSupport.QoSNeutralizingTestCase {
+internal final class VoiceChooserViewModelTests: TestSupport.QoSNeutralizingTestCase {
 
     // Avoid speechVoices() to prevent simulator/macOS XPC warnings in tests.
     private func defaultVoiceID() -> String? {

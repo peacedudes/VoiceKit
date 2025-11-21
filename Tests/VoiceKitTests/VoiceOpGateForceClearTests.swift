@@ -9,7 +9,7 @@
 import XCTest
 import VoiceKit
 
-final class VoiceOpGateForceClearTests: XCTestCase {
+internal final class VoiceOpGateForceClearTests: XCTestCase {
 
     func testForceClearAllowsImmediateAcquire() async {
         let gate = VoiceOpGate()

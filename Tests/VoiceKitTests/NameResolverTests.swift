@@ -9,7 +9,7 @@
 import XCTest
 import VoiceKit
 
-final class NameResolverTests: XCTestCase {
+internal final class NameResolverTests: XCTestCase {
     let resolver = NameResolver()
 
     func testReturnsCleanedRawWhenNoAllowedList() {

@@ -46,11 +46,24 @@ extension RealVoiceIO {
         applyProfile(to: utterance, voiceID: voiceID ?? defaultProfile?.id)
 
         let key = ObjectIdentifier(utterance)
-        return await withCheckedContinuation { (cont: CheckedContinuation<TimeInterval, Never>) in
-            // Store continuation; didFinish will compute and resume
-            measureContinuations[key] = cont
-            synthesizer.speak(utterance)
-        }
+        return await withTaskCancellationHandler(
+            operation: {
+                await withCheckedContinuation { (cont: CheckedContinuation<TimeInterval, Never>) in
+                    // Store continuation; didFinish / didCancel will compute and resume.
+                    measureContinuations[key] = cont
+                    synthesizer.speak(utterance)
+                }
+            },
+            onCancel: {
+                // Interrupt any in-flight utterance immediately. This will
+                // trigger speechSynthesizer(_:didCancel:), which in turn
+                // resumes the continuation (returning 0.0s by design).
+                Task { @MainActor [weak self] in
+                    guard let self, let synth = self.synthesizer, synth.isSpeaking else { return }
+                    synth.stopSpeaking(at: .immediate)
+                }
+            }
+        )
     }
 
     public func speak(_ text: String, using voiceID: String?) async {

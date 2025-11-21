@@ -96,6 +96,17 @@ VoiceQueue (sequencing helper)
   - Helper:
     - enqueueParsingSFX(text:resolver:defaultVoiceID:on:) — splits the text into speak and sfx items and enqueues them for you.
 
+VoiceChorus (parallel voices)
+- Purpose
+  - Coordinate several VoiceIO engines in parallel — for example, a “chorus” of system voices or a lead + backing voices mix.
+  - Built on top of VoiceIO and TTSConfigurable; ChorusLabView uses this heavily.
+- Simple example
+  ~~~swift
+  @MainActor
+  let chorus = VoiceChorus(engine: RealVoiceIO())
+  await chorus.speak("Hello from a small chorus of voices.", withVoiceProfiles: [.init(id: "v1"), .init(id: "v2")])
+  ~~~
+
 UI components (summary)
 - VoiceChooserView (VoiceKitUI):
   - Lets users pick a system TTS voice and tune rate/pitch/volume with live previews.

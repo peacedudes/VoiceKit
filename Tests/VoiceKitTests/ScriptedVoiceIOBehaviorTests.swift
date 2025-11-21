@@ -10,7 +10,7 @@ import XCTest
 import VoiceKit
 
 @MainActor
-final class ScriptedVoiceIOBehaviorTests: XCTestCase {
+internal final class ScriptedVoiceIOBehaviorTests: XCTestCase {
 
     private func b64(_ array: [String]) -> String {
         let data = (try? JSONSerialization.data(withJSONObject: array, options: [])) ?? Data()
