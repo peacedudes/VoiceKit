@@ -17,31 +17,51 @@ let package = Package(
         .macOS("14.0")
     ],
     products: [
-        .library(name: "VoiceKitCore", targets: ["VoiceKitCore"]),
+        .library(name: "VoiceKit", targets: ["VoiceKit"]),
         .library(name: "VoiceKitUI", targets: ["VoiceKitUI"])
     ],
     dependencies: [
+        .package(url: "https://github.com/realm/SwiftLint", from: "0.54.0")
     ],
     targets: [
         .target(
-            name: "VoiceKitCore",
-            path: "Sources/VoiceKitCore"
+            name: "TestSupport",
+            path: "Sources/TestSupport",
+            plugins: [
+                .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLint")
+            ]
+        ),
+        .target(
+            name: "VoiceKit",
+            path: "Sources/VoiceKit",
+            plugins: [
+                .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLint")
+            ]
         ),
         .target(
             name: "VoiceKitUI",
-            dependencies: ["VoiceKitCore"],
-            path: "Sources/VoiceKitUI"
+            dependencies: ["VoiceKit"],
+            path: "Sources/VoiceKitUI",
+            plugins: [
+                .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLint")
+            ]
         ),
         .testTarget(
-            name: "VoiceKitCoreTests",
-            dependencies: ["VoiceKitCore"],
-            path: "Tests/VoiceKitCoreTests"
+            name: "VoiceKitTests",
+            dependencies: ["VoiceKit", "TestSupport"],
+            path: "Tests/VoiceKitTests",
+            plugins: [
+                .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLint")
+            ]
         ),
         .testTarget(
             name: "VoiceKitUITests",
-            dependencies: ["VoiceKitCore", "VoiceKitUI"],
-            path: "Tests/VoiceKitUITests"
-        )
+            dependencies: ["VoiceKitUI", "VoiceKit", "TestSupport"],
+            path: "Tests/VoiceKitUITests",
+            plugins: [
+                .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLint")
+            ]
+        ),
     ],
     swiftLanguageModes: [
         .v6

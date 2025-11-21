@@ -6,3 +6,9 @@ DerivedData/
 .swiftpm/configuration/registries.json
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 .netrc
+.build/
+.swiftpm/
+*.xcuserstate
+*.log
+handoff.md
+Package.resolved
