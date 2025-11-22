@@ -124,8 +124,9 @@ private struct TunerSliderRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 10) {
-            VStack(spacing: 2) {
+        HStack(spacing: 8) {
+            // Icon + label
+            HStack(spacing: 4) {
                 Image(systemName: systemImage)
                     .imageScale(.medium)
                     .font(.footnote)
@@ -134,15 +135,19 @@ private struct TunerSliderRow: View {
                 Text(title)
                     .font(.footnote)
                     .foregroundStyle(.primary)
-                Text(formatted(value))
-                    .font(.footnote)
-                    .monospacedDigit()
-                    .foregroundStyle(.primary)
             }
-            .frame(width: 60)
+            .frame(minWidth: 68, alignment: .leading)
 
+            // Slider
             Slider(value: $value, in: range, step: step)
                 .tint(.blue)
+
+            // Numeric readout on the right
+            Text(formatted(value))
+                .font(.footnote)
+                .monospacedDigit()
+                .foregroundStyle(.primary)
+                .frame(width: 52, alignment: .trailing)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
