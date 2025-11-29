@@ -136,7 +136,7 @@ private struct TunerSliderRow: View {
                     .font(.footnote)
                     .foregroundStyle(.primary)
             }
-            .frame(minWidth: 68, alignment: .leading)
+            .frame(minWidth: 70, alignment: .leading)
 
             // Slider
             Slider(value: $value, in: range, step: step)
