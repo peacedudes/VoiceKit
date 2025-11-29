@@ -25,22 +25,47 @@ extension RealVoiceIO {
             let totalFrames = inFile.length
             let duration = Double(totalFrames) / sampleRate
 
-            let fallback = (sttStart == nil || sttEnd == nil || sttEnd! <= sttStart!)
+            var fallback = (sttStart == nil || sttEnd == nil || sttEnd! <= sttStart!)
             var start = sttStart ?? 0
             var end = sttEnd ?? duration
+
+            // If STT reports a tiny window relative to the raw file duration
+            // (e.g., long leading/trailing silence is present), prefer the
+            // energy-based bounds instead of trusting STT timestamps that are
+            // effectively relative to "first speech" rather than the file.
+            if !fallback, let s = sttStart, let e = sttEnd {
+                let span = max(0, e - s)
+                let nonSpeech = max(0, duration - span)
+                // Heuristic: if there's a lot more "non-speech" than speech,
+                // treat STT as truncated and fall back to energy scanning.
+                if nonSpeech > max(2.0, span * 0.5) {
+                    fallback = true
+                }
+            }
+            let debugMessage = """
+                trimAudioSmart sttStart=\(sttStart ?? -1) \
+                sttEnd=\(sttEnd ?? -1) \
+                prePad=\(prePad) postPad=\(postPad) \
+                rawDuration=\(String(format: "%.3f", duration))
+                """
+            log(.info, debugMessage)
 
             if fallback {
                 if let bounds = energyTrimBounds(inFile: inFile,
                                                  sampleRate: sampleRate,
                                                  totalFrames: totalFrames,
-                                                 thresholdDB: -45,
+                                                 thresholdDB: -35,
                                                  chunk: 8192) {
-                    start = bounds.start; end = max(bounds.end, bounds.start + 0.1)
+                    start = bounds.start
+                    end = max(bounds.end, bounds.start + 0.1)
+                    log(.info, "trimAudioSmart energyBounds start=\(bounds.start) end=\(bounds.end)")
                 } else { start = 0; end = duration }
             }
 
             start = max(0, start - prePad)
             end = min(duration, end + postPad)
+            log(.info, "trimAudioSmart finalWindow start=\(start) end=\(end) duration=\(duration)")
+
             guard end > start else { return inputURL }
 
             let startFrame = AVAudioFramePosition(start * sampleRate)
@@ -77,8 +102,11 @@ extension RealVoiceIO {
                                   chunk: AVAudioFrameCount) -> (start: Double, end: Double)? {
         let targetFormat = inFile.processingFormat
         inFile.framePosition = 0
-        var foundStart: Double?
-        var lastNonSilent: Double = 0
+
+        // First pass: collect (timestamp, dB) samples across the file.
+        struct Sample { let ts: Double; let db: Float }
+        var samples: [Sample] = []
+        samples.reserveCapacity(Int(totalFrames / AVAudioFramePosition(chunk)) + 1)
 
         while inFile.framePosition < totalFrames {
             let remaining = AVAudioFrameCount(totalFrames - inFile.framePosition)
@@ -96,12 +124,30 @@ extension RealVoiceIO {
                 var ms: Float = 0
                 vDSP_measqv(ch, 1, &ms, vDSP_Length(buf.frameLength))
                 let db: Float = ms <= 0 ? -160 : 10 * log10f(ms)
-                if db > thresholdDB {
-                    if foundStart == nil { foundStart = ts }
-                    lastNonSilent = ts + Double(buf.frameLength) / sampleRate
-                }
+                samples.append(Sample(ts: ts, db: db))
             }
         }
+
+        guard !samples.isEmpty else { return nil }
+
+        // Derive a dynamic threshold: 10 dB above the quietest chunk,
+        // but never lower than the explicit thresholdDB.
+        let minDb = samples.map(\.db).min() ?? -160
+        let dynamicThreshold = max(thresholdDB, minDb + 10)
+
+        var foundStart: Double?
+        var lastNonSilent: Double = 0
+
+        for sample in samples {
+            if sample.db > dynamicThreshold {
+                if foundStart == nil {
+                    foundStart = sample.ts
+                }
+                // Use chunk end as last-non-silent for this sample
+                lastNonSilent = sample.ts + Double(chunk) / sampleRate
+            }
+        }
+
         if let fs = foundStart {
             return (fs, lastNonSilent)
         } else {

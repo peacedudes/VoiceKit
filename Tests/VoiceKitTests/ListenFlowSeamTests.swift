@@ -123,6 +123,20 @@ internal final class FakeBoostedProvider: BoostedNodesProvider {
 @MainActor
 internal final class ListenFlowSeamTests: XCTestCase {
 
+    // These seam tests are intended to be deterministic and not depend on
+    // real hardware, permissions, or AVFoundation behavior. Force CI mode
+    // via VOICEKIT_FORCE_CI so RealVoiceIO.listen() uses its stub path
+    // instead of the live STT pipeline.
+    override func setUp() {
+        super.setUp()
+        setenv("VOICEKIT_FORCE_CI", "true", 1)
+    }
+
+    override func tearDown() {
+        unsetenv("VOICEKIT_FORCE_CI")
+        super.tearDown()
+    }
+
     func testListenEmitsTranscriptAndFinishesOnFinal() async throws {
         let scriptedEvents = [
             SpeechEvent(text: "one two", isFinal: false, segments: [(0.1, 0.2)]),

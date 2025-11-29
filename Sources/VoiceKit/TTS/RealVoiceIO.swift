@@ -12,6 +12,7 @@
 import Foundation
 @preconcurrency import AVFoundation
 import CoreGraphics
+@preconcurrency import Speech
 
 @MainActor
 public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
@@ -60,6 +61,21 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
     internal var ttsPhase: CGFloat = 0
     internal var ttsGlow: CGFloat = 0
 
+    // MARK: - Environment helpers
+
+    /// Treat the iOS simulator like CI for live STT:
+    /// many simulator/runtime combinations do not reliably support
+    /// SFSpeechRecognizer + AVAudioEngine, and repeatedly fail with
+    /// kAFAssistantErrorDomain recording errors. On real devices we
+    /// still use the full live STT pipeline.
+    internal static var isSimulator: Bool {
+        #if targetEnvironment(simulator)
+        return true
+        #else
+        return false
+        #endif
+    }
+
     // MARK: - Test/STT shim state
 
     // Very lightweight transcript store used by tests
@@ -69,8 +85,33 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
         set { RealVoiceIO._latestTranscriptStore[ObjectIdentifier(self)] = newValue }
     }
 
-    // Recognition context captured for listen shim
-    private var recognitionContext: RecognitionContext = .init()
+    // Recognition context captured for listen shim + live STT.
+    // Internal so STT extension can read it.
+    internal var recognitionContext: RecognitionContext = .init()
+
+    // MARK: - STT live state
+
+    internal var speechRecognizer: SFSpeechRecognizer? = SFSpeechRecognizer(locale: .autoupdatingCurrent)
+    internal var audioEngine: AVAudioEngine?
+    internal var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
+    internal var recognitionTask: SFSpeechRecognitionTask?
+
+    internal var hasFinishedRecognition = false
+    internal var firstSpeechStart: Double?
+    internal var lastSpeechEnd: Double?
+
+    internal var listenOverallTask: Task<Void, Never>?
+    internal var listenInactivityTask: Task<Void, Never>?
+
+    // Tracks recent speech activity based on input energy.
+    internal let sttActivityTracker = STTActivityTracker()
+
+    // Per-listen recording state for live STT
+    internal var rawRecordingURL: URL?
+    internal var currentListenShouldRecord = false
+
+    // Continuation for the current live listen (non-CI path)
+    internal var listenCont: CheckedContinuation<VoiceResult, Error>?
 
     // MARK: - Init
 
@@ -129,35 +170,52 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
     public func getTuning() -> Tuning { tuning }
     // MARK: - VoiceIO basics
 
-    public func ensurePermissions() async throws {}
-    public func configureSessionIfNeeded() async throws {}
+    public func ensurePermissions() async throws {
+        try await ensureSpeechAndMicPermissions()
+    }
+    public func configureSessionIfNeeded() async throws {
+        try await configureAudioSessionIfNeeded()
+    }
 
-    // Minimal listen shim to satisfy current tests (no real STT wiring yet).
-    // If the recognition context expects a number, synthesize "42".
     public func listen(timeout: TimeInterval, inactivity: TimeInterval, record: Bool) async throws -> VoiceResult {
         log(.info, "listen(start) timeout=\(timeout), inactivity=\(inactivity), record=\(record)")
         onListeningChanged?(true)
         defer { onListeningChanged?(false) }
 
-        // Tiny delay to simulate async processing
-        if timeout > 0 {
-            let nanos = UInt64(min(timeout, 0.05) * 1_000_000_000)
-            if nanos > 0 { try? await Task.sleep(nanoseconds: nanos) }
+        // CI/headless path: keep the stub behavior so tests remain deterministic
+        // and never require real hardware or permissions.
+        if IsCI.running {
+            if timeout > 0 {
+                let nanos = UInt64(min(timeout, 0.05) * 1_000_000_000)
+                if nanos > 0 { try? await Task.sleep(nanoseconds: nanos) }
+            }
+
+            // If context expects a number, synthesize a final "42"
+            if recognitionContext.expectNumber {
+                let transcript = "42"
+                log(.info, "listen(result/ci) synthesized numeric: \(transcript)")
+                latestTranscript = transcript
+                onTranscriptChanged?(transcript)
+                return VoiceResult(transcript: transcript, recordingURL: nil)
+            }
+
+            // Otherwise, return whatever has been set externally (default empty)
+            let stub = VoiceResult(transcript: latestTranscript, recordingURL: nil)
+            log(.info, "listen(result/ci) transcript='\(stub.transcript)' record=\(record)")
+            return stub
         }
 
-        // If context expects a number, synthesize a final "42"
-        if recognitionContext.expectNumber {
-            let transcript = "42"
-            log(.info, "listen(result) synthesized numeric: \(transcript)")
-            latestTranscript = transcript
-            onTranscriptChanged?(transcript)
-            return VoiceResult(transcript: transcript, recordingURL: nil)
-        }
+        // App path: configure per-listen recording intent; the STT pipeline
+        // will honor this and emit a trimmed recording URL when possible.
+        currentListenShouldRecord = record
+        rawRecordingURL = nil
 
-        // Otherwise, return whatever has been set externally (default empty)
-        let res = VoiceResult(transcript: latestTranscript, recordingURL: nil)
-        log(.info, "listen(result) transcript='\(res.transcript)' record=\(record)")
-        return res
+        // App path: use the live STT pipeline defined in RealVoiceIO+STT.swift.
+        let live = try await performSTTListen(timeout: timeout,
+                                              inactivity: inactivity,
+                                              record: record)
+        log(.info, "listen(result/live) transcript='\(live.transcript)' record=\(record)")
+        return live
     }
 
     // Called by tests; store context for listen shim
