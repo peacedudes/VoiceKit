@@ -228,7 +228,38 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
     }
 
     public func hardReset() {
+        // Stop any TTS in progress.
         stopAll()
+
+        // Tear down any in-flight STT listen.
+        listenOverallTask?.cancel()
+        listenOverallTask = nil
+        listenInactivityTask?.cancel()
+        listenInactivityTask = nil
+
+        audioEngine?.stop()
+        audioEngine?.inputNode.removeTap(onBus: 0)
+        audioEngine = nil
+
+        recognitionTask?.cancel()
+        recognitionTask = nil
+        recognitionRequest = nil
+
+        // If a live listen was waiting on a continuation, resume it with
+        // cancellation so callers can unwind cleanly.
+        if !hasFinishedRecognition {
+            hasFinishedRecognition = true
+            listenCont?.resume(throwing: CancellationError())
+        }
+        listenCont = nil
+
+        rawRecordingURL = nil
+        currentListenShouldRecord = false
+        firstSpeechStart = nil
+        lastSpeechEnd = nil
+        latestTranscript = ""
+
+        // Clear TTS bookkeeping.
         speakContinuations.removeAll()
         ttsStartTimes.removeAll()
         measureContinuations.removeAll()

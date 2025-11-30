@@ -28,13 +28,12 @@ extension RealVoiceIO {
             var fallback = (sttStart == nil || sttEnd == nil || sttEnd! <= sttStart!)
             var start = sttStart ?? 0
             var end = sttEnd ?? duration
-
             // If STT reports a tiny window relative to the raw file duration
             // (e.g., long leading/trailing silence is present), prefer the
             // energy-based bounds instead of trusting STT timestamps that are
             // effectively relative to "first speech" rather than the file.
-            if !fallback, let s = sttStart, let e = sttEnd {
-                let span = max(0, e - s)
+            if !fallback, let startTime = sttStart, let endTime = sttEnd {
+                let span = max(0, endTime - startTime)
                 let nonSpeech = max(0, duration - span)
                 // Heuristic: if there's a lot more "non-speech" than speech,
                 // treat STT as truncated and fall back to energy scanning.
@@ -138,14 +137,12 @@ extension RealVoiceIO {
         var foundStart: Double?
         var lastNonSilent: Double = 0
 
-        for sample in samples {
-            if sample.db > dynamicThreshold {
-                if foundStart == nil {
-                    foundStart = sample.ts
-                }
-                // Use chunk end as last-non-silent for this sample
-                lastNonSilent = sample.ts + Double(chunk) / sampleRate
+        for sample in samples where sample.db > dynamicThreshold {
+            if foundStart == nil {
+                foundStart = sample.ts
             }
+            // Use chunk end as last-non-silent for this sample
+            lastNonSilent = sample.ts + Double(chunk) / sampleRate
         }
 
         if let fs = foundStart {

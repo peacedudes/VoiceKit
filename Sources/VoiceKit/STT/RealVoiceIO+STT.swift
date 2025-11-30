@@ -210,17 +210,17 @@ extension RealVoiceIO {
         let micOK: Bool
         #if os(iOS)
         if #available(iOS 17.0, *) {
-            micOK = await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
-                AVAudioApplication.requestRecordPermission { c.resume(returning: $0) }
+            micOK = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+                AVAudioApplication.requestRecordPermission { continuation.resume(returning: $0) }
             }
         } else {
-            micOK = await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
-                AVAudioSession.sharedInstance().requestRecordPermission { c.resume(returning: $0) }
+            micOK = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+                AVAudioSession.sharedInstance().requestRecordPermission { continuation.resume(returning: $0) }
             }
         }
         #elseif os(macOS)
-        micOK = await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
-            AVCaptureDevice.requestAccess(for: .audio) { c.resume(returning: $0) }
+        micOK = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            AVCaptureDevice.requestAccess(for: .audio) { continuation.resume(returning: $0) }
         }
         #else
         micOK = false
@@ -237,14 +237,14 @@ extension RealVoiceIO {
     /// Configure audio session for voice I/O where applicable.
     internal func configureAudioSessionIfNeeded() async throws {
         #if os(iOS)
-        let s = AVAudioSession.sharedInstance()
-        try? s.setActive(false, options: [])
+        let session = AVAudioSession.sharedInstance()
+        try? session.setActive(false, options: [])
         var opts: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .duckOthers]
         opts.insert(.allowBluetoothHFP)
-        try s.setCategory(.playAndRecord, mode: .voiceChat, options: opts)
-        try s.setPreferredSampleRate(44100)
-        try s.setPreferredIOBufferDuration(0.01)
-        try s.setActive(true, options: [])
+        try session.setCategory(.playAndRecord, mode: .voiceChat, options: opts)
+        try session.setPreferredSampleRate(44100)
+        try session.setPreferredIOBufferDuration(0.01)
+        try session.setActive(true, options: [])
         #else
         // macOS: rely on default session.
         _ = ()
@@ -327,30 +327,7 @@ extension RealVoiceIO {
         let engine = AVAudioEngine()
         audioEngine = engine
 
-        let request = SFSpeechAudioBufferRecognitionRequest()
-        request.shouldReportPartialResults = true
-
-        switch recognitionContext.expectation {
-        case .freeform:
-            request.taskHint = .dictation
-        case .name(let allowed):
-            request.taskHint = .dictation
-            request.contextualStrings = allowed
-        case .number:
-            request.taskHint = .search
-            request.contextualStrings = RecognitionContext.numericContextualStrings
-        }
-
-        if #available(iOS 13.0, macOS 10.15, *),
-           let recognizer = speechRecognizer,
-           recognizer.supportsOnDeviceRecognition {
-            request.requiresOnDeviceRecognition = true
-        }
-        recognitionRequest = request
-
-        guard let recognizer = speechRecognizer, recognizer.isAvailable else {
-            throw SimpleError("Recognizer unavailable.")
-        }
+        let (request, recognizer) = try prepareRecognitionRequest()
 
         let inputNode = engine.inputNode
         let inputFormat = inputNode.inputFormat(forBus: 0)
@@ -358,23 +335,7 @@ extension RealVoiceIO {
             throw SimpleError("Invalid input format.")
         }
 
-        // Optional raw recording file for this listen. We never fail the overall
-        // listen if file creation fails; STT still runs normally.
-        var recordingFile: AVAudioFile?
-        if record {
-            do {
-                let base = "vk-listen-\(UUID().uuidString).caf"
-                let url = FileManager.default.temporaryDirectory.appendingPathComponent(base)
-                rawRecordingURL = url
-                recordingFile = try AVAudioFile(forWriting: url, settings: inputFormat.settings)
-            } catch {
-                // Fall back to STT-only; recordingURL will remain nil.
-                rawRecordingURL = nil
-                recordingFile = nil
-            }
-        } else {
-            rawRecordingURL = nil
-        }
+        let recordingFile = makeRecordingFileIfNeeded(for: inputFormat, record: record)
 
         // The tap itself must not be @MainActor-isolated; install it via a
         // nonisolated helper so the closure can run safely on the realtime queue.
@@ -402,40 +363,12 @@ extension RealVoiceIO {
             with: request
         ) { [weak self] (result: SFSpeechRecognitionResult?, error: Error?) in
             guard let self else { return }
-            if let r = result {
-                var text = r.bestTranscription.formattedString
-                let trimmed = text.trimmingCharacters(
-                    in: CharacterSet.whitespacesAndNewlines
+            if let result {
+                self.handleRecognitionSuccess(
+                    result: result,
+                    expectation: expectation,
+                    inactivity: inactivity
                 )
-                let segments = r.bestTranscription.segments
-
-                if case .number = expectation {
-                    text = Self.normalizeNumeric(from: text)
-                }
-
-                Task { @MainActor in
-                    if !trimmed.isEmpty {
-                        self.latestTranscript = text
-                        self.onTranscriptChanged?(text)
-                        self.startInactivityTimer(seconds: inactivity)
-                    }
-
-                    if !segments.isEmpty {
-                        var first = self.firstSpeechStart
-                        var last = self.lastSpeechEnd
-                        for seg in segments {
-                            if first == nil { first = seg.timestamp }
-                            last = max(last ?? 0, seg.timestamp + seg.duration)
-                        }
-                        self.firstSpeechStart = first
-                        self.lastSpeechEnd = last
-                    }
-
-                    if r.isFinal {
-                        self.log(.info, "listen(stt) complete via recognizer isFinal")
-                        self.completeCurrentListen()
-                    }
-                }
             }
             if error != nil {
                 Task { @MainActor in
@@ -453,6 +386,101 @@ extension RealVoiceIO {
 
         if Task.isCancelled { throw CancellationError() }
         return result
+    }
+
+    // MARK: - Recognition helpers
+
+    private func handleRecognitionSuccess(
+        result: SFSpeechRecognitionResult,
+        expectation: RecognitionContext.Expectation,
+        inactivity: TimeInterval
+    ) {
+        var text = result.bestTranscription.formattedString
+        let trimmed = text.trimmingCharacters(
+            in: CharacterSet.whitespacesAndNewlines
+        )
+        let segments = result.bestTranscription.segments
+
+        if case .number = expectation {
+            text = Self.normalizeNumeric(from: text)
+        }
+
+        Task { @MainActor in
+            if !trimmed.isEmpty {
+                self.latestTranscript = text
+                self.onTranscriptChanged?(text)
+                self.startInactivityTimer(seconds: inactivity)
+            }
+
+            if !segments.isEmpty {
+                var first = self.firstSpeechStart
+                var last = self.lastSpeechEnd
+                for seg in segments {
+                    if first == nil { first = seg.timestamp }
+                    last = max(last ?? 0, seg.timestamp + seg.duration)
+                }
+                self.firstSpeechStart = first
+                self.lastSpeechEnd = last
+            }
+
+            if result.isFinal {
+                self.log(.info, "listen(stt) complete via recognizer isFinal")
+                self.completeCurrentListen()
+            }
+        }
+    }
+
+    // MARK: - Private helpers (STT listen setup)
+
+    /// Build and configure the speech recognition request and recognizer
+    /// based on the current recognitionContext.
+    private func prepareRecognitionRequest() throws -> (SFSpeechAudioBufferRecognitionRequest, SFSpeechRecognizer) {
+        let request = SFSpeechAudioBufferRecognitionRequest()
+        request.shouldReportPartialResults = true
+
+        switch recognitionContext.expectation {
+        case .freeform:
+            request.taskHint = .dictation
+        case .name(let allowed):
+            request.taskHint = .dictation
+            request.contextualStrings = allowed
+        case .number:
+            request.taskHint = .search
+            request.contextualStrings = RecognitionContext.numericContextualStrings
+        }
+
+        if #available(iOS 13.0, macOS 10.15, *),
+           let recognizer = speechRecognizer,
+           recognizer.supportsOnDeviceRecognition {
+            request.requiresOnDeviceRecognition = true
+        }
+
+        guard let recognizer = speechRecognizer, recognizer.isAvailable else {
+            throw SimpleError("Recognizer unavailable.")
+        }
+
+        recognitionRequest = request
+        return (request, recognizer)
+    }
+
+    /// Create an optional raw recording file for this listen. We never fail the overall
+    /// listen if file creation fails; STT still runs normally.
+    private func makeRecordingFileIfNeeded(for format: AVAudioFormat,
+                                           record: Bool) -> AVAudioFile? {
+        guard record else {
+            rawRecordingURL = nil
+            return nil
+        }
+        do {
+            let base = "vk-listen-\(UUID().uuidString).caf"
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(base)
+            rawRecordingURL = url
+            return try AVAudioFile(forWriting: url, settings: format.settings)
+        } catch {
+            // Fall back to STT-only; recordingURL will remain nil.
+            rawRecordingURL = nil
+            return nil
+        }
     }
 
     // MARK: - Listen completion & timers (live path)
