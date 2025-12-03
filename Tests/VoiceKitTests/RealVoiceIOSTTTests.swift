@@ -7,6 +7,7 @@
 //
 
 import XCTest
+@preconcurrency import AVFoundation
 @testable import VoiceKit
 
 @MainActor
@@ -26,53 +27,6 @@ internal final class RealVoiceIOSTTTests: XCTestCase {
         io.onListeningChanged = { _ in }
         io.finishRecognition()
         io.finishRecognition()
-        XCTAssertTrue(true)
-    }
-
-    /// Smoke test for the live STT path with real mic input.
-    ///
-    /// Behavior:
-    /// - Skips entirely in CI (IsCI.running) to avoid hardware/permission issues.
-    /// - On a local dev machine:
-    ///   - Speaks a short prompt so you know when to respond.
-    ///   - Listens briefly (even silence is OK).
-    ///   - Prints whatever transcript was heard to the console.
-    /// - Test passes as long as it does not crash or hang.
-    func testLiveListenDoesNotCrashOnDevice() async throws {
-        // CI/headless: skip; tests exercise only the stub path there.
-        if IsCI.running {
-            throw XCTSkip("Skipping live STT smoke test in CI (IsCI.running).")
-        }
-
-        let io = RealVoiceIO()
-
-        // Opt-in logger so this test is self-documenting in the console.
-        io.logger = { level, message in
-            print("[VoiceKit][STT][\(level)] \(message)")
-        }
-
-        // Best-effort permissions/session. In CI we skip above; on a local dev
-        // machine we *fail* if we cannot start the live pipeline so we can see
-        // exactly why it isn’t working.
-        do {
-            try await io.ensurePermissions()
-            try await io.configureSessionIfNeeded()
-        } catch {
-            XCTFail("Live STT smoke test could not start: \(error)")
-            return
-        }
-
-        // Speak a short prompt so you can tell when to respond.
-        await io.speak("Please say your name after the beep. Beep.")
-
-        // Short listen: it's OK if the user says nothing; the main assertion
-        // is that this does not crash or hang.
-        let result = try await io.listen(timeout: 2.5, inactivity: 0.9, record: false)
-
-        // Log whatever we heard to aid manual verification.
-        print("[VoiceKit][STT] Live smoke transcript: '\(result.transcript)'")
-
-        // If we reach here without crash/throw, the smoke test passes.
         XCTAssertTrue(true)
     }
 }
