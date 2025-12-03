@@ -470,13 +470,12 @@ internal struct ChorusLabView: View {
     private func synchronizeRates() {
         guard !selectedProfiles.isEmpty else { return }
         isCalibrating = true
+        calibratingVoiceID = nil // "Sync all" does not highlight a single row
         let phrase = customText
         let prevScale = rateScale
         // Cancel any in-flight calibration task
         calibrationTask?.cancel()
         calibrationTask = Task { @MainActor in
-            // Use a dedicated engine for measurement to avoid interfering with the chorus engine
-            let io = engineFactory()
             defer {
                 isCalibrating = false
                 calibrationTask = nil
@@ -485,70 +484,70 @@ internal struct ChorusLabView: View {
                 rateScale = prevScale
                 baseProfiles = selectedProfiles
                 // Apply global scaling/offset to produce effective profiles:
-                var updated: [TTSVoiceProfile] = []
-                updated.reserveCapacity(baseProfiles.count)
-                for var profile in baseProfiles {
-                    // Amplified relative mapping (all Double to match TTSVoiceProfile.rate):
-                    // - If rateScale > 1, move toward 1.0 by a fraction of headroom.
-                    // - If rateScale < 1, move toward 0.0 by a fraction of current value.
-                    let base: Double = profile.rate
-                    let newRate: Double = {
-                        if rateScale >= 1.0 {
-                            let factor = max(0.0, min(1.0, rateScale - 1.0)) // 1.0→2.0 maps to 0…1
-                            return (base + (1.0 - base) * factor).clamped(to: 0.0...1.0)
-                        } else {
-                            let factor = max(0.0, min(1.0, (1.0 - rateScale) / Metrics.Adjustments.slowRange)) // 1.0→0.25 maps to 0…1
-                            return (base - base * factor).clamped(to: 0.0...1.0)
-                        }
-                    }()
-                    profile.rate = newRate
-                    profile.pitch = (profile.pitch + Float(pitchOffset)).clamped(to: Metrics.Pitch.clampLo...Metrics.Pitch.clampHi)
-                    updated.append(profile)
-                }
-                selectedProfiles = updated
+                selectedProfiles = ChorusMath.applyAdjustments(
+                    baseProfiles: baseProfiles,
+                    rateScale: rateScale,
+                    pitchOffset: pitchOffset
+                )
             }
             // Normalize global speed during calibration to avoid compounding while fitting
             rateScale = 1.0
 
-            for i in selectedProfiles.indices {
-                if Task.isCancelled { return }
-                // Ensure the IO has the current profile before measuring
-                let voiceID = selectedProfiles[i].id
-                calibratingVoiceID = voiceID
-                await Task.yield()
-                io.setVoiceProfile(selectedProfiles[i])
+            // Snapshot current profiles so parallel tasks have stable inputs/indexes.
+            let snapshots = selectedProfiles.enumerated().map { ($0.offset, $0.element) }
 
-                // Calibrate this voice to the target duration
-                let result = await VoiceTempoCalibrator.fitRate(
-                    io: io,
-                    voiceID: voiceID,
-                    phrase: phrase,
-                    targetSeconds: targetSeconds,
-                    tolerance: Metrics.Calibration.tolerance,
-                    maxIterations: Metrics.Calibration.maxIterations,
-                    onIteration: { _, measured, _ in
-                        // Update per-iteration progress in the header and row
-                        lastDurationByID[voiceID] = measured
-                        lastChorusSeconds = measured
+            await withTaskGroup(of: (Int, String, Double, Double)?.self) { group in
+                for (index, profile) in snapshots {
+                    let voiceID = profile.id
+                    group.addTask { [phrase, targetSeconds] in
+                        if Task.isCancelled { return nil }
+                        let io = await MainActor.run { self.engineFactory() }
+                        await io.setVoiceProfile(profile)
+
+                        let result = await VoiceTempoCalibrator.fitRate(
+                            io: io,
+                            voiceID: voiceID,
+                            phrase: phrase,
+                            targetSeconds: targetSeconds,
+                            tolerance: Metrics.Calibration.tolerance,
+                            maxIterations: Metrics.Calibration.maxIterations,
+                            onIteration: { _, measured, _ in
+                                // Hop back to the main actor from the calibrator’s
+                                // worker context without making onIteration itself async.
+                                Task { @MainActor in
+                                    self.lastDurationByID[voiceID] = measured
+                                    self.lastChorusSeconds = measured
+                                }
+                            }
+                        )
+
+                        if Task.isCancelled { return nil }
+                        return (index, voiceID, result.finalRate, result.measured)
                     }
-                )
-                // Update the stored and baseline profile with the new rate and last measured duration
-                selectedProfiles[i].rate = result.finalRate
-                lastDurationByID[voiceID] = result.measured
-                // Reflect progress live in the header “actual time” display
-                lastChorusSeconds = result.measured
-                // Give the UI a chance to refresh during calibration
-                await Task.yield()
+                }
+
+                for await outcome in group {
+                    guard let (index, voiceID, finalRate, measured) = outcome else { continue }
+                    if Task.isCancelled { continue }
+                    // Apply results on the main actor; this function is already
+                    // @MainActor, but be explicit to satisfy Swift 6 isolation.
+                    await MainActor.run {
+                        if self.selectedProfiles.indices.contains(index) {
+                            self.selectedProfiles[index].rate = finalRate
+                        }
+                        self.lastDurationByID[voiceID] = measured
+                        self.lastChorusSeconds = measured
+                    }
+                }
             }
-            calibratingVoiceID = nil
         }
     }
 
     @ViewBuilder
     private func actionButtonsRow() -> some View {
         ChorusLabActionRowView(
-            playing: $isPlaying,
-            calibrating: $isCalibrating,
+            isPlaying: $isPlaying,
+            isCalibrating: $isCalibrating,
             hasSelection: !selectedProfiles.isEmpty,
             onPlay: {
                 // Inline to avoid calling a mutating helper from an immutable context

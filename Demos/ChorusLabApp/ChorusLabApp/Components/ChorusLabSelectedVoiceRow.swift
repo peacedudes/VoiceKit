@@ -64,13 +64,17 @@ private struct DetailsCell: View {
     let pitch: Float
     let volume: Float
     var body: some View {
-        Text("S \(rate.formatted()) · P \(pitch.formatted()) · Vol \(volume.formatted())")
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .minimumScaleFactor(0.9)
-            .allowsTightening(true)
-            .frame(minWidth: 150, maxWidth: 220, alignment: .trailing)
+        Text(["S \(rate.formatted())",
+              "P \(pitch.formatted())",
+              "Vol \(volume.formatted())"]
+            .joined(separator: " · ")
+        )
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .minimumScaleFactor(0.9)
+        .allowsTightening(true)
+        .frame(minWidth: 150, maxWidth: 220, alignment: .trailing)
     }
 }
 
