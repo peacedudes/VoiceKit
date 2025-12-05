@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.1.3] — 2025-12-05
+- Core
+  - RealVoiceIO: live STT pipeline wired to `listen(timeout:inactivity:record:)`:
+    - Uses `AVAudioEngine` + `SFSpeechRecognizer` with task hints from `RecognitionContext`.
+    - Tracks activity via `STTActivityTracker` (adaptive noise floor) to implement an “inactivity after speech” timeout.
+    - Supports optional recording for each listen and returns a trimmed clip URL in `VoiceResult.recordingURL`.
+  - Trimming: `trimAudioSmart` combines STT timestamps with an energy-based fallback:
+    - Prefers STT segment timestamps when they look sane relative to the raw file.
+    - Falls back to scanning audio energy and applies configurable pre/post pads from `VoiceIOConfig`.
+  - Clip path: `prepareClip` / `startPreparedClip` / `playClip`:
+    - Uses a simple `AVAudioPlayer` for short clips with gain in dB.
+    - Keeps waiter handling idempotent and clears waiters on stop/timeout.
+  - Seams: removed STT seams (`SpeechTaskDriver` / `RecognitionTapSource`) from the public surface; tests now exercise the CI stub path directly.
+  - CI behavior:
+    - `IsCI.running` / `VOICEKIT_FORCE_CI` short-circuit permissions and use a deterministic listen stub (e.g. `"42"` for numeric contexts).
+    - Speak fast-path avoids `AVSpeechSynthesizer` on headless runners while still toggling callbacks.
+- UI
+  - ChorusLab: extracted non-visual helpers, added a more coherent “global adjustments” model, and aligned math via `ChorusMath.applyAdjustments`.
+  - VoiceChooserView / VoiceProfilesStore: small refinements to filtering, preview behavior, and persistence tests; continue to favor deterministic `VoiceListProvider` fakes in tests.
+- Docs
+  - VoiceKitGuide rewritten to emphasize real-app usage:
+    - Live STT semantics, recording + trimming, clip path, VoiceQueue orchestration, and VoiceKitUI usage.
+
 ## [0.1.2] — 2025-10-29
 - Docs synchronized with current implementation:
   - Guide and README reference the “VoiceKit” module directly; removed obsolete upgrade note.

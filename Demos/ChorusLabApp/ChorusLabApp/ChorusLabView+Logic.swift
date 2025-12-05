@@ -41,26 +41,14 @@ internal extension ChorusLabView {
 
     // Apply global sliders to baseline -> effective profiles
     mutating func applyGlobalAdjustments() {
+        // Single source of truth for chorus-wide tuning lives in ChorusMath.
+        // This keeps the logic consistent between the ChorusLab view and tests.
         guard !vk_baseProfiles.isEmpty else { return }
-        vk_selectedProfiles = vk_baseProfiles.map { base in
-            var profile = base
-            // Amplified relative mapping (Double)
-            let baseRate: Double = profile.rate
-            let newRate: Double = {
-                if vk_rateScale >= 1.0 {
-                    // 1.0→2.0 maps to t: 0…1, push toward 1.0 by headroom
-                    let factor = max(0.0, min(1.0, vk_rateScale - 1.0))
-                    return (baseRate + (1.0 - baseRate) * factor).clamped(to: 0.0...1.0)
-                } else {
-                    // 1.0→0.25 maps to t: 0…1, pull toward 0.0 by fraction of current
-                    let factor = max(0.0, min(1.0, (1.0 - vk_rateScale) / _slowRange))
-                    return (baseRate - baseRate * factor).clamped(to: 0.0...1.0)
-                }
-            }()
-            profile.rate = newRate
-            profile.pitch = (profile.pitch + Float(vk_pitchOffset)).clamped(to: _pitchClampLo..._pitchClampHi)
-            return profile
-        }
+        vk_selectedProfiles = ChorusMath.applyAdjustments(
+            baseProfiles: vk_baseProfiles,
+            rateScale: vk_rateScale,
+            pitchOffset: vk_pitchOffset
+        )
     }
 }
 @MainActor

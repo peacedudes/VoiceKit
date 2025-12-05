@@ -140,17 +140,6 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
         }
     }
 
-    // Convenience init used by tests (accepts seam instances; STT is stubbed)
-    public convenience init(config: VoiceIOConfig,
-                            speechDriver: any SpeechTaskDriver,
-                            tapSource: any RecognitionTapSource,
-                            boostedProvider: BoostedNodesProvider) {
-        self.init(config: config)
-        self.boostedProvider = boostedProvider
-        _ = speechDriver
-        _ = tapSource
-    }
-
     public static func makeLive(config: VoiceIOConfig = VoiceIOConfig()) -> RealVoiceIO {
         RealVoiceIO(config: config)
     }

@@ -10,7 +10,7 @@ import Foundation
 
 public enum VoiceKitInfo {
     // Bump this when you tag a new release
-    public static let version = "0.1.2"
+    public static let version = "0.1.3"
 
     public static var buildTimestampISO8601: String {
         ISO8601DateFormatter().string(from: Date())
