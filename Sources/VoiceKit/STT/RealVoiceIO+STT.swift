@@ -94,7 +94,7 @@ extension RealVoiceIO {
     ///     - Awaits speech recognizer authorization via `PermissionBridge`.
     ///     - Verifies that the `SFSpeechRecognizer` is currently available.
     ///   - Under CI or forced test mode (`IsCI.running == true` / `VOICEKIT_FORCE_CI`):
-    ///     - `PermissionBridge` helpers short-circuit and return “granted”
+    ///     - `PermissionBridge` helpers short-circuit and return "granted"
     ///       to keep headless tests deterministic and free of TCC prompts.
     internal func ensureSpeechAndMicPermissions() async throws {
         // Short-circuit in CI/headless; tests never hit real STT.

@@ -1,4 +1,4 @@
-# Concurrency — practical guidance (Swift 6)
+# Concurrency - practical guidance (Swift 6)
 
 Audience
 - Developers integrating VoiceKit who want to avoid runtime warnings and ensure actor-safety.
@@ -16,7 +16,7 @@ Quick do/don’t
   - Optionally prewarm SystemVoicesCache on main at app start.
 - Don’t:
   - Capture @MainActor self on audio or background threads.
-  - Assume AV delegates are on main—always hop explicitly.
+  - Assume AV delegates are on main-always hop explicitly.
 
 UI callbacks
 - VoiceKit invokes UI callbacks on @MainActor:
@@ -82,7 +82,7 @@ Testing tips
 - Prefer ScriptedVoiceIO for STT/TTS‑like flows that must be deterministic.
 
 See also
-- Docs/VoiceKitGuide.md → “Concurrency and thread‑safety (Swift 6)”
+- Docs/VoiceKitGuide.md → "Concurrency and thread‑safety (Swift 6)"
 - Docs/ProgrammersGuide.md → Notes under Sequencing and Logging
 
 Checklist

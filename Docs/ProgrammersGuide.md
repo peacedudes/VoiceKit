@@ -107,9 +107,9 @@ func listen(
   - Silence is measured using an adaptive noise floor:
     - The input tap computes loudness in dB for each buffer.
     - An 'STTActivityTracker' maintains a running baseline (noise floor).
-    - Buffers louder than 'baseline + margin' are treated as “speech”.
+    - Buffers louder than 'baseline + margin' are treated as "speech".
     - When we’ve seen 'inactivity' seconds since the last such buffer, we stop.
-  - If no “loud enough” buffers are ever seen, we fall back to “time since first non‑empty transcript”.
+  - If no "loud enough" buffers are ever seen, we fall back to "time since first non‑empty transcript".
 
 - 'record' (Bool)
   - When 'true':
@@ -140,13 +140,13 @@ func listen(
 
 - On recognizer availability problems:
   - Implementations may throw 'VoiceIOError.recognizerUnavailable'.
-  - Your app should surface a clear message (e.g., “Speech recognizer is unavailable on this device. Please try again later.”) and abort the flow rather than continue to re‑prompt.
+  - Your app should surface a clear message (e.g., "Speech recognizer is unavailable on this device. Please try again later.") and abort the flow rather than continue to re‑prompt.
 
 ---
 
 ## Short SFX clips (clip path)
 
-Goal: near-zero-gap “Thank you → play a short clip” UX.
+Goal: near-zero-gap "Thank you → play a short clip" UX.
 
 ### API (most apps only need the first)
 
@@ -166,7 +166,7 @@ if let url = result.recordingURL {
 
 Notes:
 
-- 'prepareClip'/'startPreparedClip' exist to minimize the gap when chaining “speak → clip” by pre‑rolling the clip; whether you need both vs just 'playClip' depends on your app’s audio path. Measure if you care about single‑frame smoothness.
+- 'prepareClip'/'startPreparedClip' exist to minimize the gap when chaining "speak → clip" by pre‑rolling the clip; whether you need both vs just 'playClip' depends on your app’s audio path. Measure if you care about single‑frame smoothness.
 - Internally, clip waiters are resumed exactly once; multiple 'stopAll()'/'hardReset()' calls are safe.
 
 ---
@@ -178,15 +178,15 @@ Notes:
 - Lightweight helper that sequences speech, short sound effects, and pauses.
 - Runs on '@MainActor'; accepts any 'VoiceIO', and uses 'TTSConfigurable' when available.
 - Good for:
-  - Tutorials (“Step 1, [ding], Step 2...”).
-  - Simple “scripted” readings with occasional SFX.
+  - Tutorials ("Step 1, [ding], Step 2...").
+  - Simple "scripted" readings with occasional SFX.
 
 ### Core concepts
 
 - Items:
-  - 'speak(text: String, voiceID: String? = nil)' — say some text, optionally with a specific profile id.
-  - 'sfx(url: URL, gainDB: Float = 0)' — play a short clip.
-  - 'pause(seconds: TimeInterval)' — wait between items.
+  - 'speak(text: String, voiceID: String? = nil)' - say some text, optionally with a specific profile id.
+  - 'sfx(url: URL, gainDB: Float = 0)' - play a short clip.
+  - 'pause(seconds: TimeInterval)' - wait between items.
 
 - Channels:
   - Channel 0 uses the primary 'VoiceIO' you pass in.
@@ -234,7 +234,7 @@ q.enqueueParsingSFX(
 
 - Coordinate several 'VoiceIO' engines in parallel.
 - Used for:
-  - “Chorus” effects (multiple voices speaking together).
+  - "Chorus" effects (multiple voices speaking together).
   - Lead + backing voices mixes.
 
 ### Simple example
@@ -272,7 +272,7 @@ await chorus.speak(
 
 - Playground for:
   - Multiple voices in parallel.
-  - Timing calibration for “chorus” effects.
+  - Timing calibration for "chorus" effects.
 - Recommended: keep behind a developer toggle in production apps.
 
 ---
@@ -380,10 +380,10 @@ Controls advanced behaviours of 'RealVoiceIO'. All values have sensible defaults
 
 Fields (relevant ones):
 
-- 'trimPrePad: Double' — seconds of audio to keep *before* detected speech when trimming recordings.
-- 'trimPostPad: Double' — seconds of audio to keep *after* detected speech.
-- 'clipWaitTimeoutSeconds: Double' — how long to wait for a short clip to complete before timing out.
-- 'ttsSuppressAfterFinish: Double' — brief suppression window after TTS to avoid the mic “hearing” its own output.
+- 'trimPrePad: Double' - seconds of audio to keep *before* detected speech when trimming recordings.
+- 'trimPostPad: Double' - seconds of audio to keep *after* detected speech.
+- 'clipWaitTimeoutSeconds: Double' - how long to wait for a short clip to complete before timing out.
+- 'ttsSuppressAfterFinish: Double' - brief suppression window after TTS to avoid the mic "hearing" its own output.
 
 Usage example:
 
@@ -407,7 +407,7 @@ Canonical error cases 'RealVoiceIO' may surface when you wire real STT/audio, e.
 - 'audioFormatInvalid'
 - 'timedOut'
 - 'cancelled'
-- 'underlying(String)' — wraps a short message from deeper layers
+- 'underlying(String)' - wraps a short message from deeper layers
 
 Your app should be prepared to switch on these and present user‑friendly messages.
 
@@ -415,8 +415,8 @@ Your app should be prepared to switch on these and present user‑friendly messa
 
 Light runtime metadata for logging and diagnostics:
 
-- 'VoiceKitInfo.version' — semantic version string (e.g., '"0.1.3"').
-- 'VoiceKitInfo.buildTimestampISO8601' — build‑time timestamp in ISO‑8601.
+- 'VoiceKitInfo.version' - semantic version string (e.g., '"0.1.3"').
+- 'VoiceKitInfo.buildTimestampISO8601' - build‑time timestamp in ISO‑8601.
 
 Example:
 
@@ -540,7 +540,7 @@ public struct RecognitionContext: Sendable {
 Notes:
 
 - 'listen' in 'RealVoiceIO' uses an internal 'recognitionContext' to choose hints and contextual strings.
-- '.number' contexts may normalize numeric phrases (e.g., “forty two point five” → '"42.5"').
+- '.number' contexts may normalize numeric phrases (e.g., "forty two point five" → '"42.5"').
 - '.name(allowed:)' can bias STT toward a small allowed set.
 
 ---

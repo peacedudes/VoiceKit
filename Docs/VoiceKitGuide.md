@@ -8,7 +8,7 @@ What this page covers
   - Speaking text (TTS)
   - Listening for speech (STT) with timeouts and inactivity
   - Optional recording + smart trimming of the user’s utterance
-  - Short “clip” playback (near-zero-gap name playback or SFX)
+  - Short "clip" playback (near-zero-gap name playback or SFX)
 - VoiceKitUI: VoiceChooserView + VoiceProfilesStore
 - Sequencing with VoiceQueue (speak + SFX + pauses)
 - Concurrency and testing patterns
@@ -32,7 +32,7 @@ Install (Swift Package Manager)
   - Link 'VoiceKit' and (optionally) 'VoiceKitUI' to your app target.
 - Remote:
   - Add from your Git URL.
-  - Rule “Up to Next Major” from your tag (e.g., 'v0.1.3').
+  - Rule "Up to Next Major" from your tag (e.g., 'v0.1.3').
 
 Modules
 - **VoiceKit**
@@ -53,7 +53,7 @@ Modules
 
 ## Quick start: speak and listen
 
-### A minimal “say something and listen back” flow
+### A minimal "say something and listen back" flow
 
 ~~~swift
 import VoiceKit
@@ -92,7 +92,7 @@ Key points:
   - Configures 'AVAudioSession' appropriately on iOS, and is a no-op / light touch on macOS.
 - 'listen(timeout:inactivity:record:context:)':
   - 'timeout': hard cap on overall listen duration (seconds).
-  - 'inactivity': seconds of “silence after speech” before automatically stopping.
+  - 'inactivity': seconds of "silence after speech" before automatically stopping.
   - 'record': when 'true', records the mic input, then trims around the speech and returns a 'recordingURL'.
   - 'context': hints for STT (freeform vs numeric vs constrained names).
 
@@ -165,7 +165,7 @@ When 'IsCI.running == false' (your app on device or simulator), 'RealVoiceIO.lis
    - When 'result.isFinal', finishes the listen.
 6. Enforces timeouts:
    - **Overall timeout**: stops after 'timeout' seconds, regardless of activity.
-   - **Inactivity timeout**: stops after 'inactivity' seconds since the last “loud” buffer, using 'STTActivityTracker'’s adaptive noise floor.
+   - **Inactivity timeout**: stops after 'inactivity' seconds since the last "loud" buffer, using 'STTActivityTracker'’s adaptive noise floor.
 7. Recording + trimming (if 'record == true'):
    - Writes raw audio to a temp '.caf' during the listen.
    - On completion, runs 'trimAudioSmart':
@@ -213,7 +213,7 @@ let io = RealVoiceIO()
 let dingURL = Bundle.main.url(forResource: "ding", withExtension: "caf")!
 try await io.playClip(url: dingURL, gainDB: 6)
 
-// “Thank you,” then play the trimmed name clip with minimal gap
+// "Thank you," then play the trimmed name clip with minimal gap
 if let url = result.recordingURL {
     try await io.prepareClip(url: url, gainDB: 12)
     await io.speak("Thank you,")
@@ -363,7 +363,7 @@ When 'IsCI.running == true' (e.g. when 'VOICEKIT_FORCE_CI=true' in your test sch
   - If 'RecognitionContext.expectation == .number', returns a stub 'VoiceResult' with transcript '"42"' (and 'recordingURL == nil').
   - Otherwise, returns whatever 'latestTranscript' is set to (default: empty string).
   - No AVAudioEngine or SFSpeechRecognizer work is performed.
-- TTS “fast path”:
+- TTS "fast path":
   - 'speak' toggles 'onTTSSpeakingChanged' and 'onTTSPulse' in a minimal synthetic way, without instantiating 'AVSpeechSynthesizer'.
 
 This keeps CI runs deterministic and free from hardware/permission flakiness, while real apps on devices/simulators use the full pipelines described above.
@@ -373,4 +373,4 @@ This keeps CI runs deterministic and free from hardware/permission flakiness, wh
 ## Changelog and license
 
 - See 'CHANGELOG.md' for version history.
-- License: MIT — see 'LICENSE'.
+- License: MIT - see 'LICENSE'.
