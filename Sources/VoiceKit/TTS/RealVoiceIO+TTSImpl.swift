@@ -79,7 +79,7 @@ extension RealVoiceIO {
         }
 
         ensureSynth()
-        log(.info, "speak(text:\(text.prefix(48))\(text.count > 48 ? "…" : ""), voiceID:\(voiceID ?? "nil"))")
+        log(.info, "speak(text:\(text.prefix(48))\(text.count > 48 ? "..." : ""), voiceID:\(voiceID ?? "nil"))")
         guard let synthesizer else { return }
         let utterance = AVSpeechUtterance(string: text)
         applyProfile(to: utterance, voiceID: voiceID ?? defaultProfile?.id)
@@ -102,7 +102,7 @@ extension RealVoiceIO {
         }
 
         let control = tuning
-        // Map normalized 0…1 rate into AVSpeechUtterance native range for audibly stronger effect.
+        // Map normalized 0...1 rate into AVSpeechUtterance native range for audibly stronger effect.
         let sysMin = AVSpeechUtteranceMinimumSpeechRate
         let sysMax = AVSpeechUtteranceMaximumSpeechRate
         let sysSpan = sysMax - sysMin

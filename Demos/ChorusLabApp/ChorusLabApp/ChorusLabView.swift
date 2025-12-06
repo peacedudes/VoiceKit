@@ -391,7 +391,7 @@ internal struct ChorusLabView: View {
     @ViewBuilder
     private func selectedVoicesSection() -> some View {
         if selectedProfiles.isEmpty {
-            Text("Tap “Add voice…” to choose voices and tune pitch/volume.")
+            Text("Tap “Add voice...” to choose voices and tune pitch/volume.")
                 .foregroundStyle(.secondary)
                 .padding(.vertical, 8)
         } else {
@@ -648,83 +648,6 @@ internal struct ChorusLabView: View {
         selectedProfiles = picks
     }
 
-    // MARK: - Tuner integration
-    /// Present the voice tuner to add a new voice.
-    /// Seeds the tuner with a random voice from the user's preferred language.
-    private func presentAddVoice() {
-        editingIndex = nil
-        // Use the injected engine factory for testability and consistency.
-        tunerEngine = engineFactory()
-        // Prefer a random voice from the user’s preferred language; fall back to any.
-        let baseLang: String = {
-            let tag = Locale.preferredLanguages.first ?? Locale.current.identifier
-            if let dash = tag.firstIndex(of: "-") { return String(tag[..<dash]).lowercased() }
-            return tag.lowercased()
-        }()
-        let sameLang = availableVoices().filter {
-            let lang = $0.language
-            let code: String = {
-                if let dash = lang.firstIndex(of: "-") { return String(lang[..<dash]).lowercased() }
-                return lang.lowercased()
-            }()
-            return code == baseLang
-        }
-        let pool = sameLang.isEmpty ? availableVoices() : sameLang
-        if let pick = pool.randomElement() {
-            tunerSelection = pick.id
-            let seed = TTSVoiceProfile(id: pick.id, rate: Metrics.Defaults.rate, pitch: Metrics.Defaults.pitch, volume: Metrics.Defaults.volume)
-            tunerEngine.setVoiceProfile(seed)
-            tunerEngine.setDefaultVoiceProfile(seed)
-        } else {
-            tunerSelection = nil
-        }
-        showTuner = true
-    }
-
-    private func presentEditVoice(index: Int) {
-        guard selectedProfiles.indices.contains(index) else { return }
-        editingIndex = index
-        tunerEngine = engineFactory()
-        // Seed tuner with current profile
-        let prof = selectedProfiles[index]
-        tunerEngine.setVoiceProfile(prof)
-        tunerEngine.setDefaultVoiceProfile(prof) // ensure sliders reflect the current row exactly
-        tunerSelection = prof.id
-        showTuner = true
-    }
-
-    private func applyTunerSelection() {
-        guard let id = tunerSelection else { return }
-        // Prefer the specific profile returned by the tuner engine; fall back to its default;
-        // finally, seed a mid profile if neither is available yet.
-        var tuned: TTSVoiceProfile? = tunerEngine.getVoiceProfile(id: id)
-        if tuned == nil, let def = tunerEngine.getDefaultVoiceProfile() {
-            tuned = TTSVoiceProfile(id: id, rate: def.rate, pitch: def.pitch, volume: def.volume)
-        }
-        if tuned == nil {
-            tuned = TTSVoiceProfile(id: id, rate: Metrics.Defaults.rate, pitch: Metrics.Defaults.pitch, volume: Metrics.Defaults.volume)
-        }
-        guard let tuned else { return }
-        if let idx = editingIndex, selectedProfiles.indices.contains(idx) {
-            // Editing an existing row updates only that row
-            selectedProfiles[idx] = tuned
-        } else {
-            // Always allow duplicates when adding
-            selectedProfiles.append(tuned)
-        }
-        // Clear edit state
-        editingIndex = nil
-        tunerSelection = nil
-        // Keep baseline aligned to effective list, then re-apply globals
-        baseProfiles = selectedProfiles
-        // Re-apply global adjustments so effective profiles reflect sliders
-        selectedProfiles = ChorusMath.applyAdjustments(
-            baseProfiles: baseProfiles,
-            rateScale: rateScale,
-            pitchOffset: pitchOffset
-        )
-    }
-
     // (moved: resolvedName, applyGlobalAdjustments -> ChorusLabView+Logic.swift)
 
     // (moved: copyChorusSetup, copyToClipboard -> ChorusLabView+Logic.swift)
@@ -767,7 +690,7 @@ internal struct ChorusLabView_Previews: PreviewProvider {
 // MARK: - Unit-testable helpers
 /// Helpers for chorus tuning logic. Pure and unit-testable.
 internal enum ChorusMath {
-    /// Compute an adjusted rate from a baseline rate and a global rate scBale.
+    /// Compute an adjusted rate from a baseline rate and a global rate scale.
     /// Mapping is amplified relative to the base:
     /// - rateScale > 1.0 moves toward 1.0 by a fraction of headroom (1.0 - base)
     /// - rateScale < 1.0 pulls toward 0.0 by a fraction of the base value

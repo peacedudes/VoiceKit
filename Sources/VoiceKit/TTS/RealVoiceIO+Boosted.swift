@@ -82,7 +82,7 @@ extension RealVoiceIO {
         // Lazily create a simple AVAudioPlayer for this one-shot clip.
         do {
             let player = try AVAudioPlayer(contentsOf: url)
-            // Convert gain in dB to linear volume (0…1), clamped.
+            // Convert gain in dB to linear volume (0...1), clamped.
             let linearGain: Float = {
                 let linear = pow(10.0, gainDB / 20.0)
                 return max(0.0, min(1.0, Float(linear)))

@@ -6,7 +6,7 @@ Audience
 
 What this covers (at a glance)
 - Quick start: create, speak, listen
-- STT semantics: `timeout` vs `inactivity`, recording + trimming
+- STT semantics: 'timeout' vs 'inactivity', recording + trimming
 - Sequencing and lifecycle
 - Short SFX clips (clip API)
 - VoiceQueue and embedded SFX in text
@@ -17,11 +17,11 @@ What this covers (at a glance)
 - API surface snapshots (VoiceIO, TTSConfigurable, models, RecognitionContext)
 
 Requirements
-- Swift tools-version: 6.0; Swift language mode `.v6`
+- Swift tools-version: 6.0; Swift language mode '.v6'
 - iOS 17.0+ and/or macOS 14.0+
 - If you wire real STT in your app target, add Info.plist keys:
-  - `NSMicrophoneUsageDescription`
-  - `NSSpeechRecognitionUsageDescription`
+  - 'NSMicrophoneUsageDescription'
+  - 'NSSpeechRecognitionUsageDescription'
 
 ---
 
@@ -63,27 +63,27 @@ final class DemoVM: ObservableObject {
 
 ## Sequencing and lifecycle
 
-- Public `RealVoiceIO` API is `@MainActor`. Call from the main actor.
+- Public 'RealVoiceIO' API is '@MainActor'. Call from the main actor.
 - Typical high‑level flow:
 
-  1. `try await voice.ensurePermissions()`
-  2. `try await voice.configureSessionIfNeeded()`
-  3. `await voice.speak("…")`
-  4. `let result = try await voice.listen(timeout:inactivity:record:)`
-  5. Optionally: play `result.recordingURL` via `prepareClip` / `startPreparedClip`
-  6. `voice.stopAll()` or `voice.hardReset()` to cancel/cleanup if needed
+  1. 'try await voice.ensurePermissions()'
+  2. 'try await voice.configureSessionIfNeeded()'
+  3. 'await voice.speak("...")'
+  4. 'let result = try await voice.listen(timeout:inactivity:record:)'
+  5. Optionally: play 'result.recordingURL' via 'prepareClip' / 'startPreparedClip'
+  6. 'voice.stopAll()' or 'voice.hardReset()' to cancel/cleanup if needed
 
 - Permissions and audio session:
-  - Handled inside `RealVoiceIO`:
+  - Handled inside 'RealVoiceIO':
     - Mic and speech permissions requested via nonisolated async helpers (no @MainActor closures passed to TCC/AVF).
-    - On iOS, `AVAudioSession` is configured for `.playAndRecord` + `.voiceChat` with sensible options.
+    - On iOS, 'AVAudioSession' is configured for '.playAndRecord' + '.voiceChat' with sensible options.
   - Safe to call multiple times, but you should conceptually treat them as a one‑time bootstrap per app run.
 
 ---
 
 ## STT semantics (listen)
 
-### `listen(timeout:inactivity:record:)`
+### 'listen(timeout:inactivity:record:)'
 
 Signature:
 
@@ -97,30 +97,30 @@ func listen(
 
 #### Parameters
 
-- `timeout` (seconds)
+- 'timeout' (seconds)
   - Hard cap on total listen duration.
   - If this elapses, the listen ends even if the user is still talking.
 
-- `inactivity` (seconds)
+- 'inactivity' (seconds)
   - Measures *silence after speech*.
   - The inactivity timer starts **only after a non‑empty transcript is observed**.
   - Silence is measured using an adaptive noise floor:
     - The input tap computes loudness in dB for each buffer.
-    - An `STTActivityTracker` maintains a running baseline (noise floor).
-    - Buffers louder than `baseline + margin` are treated as “speech”.
-    - When we’ve seen `inactivity` seconds since the last such buffer, we stop.
+    - An 'STTActivityTracker' maintains a running baseline (noise floor).
+    - Buffers louder than 'baseline + margin' are treated as “speech”.
+    - When we’ve seen 'inactivity' seconds since the last such buffer, we stop.
   - If no “loud enough” buffers are ever seen, we fall back to “time since first non‑empty transcript”.
 
-- `record` (Bool)
-  - When `true`:
+- 'record' (Bool)
+  - When 'true':
     - The same audio fed into STT is mirrored to a temp CAF file.
-    - After the listen completes, we call `trimAudioSmart(inputURL:sttStart:sttEnd:prePad:postPad:)`:
-      - Primary signal: `firstSpeechStart` / `lastSpeechEnd` from STT segments.
+    - After the listen completes, we call 'trimAudioSmart(inputURL:sttStart:sttEnd:prePad:postPad:)':
+      - Primary signal: 'firstSpeechStart' / 'lastSpeechEnd' from STT segments.
       - Fallback: energy‑based bounds when STT timestamps don’t cover the full file (e.g. long leading silence).
-      - Pads by `trimPrePad` and `trimPostPad` to avoid clipping consonants/breaths.
-    - `VoiceResult.recordingURL` points to this **trimmed** clip (or `nil` on failure).
-  - When `false`:
-    - No recording file is created; `recordingURL` will be `nil`.
+      - Pads by 'trimPrePad' and 'trimPostPad' to avoid clipping consonants/breaths.
+    - 'VoiceResult.recordingURL' points to this **trimmed** clip (or 'nil' on failure).
+  - When 'false':
+    - No recording file is created; 'recordingURL' will be 'nil'.
 
 #### Behaviour
 
@@ -135,11 +135,11 @@ func listen(
     ~~~
 
 - On cancellation:
-  - Throws `CancellationError`.
-  - Calling `hardReset()` also cancels any in‑flight listen and clears state.
+  - Throws 'CancellationError'.
+  - Calling 'hardReset()' also cancels any in‑flight listen and clears state.
 
 - On recognizer availability problems:
-  - Implementations may throw `VoiceIOError.recognizerUnavailable`.
+  - Implementations may throw 'VoiceIOError.recognizerUnavailable'.
   - Your app should surface a clear message (e.g., “Speech recognizer is unavailable on this device. Please try again later.”) and abort the flow rather than continue to re‑prompt.
 
 ---
@@ -150,9 +150,9 @@ Goal: near-zero-gap “Thank you → play a short clip” UX.
 
 ### API (most apps only need the first)
 
-- `playClip(url:gainDB:)` – play a short clip (one-shot).
-- `prepareClip(url:gainDB:)` – pre-schedule a clip (advanced).
-- `startPreparedClip()` – start a previously prepared clip (advanced).
+- 'playClip(url:gainDB:)' – play a short clip (one-shot).
+- 'prepareClip(url:gainDB:)' – pre-schedule a clip (advanced).
+- 'startPreparedClip()' – start a previously prepared clip (advanced).
 
 Typical usage for the name playback flow:
 
@@ -166,8 +166,8 @@ if let url = result.recordingURL {
 
 Notes:
 
-- `prepareClip`/`startPreparedClip` exist to minimize the gap when chaining “speak → clip” by pre‑rolling the clip; whether you need both vs just `playClip` depends on your app’s audio path. Measure if you care about single‑frame smoothness.
-- Internally, clip waiters are resumed exactly once; multiple `stopAll()`/`hardReset()` calls are safe.
+- 'prepareClip'/'startPreparedClip' exist to minimize the gap when chaining “speak → clip” by pre‑rolling the clip; whether you need both vs just 'playClip' depends on your app’s audio path. Measure if you care about single‑frame smoothness.
+- Internally, clip waiters are resumed exactly once; multiple 'stopAll()'/'hardReset()' calls are safe.
 
 ---
 
@@ -176,20 +176,20 @@ Notes:
 ### Purpose
 
 - Lightweight helper that sequences speech, short sound effects, and pauses.
-- Runs on `@MainActor`; accepts any `VoiceIO`, and uses `TTSConfigurable` when available.
+- Runs on '@MainActor'; accepts any 'VoiceIO', and uses 'TTSConfigurable' when available.
 - Good for:
-  - Tutorials (“Step 1, [ding], Step 2…”).
+  - Tutorials (“Step 1, [ding], Step 2...”).
   - Simple “scripted” readings with occasional SFX.
 
 ### Core concepts
 
 - Items:
-  - `speak(text: String, voiceID: String? = nil)` — say some text, optionally with a specific profile id.
-  - `sfx(url: URL, gainDB: Float = 0)` — play a short clip.
-  - `pause(seconds: TimeInterval)` — wait between items.
+  - 'speak(text: String, voiceID: String? = nil)' — say some text, optionally with a specific profile id.
+  - 'sfx(url: URL, gainDB: Float = 0)' — play a short clip.
+  - 'pause(seconds: TimeInterval)' — wait between items.
 
 - Channels:
-  - Channel 0 uses the primary `VoiceIO` you pass in.
+  - Channel 0 uses the primary 'VoiceIO' you pass in.
   - Extra channels can be created via an optional factory for simple parallel playback.
 
 ### Simple example
@@ -209,8 +209,8 @@ await q.play()
 ### Embedded SFX in text
 
 - VoiceQueue can parse inline SFX tokens in text.
-- Syntax: `[sfx:NAME]`
-- Resolver: `(String) -> URL?` maps `NAME` → audio file URL.
+- Syntax: '[sfx:NAME]'
+- Resolver: '(String) -> URL?' maps 'NAME' → audio file URL.
 
 Example:
 
@@ -232,7 +232,7 @@ q.enqueueParsingSFX(
 
 ### Purpose
 
-- Coordinate several `VoiceIO` engines in parallel.
+- Coordinate several 'VoiceIO' engines in parallel.
 - Used for:
   - “Chorus” effects (multiple voices speaking together).
   - Lead + backing voices mixes.
@@ -251,7 +251,7 @@ await chorus.speak(
 )
 ~~~
 
-(See VoiceKitUI’s `ChorusLabView` for a richer playground.)
+(See VoiceKitUI’s 'ChorusLabView' for a richer playground.)
 
 ---
 
@@ -264,8 +264,8 @@ await chorus.speak(
   - Tune rate/pitch/volume with live previews.
 - Persists:
   - Default voice.
-  - Master tuning (`Tuning`: volume, pitch range, speed range).
-  - Per-voice `TTSVoiceProfile`s.
+  - Master tuning ('Tuning': volume, pitch range, speed range).
+  - Per-voice 'TTSVoiceProfile's.
 - Typical use: embed in a Settings screen.
 
 ### ChorusLabView (VoiceKitUI)
@@ -281,7 +281,7 @@ await chorus.speak(
 
 ### Built-in logger
 
-`RealVoiceIO` exposes a tiny logger:
+'RealVoiceIO' exposes a tiny logger:
 
 - Property:
 
@@ -299,11 +299,11 @@ await chorus.speak(
 
 ### Environment flag
 
-- If you set `VOICEKIT_LOG` to `1`, `true`, or `yes` in your scheme/environment, `RealVoiceIO` will log to stdout by default, for example:
+- If you set 'VOICEKIT_LOG' to '1', 'true', or 'yes' in your scheme/environment, 'RealVoiceIO' will log to stdout by default, for example:
 
-  - `[VoiceKit][info] speak(text:…, voiceID:…)`
-  - `[VoiceKit][info] listen(start) timeout=… inactivity=…`
-  - `[VoiceKit][info] trimAudioSmart …`
+  - '[VoiceKit][info] speak(text:..., voiceID:...)'
+  - '[VoiceKit][info] listen(start) timeout=... inactivity=...'
+  - '[VoiceKit][info] trimAudioSmart ...'
 
 ### Custom logger
 
@@ -323,7 +323,7 @@ io.logger = { level, msg in
 
 ### ScriptedVoiceIO for tests/demos
 
-Use `ScriptedVoiceIO` when you need to avoid hardware, locale, or random STT behaviour:
+Use 'ScriptedVoiceIO' when you need to avoid hardware, locale, or random STT behaviour:
 
 ~~~swift
 @MainActor
@@ -340,11 +340,11 @@ XCTAssertEqual(r2.transcript, "world")
 
 ### UI voice selection and previews
 
-- Use `VoiceChooserView` + `VoiceProfilesStore` to:
+- Use 'VoiceChooserView' + 'VoiceProfilesStore' to:
   - List system voices.
   - Save per-voice profiles and master tuning.
 - For tests:
-  - Prefer a fake type conforming to `TTSConfigurable & VoiceListProvider` to avoid hitting real AV/locale.
+  - Prefer a fake type conforming to 'TTSConfigurable & VoiceListProvider' to avoid hitting real AV/locale.
 
 ### Live STT smoke tests (opt-in)
 
@@ -368,7 +368,7 @@ final class RealSTTSmokeTests: XCTestCase {
 }
 ~~~
 
-CI: don’t set `REAL_STT_SMOKE` → test is skipped.
+CI: don’t set 'REAL_STT_SMOKE' → test is skipped.
 
 ---
 
@@ -376,14 +376,14 @@ CI: don’t set `REAL_STT_SMOKE` → test is skipped.
 
 ### VoiceIOConfig
 
-Controls advanced behaviours of `RealVoiceIO`. All values have sensible defaults.
+Controls advanced behaviours of 'RealVoiceIO'. All values have sensible defaults.
 
 Fields (relevant ones):
 
-- `trimPrePad: Double` — seconds of audio to keep *before* detected speech when trimming recordings.
-- `trimPostPad: Double` — seconds of audio to keep *after* detected speech.
-- `clipWaitTimeoutSeconds: Double` — how long to wait for a short clip to complete before timing out.
-- `ttsSuppressAfterFinish: Double` — brief suppression window after TTS to avoid the mic “hearing” its own output.
+- 'trimPrePad: Double' — seconds of audio to keep *before* detected speech when trimming recordings.
+- 'trimPostPad: Double' — seconds of audio to keep *after* detected speech.
+- 'clipWaitTimeoutSeconds: Double' — how long to wait for a short clip to complete before timing out.
+- 'ttsSuppressAfterFinish: Double' — brief suppression window after TTS to avoid the mic “hearing” its own output.
 
 Usage example:
 
@@ -400,14 +400,14 @@ let io = RealVoiceIO(config: cfg)
 
 ### VoiceIOError
 
-Canonical error cases `RealVoiceIO` may surface when you wire real STT/audio, e.g.:
+Canonical error cases 'RealVoiceIO' may surface when you wire real STT/audio, e.g.:
 
-- `micUnavailable`
-- `recognizerUnavailable`
-- `audioFormatInvalid`
-- `timedOut`
-- `cancelled`
-- `underlying(String)` — wraps a short message from deeper layers
+- 'micUnavailable'
+- 'recognizerUnavailable'
+- 'audioFormatInvalid'
+- 'timedOut'
+- 'cancelled'
+- 'underlying(String)' — wraps a short message from deeper layers
 
 Your app should be prepared to switch on these and present user‑friendly messages.
 
@@ -415,8 +415,8 @@ Your app should be prepared to switch on these and present user‑friendly messa
 
 Light runtime metadata for logging and diagnostics:
 
-- `VoiceKitInfo.version` — semantic version string (e.g., `"0.1.3"`).
-- `VoiceKitInfo.buildTimestampISO8601` — build‑time timestamp in ISO‑8601.
+- 'VoiceKitInfo.version' — semantic version string (e.g., '"0.1.3"').
+- 'VoiceKitInfo.buildTimestampISO8601' — build‑time timestamp in ISO‑8601.
 
 Example:
 
@@ -434,9 +434,9 @@ A shell alias to keep your SwiftPM loop fast and clipboard‑friendly:
 alias test='(swift build && SWIFTPM_TEST_LOG_FORMAT=xcode swift test) 2>&1 | tee >(tail -n ${LINES_CLIP:-200} | toClip)'
 ~~~
 
-- `xcode` format improves readability.
+- 'xcode' format improves readability.
 - Full output stays in your terminal; only the last ~200 lines go to the clipboard.
-- Adjust `LINES_CLIP` as needed.
+- Adjust 'LINES_CLIP' as needed.
 
 ---
 
@@ -539,18 +539,18 @@ public struct RecognitionContext: Sendable {
 
 Notes:
 
-- `listen` in `RealVoiceIO` uses an internal `recognitionContext` to choose hints and contextual strings.
-- `.number` contexts may normalize numeric phrases (e.g., “forty two point five” → `"42.5"`).
-- `.name(allowed:)` can bias STT toward a small allowed set.
+- 'listen' in 'RealVoiceIO' uses an internal 'recognitionContext' to choose hints and contextual strings.
+- '.number' contexts may normalize numeric phrases (e.g., “forty two point five” → '"42.5"').
+- '.name(allowed:)' can bias STT toward a small allowed set.
 
 ---
 
 ## Concurrency notes
 
-- Public APIs and callbacks run on `@MainActor`.
+- Public APIs and callbacks run on '@MainActor'.
 - The audio input tap runs on a realtime audio queue and is explicitly **nonisolated**:
-  - It never touches `@MainActor` state directly.
-  - It posts into `STTActivityTracker` and the STT request.
-- Avoid capturing `@MainActor self` inside any callbacks that are executed on realtime audio threads.
+  - It never touches '@MainActor' state directly.
+  - It posts into 'STTActivityTracker' and the STT request.
+- Avoid capturing '@MainActor self' inside any callbacks that are executed on realtime audio threads.
 
-For deeper implementation details and simulator quirks, see `handoff.md` in the VoiceKit repo.
+For deeper implementation details and simulator quirks, see 'handoff.md' in the VoiceKit repo.

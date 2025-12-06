@@ -300,13 +300,13 @@ public struct VoiceChooserView: View {
             workingProfile = nil
             return
         }
-        // Start with any stored profile…
+        // Start with any stored profile...
         var profile = viewModel.store.profile(for: info)
-        // …prefer a profile that is already in the store’s profilesByID
+        // ...prefer a profile that is already in the store’s profilesByID
         if let seeded = viewModel.store.profilesByID[id] {
             profile = seeded
         }
-        // …and finally prefer a profile already applied on the TTS engine
+        // ...and finally prefer a profile already applied on the TTS engine
         if let engineProfile = viewModel.profileFromTTS(id: id) {
             profile = engineProfile
         }

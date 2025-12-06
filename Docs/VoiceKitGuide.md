@@ -4,7 +4,7 @@ Audience
 - Swift developers building iOS 17+/macOS 14+ apps who want reliable voice I/O with a simple, testable API.
 
 What this page covers
-- How to use `RealVoiceIO` for:
+- How to use 'RealVoiceIO' for:
   - Speaking text (TTS)
   - Listening for speech (STT) with timeouts and inactivity
   - Optional recording + smart trimming of the user’s utterance
@@ -20,34 +20,34 @@ What this page covers
 ## Requirements and installation
 
 Requirements
-- Swift tools-version: 6.0 (`swiftLanguageModes [.v6]`)
+- Swift tools-version: 6.0 ('swiftLanguageModes [.v6]')
 - iOS 17.0+ and/or macOS 14.0+
 - If you use real STT in your app target, add Info.plist keys:
-  - `NSMicrophoneUsageDescription`
-  - `NSSpeechRecognitionUsageDescription`
+  - 'NSMicrophoneUsageDescription'
+  - 'NSSpeechRecognitionUsageDescription'
 
 Install (Swift Package Manager)
 - Local during development:
-  - Add Local Package…; select the VoiceKit folder.
-  - Link `VoiceKit` and (optionally) `VoiceKitUI` to your app target.
+  - Add Local Package...; select the VoiceKit folder.
+  - Link 'VoiceKit' and (optionally) 'VoiceKitUI' to your app target.
 - Remote:
   - Add from your Git URL.
-  - Rule “Up to Next Major” from your tag (e.g., `v0.1.3`).
+  - Rule “Up to Next Major” from your tag (e.g., 'v0.1.3').
 
 Modules
 - **VoiceKit**
-  - `RealVoiceIO` (@MainActor): production voice engine
-    - TTS via `AVSpeechSynthesizer`
-    - Live STT via `AVAudioEngine` + `SFSpeechRecognizer`
+  - 'RealVoiceIO' (@MainActor): production voice engine
+    - TTS via 'AVSpeechSynthesizer'
+    - Live STT via 'AVAudioEngine' + 'SFSpeechRecognizer'
     - Recording + trimming for listens
-    - Short-clip playback (`prepareClip` / `startPreparedClip` / `playClip`)
-  - `ScriptedVoiceIO` (@MainActor): deterministic engine for tests/demos.
-  - `VoiceQueue` (@MainActor): sequence speak/SFX/pause; optional parallel channels.
-  - Utilities: `NameMatch`, `NameResolver`, `PermissionBridge`, `VoiceOpGate`, etc.
-  - Models: `TTSVoiceInfo`, `TTSVoiceProfile`, `Tuning`, `RecognitionContext`, `VoiceResult`.
+    - Short-clip playback ('prepareClip' / 'startPreparedClip' / 'playClip')
+  - 'ScriptedVoiceIO' (@MainActor): deterministic engine for tests/demos.
+  - 'VoiceQueue' (@MainActor): sequence speak/SFX/pause; optional parallel channels.
+  - Utilities: 'NameMatch', 'NameResolver', 'PermissionBridge', 'VoiceOpGate', etc.
+  - Models: 'TTSVoiceInfo', 'TTSVoiceProfile', 'Tuning', 'RecognitionContext', 'VoiceResult'.
 - **VoiceKitUI**
-  - `VoiceChooserView`: pick a system voice and tune rate/pitch/volume with live preview.
-  - `VoiceProfilesStore`: JSON persistence for profiles/tuning/flags; deterministic in tests.
+  - 'VoiceChooserView': pick a system voice and tune rate/pitch/volume with live preview.
+  - 'VoiceProfilesStore': JSON persistence for profiles/tuning/flags; deterministic in tests.
 
 ---
 
@@ -55,7 +55,7 @@ Modules
 
 ### A minimal “say something and listen back” flow
 
-```swift
+~~~swift
 import VoiceKit
 
 @MainActor
@@ -82,19 +82,19 @@ final class DemoViewModel: ObservableObject {
         }
     }
 }
-```
+~~~
 
 Key points:
-- `RealVoiceIO` is `@MainActor`. Call all its methods from the main actor (SwiftUI already is).
-- `ensurePermissions()`:
+- 'RealVoiceIO' is '@MainActor'. Call all its methods from the main actor (SwiftUI already is).
+- 'ensurePermissions()':
   - Requests microphone + speech recognizer access (unless CI overrides are active).
-- `configureSessionIfNeeded()`:
-  - Configures `AVAudioSession` appropriately on iOS, and is a no-op / light touch on macOS.
-- `listen(timeout:inactivity:record:context:)`:
-  - `timeout`: hard cap on overall listen duration (seconds).
-  - `inactivity`: seconds of “silence after speech” before automatically stopping.
-  - `record`: when `true`, records the mic input, then trims around the speech and returns a `recordingURL`.
-  - `context`: hints for STT (freeform vs numeric vs constrained names).
+- 'configureSessionIfNeeded()':
+  - Configures 'AVAudioSession' appropriately on iOS, and is a no-op / light touch on macOS.
+- 'listen(timeout:inactivity:record:context:)':
+  - 'timeout': hard cap on overall listen duration (seconds).
+  - 'inactivity': seconds of “silence after speech” before automatically stopping.
+  - 'record': when 'true', records the mic input, then trims around the speech and returns a 'recordingURL'.
+  - 'context': hints for STT (freeform vs numeric vs constrained names).
 
 ---
 
@@ -102,7 +102,7 @@ Key points:
 
 ### Signature
 
-```swift
+~~~swift
 @MainActor
 public protocol VoiceIO {
     func listen(
@@ -127,11 +127,11 @@ public struct RecognitionContext: Sendable {
     public var expectation: Expectation
     public init(expectation: Expectation = .freeform) { self.expectation = expectation }
 }
-```
+~~~
 
-There is a convenience overload for `RealVoiceIO` that takes a context:
+There is a convenience overload for 'RealVoiceIO' that takes a context:
 
-```swift
+~~~swift
 // Protocol extension (effective when self is a RealVoiceIO instance)
 public extension VoiceIO {
     func listen(
@@ -146,39 +146,39 @@ public extension VoiceIO {
         return try await listen(timeout: timeout, inactivity: inactivity, record: record)
     }
 }
-```
+~~~
 
 ### Live STT pipeline (apps)
 
-When `IsCI.running == false` (your app on device or simulator), `RealVoiceIO.listen(…)`:
+When 'IsCI.running == false' (your app on device or simulator), 'RealVoiceIO.listen(...)':
 
 1. Ensures permissions (mic + speech).
-2. Configures `AVAudioSession` for voice I/O on iOS.
-3. Creates an `AVAudioEngine` + `SFSpeechAudioBufferRecognitionRequest` + `SFSpeechRecognizer`.
+2. Configures 'AVAudioSession' for voice I/O on iOS.
+3. Creates an 'AVAudioEngine' + 'SFSpeechAudioBufferRecognitionRequest' + 'SFSpeechRecognizer'.
 4. Installs an input tap on the engine:
    - Forwards audio buffers to the speech request.
-   - Optionally writes them to a `.caf` file when `record == true`.
-   - Computes buffer loudness in dB and feeds an `STTActivityTracker` actor.
+   - Optionally writes them to a '.caf' file when 'record == true'.
+   - Computes buffer loudness in dB and feeds an 'STTActivityTracker' actor.
 5. Starts recognition:
-   - Updates `latestTranscript` and `onTranscriptChanged` as results arrive.
-   - Tracks first/last speech times (`firstSpeechStart` / `lastSpeechEnd`) from STT segments.
-   - When `result.isFinal`, finishes the listen.
+   - Updates 'latestTranscript' and 'onTranscriptChanged' as results arrive.
+   - Tracks first/last speech times ('firstSpeechStart' / 'lastSpeechEnd') from STT segments.
+   - When 'result.isFinal', finishes the listen.
 6. Enforces timeouts:
-   - **Overall timeout**: stops after `timeout` seconds, regardless of activity.
-   - **Inactivity timeout**: stops after `inactivity` seconds since the last “loud” buffer, using `STTActivityTracker`’s adaptive noise floor.
-7. Recording + trimming (if `record == true`):
-   - Writes raw audio to a temp `.caf` during the listen.
-   - On completion, runs `trimAudioSmart`:
+   - **Overall timeout**: stops after 'timeout' seconds, regardless of activity.
+   - **Inactivity timeout**: stops after 'inactivity' seconds since the last “loud” buffer, using 'STTActivityTracker'’s adaptive noise floor.
+7. Recording + trimming (if 'record == true'):
+   - Writes raw audio to a temp '.caf' during the listen.
+   - On completion, runs 'trimAudioSmart':
      - Uses STT timestamps when they look sane.
      - Falls back to energy-based bounds when needed.
-     - Applies configurable pre/post pads (`trimPrePad`, `trimPostPad` in `VoiceIOConfig`).
-   - Returns the trimmed URL in `VoiceResult.recordingURL` (or `nil` on failure).
+     - Applies configurable pre/post pads ('trimPrePad', 'trimPostPad' in 'VoiceIOConfig').
+   - Returns the trimmed URL in 'VoiceResult.recordingURL' (or 'nil' on failure).
 
 ### Numeric and name contexts
 
-Use `RecognitionContext` to give STT better hints:
+Use 'RecognitionContext' to give STT better hints:
 
-```swift
+~~~swift
 // Numeric
 let numberResult = try await voice.listen(
     timeout: 6,
@@ -198,7 +198,7 @@ let nameResult = try await voice.listen(
     context: .init(expectation: .name(allowed: allowedNames))
 )
 let resolved = NameResolver().resolve(transcript: nameResult.transcript, allowed: allowedNames)
-```
+~~~
 
 ---
 
@@ -206,7 +206,7 @@ let resolved = NameResolver().resolve(transcript: nameResult.transcript, allowed
 
 Use the clip API for short name clips or effects that should follow TTS very closely:
 
-```swift
+~~~swift
 let io = RealVoiceIO()
 
 // Simple one-shot
@@ -219,20 +219,20 @@ if let url = result.recordingURL {
     await io.speak("Thank you,")
     try await io.startPreparedClip()
 }
-```
+~~~
 
 Internally:
-- `prepareClip` sets up an `AVAudioPlayer` with a gain in dB.
-- `startPreparedClip` plays the prepared clip and awaits its completion.
-- `playClip` is a convenience that calls both in sequence.
+- 'prepareClip' sets up an 'AVAudioPlayer' with a gain in dB.
+- 'startPreparedClip' plays the prepared clip and awaits its completion.
+- 'playClip' is a convenience that calls both in sequence.
 
-`VoiceQueue` builds on this to implement speak+SFX sequences (see below).
+'VoiceQueue' builds on this to implement speak+SFX sequences (see below).
 
 ---
 
 ## VoiceQueue: sequencing speech + SFX + pauses
 
-```swift
+~~~swift
 import VoiceKit
 
 @MainActor
@@ -244,11 +244,11 @@ func playSequence(io: VoiceIO, sfxURL: URL) async {
     queue.enqueueSpeak("Step two.")
     await queue.play()
 }
-```
+~~~
 
 Embedded SFX tokens in text:
 
-```swift
+~~~swift
 let nameClipURL: URL = /* recorded name URL */
 let resolver: VoiceQueue.SFXResolver = { name in
     switch name {
@@ -262,10 +262,10 @@ let text = "Hello [sfx:nameClip] may I call you Alex?"
 let q = VoiceQueue(primary: RealVoiceIO())
 q.enqueueParsingSFX(text: text, resolver: resolver, defaultVoiceID: nil)
 await q.play()
-```
+~~~
 
 Notes:
-- If an SFX token follows a `speak` item, VoiceQueue pre‑schedules the clip with `prepareClip` and then starts it with `startPreparedClip` to minimize the gap.
+- If an SFX token follows a 'speak' item, VoiceQueue pre‑schedules the clip with 'prepareClip' and then starts it with 'startPreparedClip' to minimize the gap.
 
 ---
 
@@ -273,7 +273,7 @@ Notes:
 
 ### Embedding the voice chooser
 
-```swift
+~~~swift
 import SwiftUI
 import VoiceKit
 import VoiceKitUI
@@ -286,24 +286,24 @@ struct SettingsView: View {
         VoiceChooserView(tts: io, store: store)
     }
 }
-```
+~~~
 
 VoiceChooserView:
 - Lists system TTS voices.
-- Lets users tune per‑voice `TTSVoiceProfile` (rate, pitch, volume) with live audio preview.
+- Lets users tune per‑voice 'TTSVoiceProfile' (rate, pitch, volume) with live audio preview.
 - Persists:
   - Default voice ID.
-  - Master tuning (`Tuning`).
+  - Master tuning ('Tuning').
   - Per‑voice profiles.
   - Hidden/active flags.
 
 Under the hood:
-- `VoiceProfilesStore` stores everything in a JSON file under Application Support.
-- `VoiceChooserViewModel` keeps the UI in sync with the TTS engine (anything conforming to `TTSConfigurable` & `VoiceIO`).
+- 'VoiceProfilesStore' stores everything in a JSON file under Application Support.
+- 'VoiceChooserViewModel' keeps the UI in sync with the TTS engine (anything conforming to 'TTSConfigurable' & 'VoiceIO').
 
-For tests, you can use a fake engine instead of `RealVoiceIO`:
+For tests, you can use a fake engine instead of 'RealVoiceIO':
 
-```swift
+~~~swift
 @MainActor
 final class FakeTTS: TTSConfigurable, VoiceListProvider {
     var voices: [TTSVoiceInfo] = []
@@ -320,25 +320,25 @@ final class FakeTTS: TTSConfigurable, VoiceListProvider {
     func getTuning() -> Tuning { tuning }
     func speak(_ text: String, using voiceID: String?) async {}
 }
-```
+~~~
 
 ---
 
 ## Concurrency and testing
 
 Concurrency basics
-- `RealVoiceIO`, `ScriptedVoiceIO`, and `SystemVoicesCache` are `@MainActor`.
+- 'RealVoiceIO', 'ScriptedVoiceIO', and 'SystemVoicesCache' are '@MainActor'.
   - Call them from the main actor (SwiftUI view models, etc.).
-- Callbacks (`onTranscriptChanged`, `onLevelChanged`, `onTTSSpeakingChanged`, `onTTSPulse`, `onStatusMessageChanged`) are invoked on `@MainActor`.
+- Callbacks ('onTranscriptChanged', 'onLevelChanged', 'onTTSSpeakingChanged', 'onTTSPulse', 'onStatusMessageChanged') are invoked on '@MainActor'.
 - The audio input tap used by live STT is a **nonisolated** closure running on a realtime audio queue:
-  - It forwards buffers into the STT request and `STTActivityTracker`.
-  - It does **not** touch `@MainActor` state directly.
-- See `Docs/Concurrency.md` for more detail on patterns and edge cases.
+  - It forwards buffers into the STT request and 'STTActivityTracker'.
+  - It does **not** touch '@MainActor' state directly.
+- See 'Docs/Concurrency.md' for more detail on patterns and edge cases.
 
 Testing patterns
 - Use **ScriptedVoiceIO** when you need deterministic behavior:
 
-```swift
+~~~swift
 let data = try JSONSerialization.data(withJSONObject: ["hello", "world"])
 let io = ScriptedVoiceIO(fromBase64: data.base64EncodedString())!
 
@@ -347,24 +347,24 @@ let r2 = try await io.listen(timeout: 1.0, inactivity: 0.3, record: false)
 
 XCTAssertEqual(r1.transcript, "hello")
 XCTAssertEqual(r2.transcript, "world")
-```
+~~~
 
-- Use `FakeTTS` + `VoiceProfilesStore` for UI tests around the chooser; avoid relying on real devices’ voice sets or locales.
-- Use `IsCI.running` / `VOICEKIT_FORCE_CI` to:
-  - Force CI mode for `RealVoiceIO` (no real AV/permissions).
-  - Short‑circuit `PermissionBridge` and other system touchpoints.
+- Use 'FakeTTS' + 'VoiceProfilesStore' for UI tests around the chooser; avoid relying on real devices’ voice sets or locales.
+- Use 'IsCI.running' / 'VOICEKIT_FORCE_CI' to:
+  - Force CI mode for 'RealVoiceIO' (no real AV/permissions).
+  - Short‑circuit 'PermissionBridge' and other system touchpoints.
 
 ### CI / simulator behavior (summary)
 
-When `IsCI.running == true` (e.g. when `VOICEKIT_FORCE_CI=true` in your test scheme):
+When 'IsCI.running == true' (e.g. when 'VOICEKIT_FORCE_CI=true' in your test scheme):
 
-- `ensurePermissions()` and `PermissionBridge` return success immediately.
-- `listen(timeout:inactivity:record:)`:
-  - If `RecognitionContext.expectation == .number`, returns a stub `VoiceResult` with transcript `"42"` (and `recordingURL == nil`).
-  - Otherwise, returns whatever `latestTranscript` is set to (default: empty string).
+- 'ensurePermissions()' and 'PermissionBridge' return success immediately.
+- 'listen(timeout:inactivity:record:)':
+  - If 'RecognitionContext.expectation == .number', returns a stub 'VoiceResult' with transcript '"42"' (and 'recordingURL == nil').
+  - Otherwise, returns whatever 'latestTranscript' is set to (default: empty string).
   - No AVAudioEngine or SFSpeechRecognizer work is performed.
 - TTS “fast path”:
-  - `speak` toggles `onTTSSpeakingChanged` and `onTTSPulse` in a minimal synthetic way, without instantiating `AVSpeechSynthesizer`.
+  - 'speak' toggles 'onTTSSpeakingChanged' and 'onTTSPulse' in a minimal synthetic way, without instantiating 'AVSpeechSynthesizer'.
 
 This keeps CI runs deterministic and free from hardware/permission flakiness, while real apps on devices/simulators use the full pipelines described above.
 
@@ -372,5 +372,5 @@ This keeps CI runs deterministic and free from hardware/permission flakiness, wh
 
 ## Changelog and license
 
-- See `CHANGELOG.md` for version history.
-- License: MIT — see `LICENSE`.
+- See 'CHANGELOG.md' for version history.
+- License: MIT — see 'LICENSE'.

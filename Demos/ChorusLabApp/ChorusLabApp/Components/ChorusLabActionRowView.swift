@@ -55,7 +55,7 @@ public struct ChorusLabActionRowView: View {
                 if isCalibrating {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.small)
-                        Text("Calibrating…").foregroundStyle(.secondary)
+                        Text("Calibrating...").foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
                 } else if !isPlaying {
