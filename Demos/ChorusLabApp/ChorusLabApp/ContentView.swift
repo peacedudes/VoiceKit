@@ -14,7 +14,6 @@ struct ContentView: View {
         NavigationStack {
             ChorusLabView()
                 .navigationTitle("Chorus Lab")
-                .navigationBarTitleDisplayMode(.inline)
         }
     }
 }

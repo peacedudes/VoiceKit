@@ -2,24 +2,33 @@
 
 Audience
 - App developers integrating VoiceKit into SwiftUI apps on iOS 17+/macOS 14+.
-- Focused, practical guidance: quick start, sequencing, short clips, logging, and testing.
+- Focused, practical guidance: quick start, sequencing, recording+trimming, SFX clips, logging, and testing.
 
 What this covers (at a glance)
 - Quick start: create, speak, listen
+- STT semantics: 'timeout' vs 'inactivity', recording + trimming
 - Sequencing and lifecycle
-- Short SFX clips (clip)
+- Short SFX clips (clip API)
+- VoiceQueue and embedded SFX in text
+- VoiceChorus (parallel voices)
 - Logging (VOICEKIT_LOG and custom logger)
 - Deterministic testing and previews
-- API surface snapshots (VoiceIO, TTSConfigurable, models)
+- Config & diagnostics (VoiceIOConfig, VoiceIOError, VoiceKitInfo)
+- API surface snapshots (VoiceIO, TTSConfigurable, models, RecognitionContext)
 
 Requirements
-- Swift tools-version: 6.0; Swift language mode .v6
+- Swift tools-version: 6.0; Swift language mode '.v6'
 - iOS 17.0+ and/or macOS 14.0+
 - If you wire real STT in your app target, add Info.plist keys:
-  - NSMicrophoneUsageDescription
-  - NSSpeechRecognitionUsageDescription
+  - 'NSMicrophoneUsageDescription'
+  - 'NSSpeechRecognitionUsageDescription'
 
-Quick start
+---
+
+## Quick start
+
+### Basic integration
+
 ~~~swift
 import VoiceKit
 
@@ -29,181 +38,412 @@ final class DemoVM: ObservableObject {
 
     func run() {
         Task {
-            await voice.speak("Say your name after the beep.")
-            let r = try? await voice.listen(timeout: 8, inactivity: 2, record: true,
-                                            context: .init(expectation: .number))
-            print("Heard:", r?.transcript ?? "(none)")
+            try await voice.ensurePermissions()
+            try await voice.configureSessionIfNeeded()
+
+            await voice.speak("Please say your name after the beep.")
+            let result = try? await voice.listen(
+                timeout: 12,
+                inactivity: 2.0,
+                record: true
+            )
+            print("Heard:", result?.transcript ?? "(none)")
+
+            if let url = result?.recordingURL {
+                try? await voice.prepareClip(url: url, gainDB: 12)
+                await voice.speak("Thank you,")
+                try? await voice.startPreparedClip()
+            }
         }
     }
 }
 ~~~
 
-Sequencing and lifecycle
-- Public API is @MainActor. Call from the main actor.
-- Typical flow (minimal RealVoiceIO with current package stubs):
-  - You can use RealVoiceIO directly, or wrap it in a VoiceQueue for higher-level sequencing.
-  1) await voice.speak("…")
-  2) let result = try await voice.listen(timeout:…, inactivity:…, record: …, context: …)
-  3) voice.stopAll() or voice.hardReset() to cancel/cleanup if needed
+---
+
+## Sequencing and lifecycle
+
+- Public 'RealVoiceIO' API is '@MainActor'. Call from the main actor.
+- Typical high‑level flow:
+
+  1. 'try await voice.ensurePermissions()'
+  2. 'try await voice.configureSessionIfNeeded()'
+  3. 'await voice.speak("...")'
+  4. 'let result = try await voice.listen(timeout:inactivity:record:)'
+  5. Optionally: play 'result.recordingURL' via 'prepareClip' / 'startPreparedClip'
+  6. 'voice.stopAll()' or 'voice.hardReset()' to cancel/cleanup if needed
+
 - Permissions and audio session:
-  - The package includes PermissionBridge utilities and placeholders in RealVoiceIO:
-    - ensurePermissions(), configureSessionIfNeeded() are stubs in the current core for CI determinism.
-    - If your app wires real STT, perform permission + audio session setup in your app target.
+  - Handled inside 'RealVoiceIO':
+    - Mic and speech permissions requested via nonisolated async helpers (no @MainActor closures passed to TCC/AVF).
+    - On iOS, 'AVAudioSession' is configured for '.playAndRecord' + '.voiceChat' with sensible options.
+  - Safe to call multiple times, but you should conceptually treat them as a one‑time bootstrap per app run.
 
-Short SFX clips (clip path)
-- Goal: near-zero-gap “thank you → play a short clip” UX.
-- API (most apps can just use the first call):
-  - playClip(url:gainDB:) play a short clip (one-shot)
-  - prepareClip(url:gainDB:) pre-schedule a clip (advanced)
-  - startPreparedClip() start a previously prepared clip (advanced)
-- Current core behavior:
-  - Tests use a shim; RealVoiceIO stubs actual playback while preserving scheduling/timing semantics.
-  - Idempotent stop semantics:
-    - stopClip() is safe to call multiple times; it cancels and clears any pending waiters exactly once.
-    - Clip waiters are resumed immediately and not retained. This avoids double-resume.
-- Notes:
-  - prepareClip/startPreparedClip exist to minimize gap when chaining “speak → clip” by pre-rolling the clip; whether this is needed depends on your audio path. Measure in your app; playClip may be sufficient.
-  - Streaming multiple clips back-to-back may benefit from prepare/start for seamlessness.
+---
 
-VoiceQueue (sequencing helper)
-- Purpose
-  - Small helper that sequences speech, short sound effects, and pauses.
-  - Runs on @MainActor; accepts any VoiceIO, and uses TTSConfigurable when available.
-- Core concepts
-  - Items:
-    - speak(text: String, voiceID: String? = nil) — say some text, optionally with a specific profile id.
-    - sfx(url: URL, gainDB: Float = 0) — play a short clip.
-    - pause(seconds: TimeInterval) — wait between items.
-  - Channels:
-    - Channel 0 uses the primary VoiceIO you pass in.
-    - Extra channels can be created via an optional factory for simple parallel playback.
-- Simple example
-  ~~~swift
-  let io = RealVoiceIO()
-  let q = VoiceQueue(primary: io)
-  let ding = Bundle.main.url(forResource: "ding", withExtension: "caf")!
+## STT semantics (listen)
 
-  q.enqueueSpeak("A", voiceID: nil)
-  q.enqueueSFX(ding, gainDB: 3)
-  q.enqueuePause(0.2)
-  q.enqueueSpeak("B", voiceID: nil)
-  await q.play()
-  ~~~
-- Embedded SFX in text
-  - You can also let VoiceQueue parse inline SFX tokens in text:
-    - Syntax: `[sfx:NAME]`
-    - Resolver: `(String) -> URL?` maps NAME → audio file URL.
-  - Helper:
-    - enqueueParsingSFX(text:resolver:defaultVoiceID:on:) — splits the text into speak and sfx items and enqueues them for you.
+### 'listen(timeout:inactivity:record:)'
 
-VoiceChorus (parallel voices)
-- Purpose
-  - Coordinate several VoiceIO engines in parallel — for example, a “chorus” of system voices or a lead + backing voices mix.
-  - Built on top of VoiceIO and TTSConfigurable; ChorusLabView uses this heavily.
-- Simple example
-  ~~~swift
-  @MainActor
-  let chorus = VoiceChorus(engine: RealVoiceIO())
-  await chorus.speak("Hello from a small chorus of voices.", withVoiceProfiles: [.init(id: "v1"), .init(id: "v2")])
-  ~~~
+Signature:
 
-UI components (summary)
-- VoiceChooserView (VoiceKitUI):
-  - Lets users pick a system TTS voice and tune rate/pitch/volume with live previews.
-  - Persists default voice, master control, and per-voice profiles via VoiceProfilesStore.
-  - Typical embedding: a Settings screen in SwiftUI.
-- ChorusLabView (VoiceKitUI):
-  - A multi-voice playground for experimenting with several voices in parallel and calibrating timing.
-  - Useful for demos and tuning voice mixes; keep it behind a developer toggle in production apps.
+~~~swift
+func listen(
+    timeout: TimeInterval,
+    inactivity: TimeInterval,
+    record: Bool
+) async throws -> VoiceResult
+~~~
 
-Logging (opt-in)
-- RealVoiceIO exposes a tiny, optional logger to aid integration debugging:
-  - Property:
-    - logger: ((LogLevel, String) -> Void)?
-    - LogLevel: .info, .warn, .error
-  - Helper:
-    - log(_ level: LogLevel = .info, _ message: @autoclosure () -> String)
-- Environment flag for default print logging:
-  - If you set VOICEKIT_LOG to 1, true, or yes in your scheme/environment,
-    RealVoiceIO will default logger to print:
-    [VoiceKit][info] speak(text:…, voiceID:…)
-  - To customize, set the logger yourself:
+#### Parameters
+
+- 'timeout' (seconds)
+  - Hard cap on total listen duration.
+  - If this elapses, the listen ends even if the user is still talking.
+
+- 'inactivity' (seconds)
+  - Measures *silence after speech*.
+  - The inactivity timer starts **only after a non‑empty transcript is observed**.
+  - Silence is measured using an adaptive noise floor:
+    - The input tap computes loudness in dB for each buffer.
+    - An 'STTActivityTracker' maintains a running baseline (noise floor).
+    - Buffers louder than 'baseline + margin' are treated as "speech".
+    - When we’ve seen 'inactivity' seconds since the last such buffer, we stop.
+  - If no "loud enough" buffers are ever seen, we fall back to "time since first non‑empty transcript".
+
+- 'record' (Bool)
+  - When 'true':
+    - The same audio fed into STT is mirrored to a temp CAF file.
+    - After the listen completes, we call 'trimAudioSmart(inputURL:sttStart:sttEnd:prePad:postPad:)':
+      - Primary signal: 'firstSpeechStart' / 'lastSpeechEnd' from STT segments.
+      - Fallback: energy‑based bounds when STT timestamps don’t cover the full file (e.g. long leading silence).
+      - Pads by 'trimPrePad' and 'trimPostPad' to avoid clipping consonants/breaths.
+    - 'VoiceResult.recordingURL' points to this **trimmed** clip (or 'nil' on failure).
+  - When 'false':
+    - No recording file is created; 'recordingURL' will be 'nil'.
+
+#### Behaviour
+
+- On success:
+  - Returns:
+
     ~~~swift
-    @MainActor
-    let io = RealVoiceIO()
-    io.logger = { level, msg in
-        print("[VoiceKit][\(level)] \(msg)")
+    struct VoiceResult {
+        let transcript: String      // Final transcript (may be normalized in .number contexts)
+        let recordingURL: URL?      // Trimmed clip when record == true
     }
     ~~~
 
-Deterministic testing and previews
-- Use ScriptedVoiceIO for tests/demos that must not rely on device voices, locale, or hardware:
+- On cancellation:
+  - Throws 'CancellationError'.
+  - Calling 'hardReset()' also cancels any in‑flight listen and clears state.
+
+- On recognizer availability problems:
+  - Implementations may throw 'VoiceIOError.recognizerUnavailable'.
+  - Your app should surface a clear message (e.g., "Speech recognizer is unavailable on this device. Please try again later.") and abort the flow rather than continue to re‑prompt.
+
+---
+
+## Short SFX clips (clip path)
+
+Goal: near-zero-gap "Thank you → play a short clip" UX.
+
+### API (most apps only need the first)
+
+- 'playClip(url:gainDB:)' – play a short clip (one-shot).
+- 'prepareClip(url:gainDB:)' – pre-schedule a clip (advanced).
+- 'startPreparedClip()' – start a previously prepared clip (advanced).
+
+Typical usage for the name playback flow:
+
+~~~swift
+if let url = result.recordingURL {
+    try await voice.prepareClip(url: url, gainDB: 12)
+    await voice.speak("Thank you,")
+    try await voice.startPreparedClip()
+}
+~~~
+
+Notes:
+
+- 'prepareClip'/'startPreparedClip' exist to minimize the gap when chaining "speak → clip" by pre‑rolling the clip; whether you need both vs just 'playClip' depends on your app’s audio path. Measure if you care about single‑frame smoothness.
+- Internally, clip waiters are resumed exactly once; multiple 'stopAll()'/'hardReset()' calls are safe.
+
+---
+
+## VoiceQueue (sequencing helper)
+
+### Purpose
+
+- Lightweight helper that sequences speech, short sound effects, and pauses.
+- Runs on '@MainActor'; accepts any 'VoiceIO', and uses 'TTSConfigurable' when available.
+- Good for:
+  - Tutorials ("Step 1, [ding], Step 2...").
+  - Simple "scripted" readings with occasional SFX.
+
+### Core concepts
+
+- Items:
+  - 'speak(text: String, voiceID: String? = nil)' - say some text, optionally with a specific profile id.
+  - 'sfx(url: URL, gainDB: Float = 0)' - play a short clip.
+  - 'pause(seconds: TimeInterval)' - wait between items.
+
+- Channels:
+  - Channel 0 uses the primary 'VoiceIO' you pass in.
+  - Extra channels can be created via an optional factory for simple parallel playback.
+
+### Simple example
+
+~~~swift
+let io = RealVoiceIO()
+let q = VoiceQueue(primary: io)
+let ding = Bundle.main.url(forResource: "ding", withExtension: "caf")!
+
+q.enqueueSpeak("A", voiceID: nil)
+q.enqueueSFX(ding, gainDB: 3)
+q.enqueuePause(0.2)
+q.enqueueSpeak("B", voiceID: nil)
+await q.play()
+~~~
+
+### Embedded SFX in text
+
+- VoiceQueue can parse inline SFX tokens in text.
+- Syntax: '[sfx:NAME]'
+- Resolver: '(String) -> URL?' maps 'NAME' → audio file URL.
+
+Example:
+
+~~~swift
+let text = "Hello [sfx:ding] world."
+q.enqueueParsingSFX(
+    text: text,
+    resolver: { name in
+        Bundle.main.url(forResource: name, withExtension: "caf")
+    },
+    defaultVoiceID: nil,
+    on: 0
+)
+~~~
+
+---
+
+## VoiceChorus (parallel voices)
+
+### Purpose
+
+- Coordinate several 'VoiceIO' engines in parallel.
+- Used for:
+  - "Chorus" effects (multiple voices speaking together).
+  - Lead + backing voices mixes.
+
+### Simple example
+
+~~~swift
+@MainActor
+let chorus = VoiceChorus(engine: RealVoiceIO())
+await chorus.speak(
+    "Hello from a small chorus of voices.",
+    withVoiceProfiles: [
+        .init(id: "v1"),
+        .init(id: "v2")
+    ]
+)
+~~~
+
+(See VoiceKitUI’s 'ChorusLabView' for a richer playground.)
+
+---
+
+## UI components (summary)
+
+### VoiceChooserView (VoiceKitUI)
+
+- Lets users:
+  - Pick a system TTS voice.
+  - Tune rate/pitch/volume with live previews.
+- Persists:
+  - Default voice.
+  - Master tuning ('Tuning': volume, pitch range, speed range).
+  - Per-voice 'TTSVoiceProfile's.
+- Typical use: embed in a Settings screen.
+
+### ChorusLabView (VoiceKitUI)
+
+- Playground for:
+  - Multiple voices in parallel.
+  - Timing calibration for "chorus" effects.
+- Recommended: keep behind a developer toggle in production apps.
+
+---
+
+## Logging (opt-in)
+
+### Built-in logger
+
+'RealVoiceIO' exposes a tiny logger:
+
+- Property:
+
   ~~~swift
-  @MainActor
-  let script = try! JSONSerialization.data(withJSONObject: ["hello","world"])
-  let io = ScriptedVoiceIO(fromBase64: script.base64EncodedString())!
-  let r = try await io.listen(timeout: 1.0, inactivity: 0.3, record: false)
-  XCTAssertEqual(r.transcript, "hello")
+  var logger: ((LogLevel, String) -> Void)?
+  // LogLevel: .info, .warn, .error
   ~~~
-- UI voice selection and previews:
-  - Use VoiceChooserView and VoiceProfilesStore to select a system voice and tune rate/pitch/volume with live previews.
-  - Tests should prefer a FakeTTS conforming to TTSConfigurable & VoiceListProvider to avoid AV/locale variability.
-- Name utilities:
-  - NameMatch and NameResolver provide robust normalization and exact matching for kid-friendly inputs.
 
-Config & diagnostics
-- VoiceIOConfig
-  - Controls a few advanced behaviors of RealVoiceIO. All values have sensible defaults.
-  - Fields:
-    - trimPrePad: Double — seconds of audio to keep *before* detected speech when trimming recordings.
-    - trimPostPad: Double — seconds of audio to keep *after* detected speech.
-    - clipWaitTimeoutSeconds: Double — how long to wait for a short clip (“boosted” path) to complete before timing out.
-    - ttsSuppressAfterFinish: Double — brief suppression window after TTS to avoid the mic “hearing” its own output.
-  - Usage example:
-    ~~~swift
-    let cfg = VoiceIOConfig(
-        trimPrePad: 0.10,
-        trimPostPad: 0.30,
-        clipWaitTimeoutSeconds: 1.5,
-        ttsSuppressAfterFinish: 0.25
-    )
-    let io = RealVoiceIO(config: cfg)
-    ~~~
+- Helper:
 
-- VoiceIOError
-  - Canonical error cases RealVoiceIO may surface when you wire real STT/audio:
-    - micUnavailable, recognizerUnavailable, audioFormatInvalid
-    - timedOut, cancelled
-    - underlying(String) — preserves a short message from deeper layers.
-  - Current core stubs do not throw these in CI by default, but applications integrating real audio should be prepared to switch on them.
+  ~~~swift
+  func log(_ level: LogLevel = .info,
+           _ message: @autoclosure () -> String)
+  ~~~
 
-- VoiceKitInfo
-  - Light runtime metadata for logging and diagnostics:
-    - VoiceKitInfo.version — semantic version string (e.g., "0.1.2").
-    - VoiceKitInfo.buildTimestampISO8601 — build-time timestamp string in ISO‑8601 form.
-  - Example:
-    ~~~swift
-    print("VoiceKit \(VoiceKitInfo.version) @ \(VoiceKitInfo.buildTimestampISO8601)")
-    ~~~
+### Environment flag
 
-Build/test one-liner (clipboard-first)
-- Keep the loop fast and calm. A simple alias we recommend:
+- If you set 'VOICEKIT_LOG' to '1', 'true', or 'yes' in your scheme/environment, 'RealVoiceIO' will log to stdout by default, for example:
+
+  - '[VoiceKit][info] speak(text:..., voiceID:...)'
+  - '[VoiceKit][info] listen(start) timeout=... inactivity=...'
+  - '[VoiceKit][info] trimAudioSmart ...'
+
+### Custom logger
+
+You can override the logger to integrate with your own logging system:
+
+~~~swift
+@MainActor
+let io = RealVoiceIO()
+io.logger = { level, msg in
+    print("[VoiceKit][\(level)] \(msg)")
+}
+~~~
+
+---
+
+## Deterministic testing and previews
+
+### ScriptedVoiceIO for tests/demos
+
+Use 'ScriptedVoiceIO' when you need to avoid hardware, locale, or random STT behaviour:
+
+~~~swift
+@MainActor
+let data = try! JSONSerialization.data(withJSONObject: ["hello", "world"])
+let b64 = data.base64EncodedString()
+let io = ScriptedVoiceIO(fromBase64: b64)!
+
+let r1 = try await io.listen(timeout: 1.0, inactivity: 0.3, record: false)
+let r2 = try await io.listen(timeout: 1.0, inactivity: 0.3, record: false)
+
+XCTAssertEqual(r1.transcript, "hello")
+XCTAssertEqual(r2.transcript, "world")
+~~~
+
+### UI voice selection and previews
+
+- Use 'VoiceChooserView' + 'VoiceProfilesStore' to:
+  - List system voices.
+  - Save per-voice profiles and master tuning.
+- For tests:
+  - Prefer a fake type conforming to 'TTSConfigurable & VoiceListProvider' to avoid hitting real AV/locale.
+
+### Live STT smoke tests (opt-in)
+
+To exercise real STT (on device or a good simulator) without making CI flaky:
+
+~~~swift
+@MainActor
+final class RealSTTSmokeTests: XCTestCase {
+    func testLiveListenDoesNotCrash() async throws {
+        guard ProcessInfo.processInfo.environment["REAL_STT_SMOKE"] == "1" else {
+            throw XCTSkip("REAL_STT_SMOKE not enabled; skipping live STT smoke test")
+        }
+
+        let io = RealVoiceIO()
+        try await io.ensurePermissions()
+        try await io.configureSessionIfNeeded()
+
+        _ = try? await io.listen(timeout: 3, inactivity: 1.0, record: false)
+        // Pass if no crash/deadlock/unexpected error.
+    }
+}
+~~~
+
+CI: don’t set 'REAL_STT_SMOKE' → test is skipped.
+
+---
+
+## Config & diagnostics
+
+### VoiceIOConfig
+
+Controls advanced behaviours of 'RealVoiceIO'. All values have sensible defaults.
+
+Fields (relevant ones):
+
+- 'trimPrePad: Double' - seconds of audio to keep *before* detected speech when trimming recordings.
+- 'trimPostPad: Double' - seconds of audio to keep *after* detected speech.
+- 'clipWaitTimeoutSeconds: Double' - how long to wait for a short clip to complete before timing out.
+- 'ttsSuppressAfterFinish: Double' - brief suppression window after TTS to avoid the mic "hearing" its own output.
+
+Usage example:
+
+~~~swift
+let cfg = VoiceIOConfig(
+    trimPrePad: 0.10,
+    trimPostPad: 0.30,
+    clipWaitTimeoutSeconds: 1.5,
+    ttsSuppressAfterFinish: 0.25
+)
+
+let io = RealVoiceIO(config: cfg)
+~~~
+
+### VoiceIOError
+
+Canonical error cases 'RealVoiceIO' may surface when you wire real STT/audio, e.g.:
+
+- 'micUnavailable'
+- 'recognizerUnavailable'
+- 'audioFormatInvalid'
+- 'timedOut'
+- 'cancelled'
+- 'underlying(String)' - wraps a short message from deeper layers
+
+Your app should be prepared to switch on these and present user‑friendly messages.
+
+### VoiceKitInfo
+
+Light runtime metadata for logging and diagnostics:
+
+- 'VoiceKitInfo.version' - semantic version string (e.g., '"0.1.3"').
+- 'VoiceKitInfo.buildTimestampISO8601' - build‑time timestamp in ISO‑8601.
+
+Example:
+
+~~~swift
+print("VoiceKit \(VoiceKitInfo.version) @ \(VoiceKitInfo.buildTimestampISO8601)")
+~~~
+
+---
+
+## Build/test helper (optional)
+
+A shell alias to keep your SwiftPM loop fast and clipboard‑friendly:
+
 ~~~bash
 alias test='(swift build && SWIFTPM_TEST_LOG_FORMAT=xcode swift test) 2>&1 | tee >(tail -n ${LINES_CLIP:-200} | toClip)'
 ~~~
-- Why this shape:
-  - xcode format improves readability
-  - avoid -v by default to reduce noise; add -v only when chasing a specific failure
-  - full output stays in your terminal; only the last ~200 lines go to the clipboard (adjust LINES_CLIP as needed)
-- When to add switches:
-  - Focus a single test: swift test --filter SuiteName/TestName
-  - Temporarily add verbosity: swift test -v
-- Same spirit as a project “xcb.sh” runner: tailor the default early so collaboration is smooth.
 
-API reference snapshots (current)
-- See Docs/VoiceKitGuide.md for a full reference. Short snapshots here:
+- 'xcode' format improves readability.
+- Full output stays in your terminal; only the last ~200 lines go to the clipboard.
+- Adjust 'LINES_CLIP' as needed.
 
-VoiceIO (public protocol, @MainActor)
+---
+
+## API reference snapshots (current)
+
+### VoiceIO (public protocol, @MainActor)
+
 ~~~swift
 @MainActor
 public protocol VoiceIO: AnyObject {
@@ -215,13 +455,15 @@ public protocol VoiceIO: AnyObject {
     var onTTSPulse: ((CGFloat) -> Void)? { get set }
     var onStatusMessageChanged: ((String?) -> Void)? { get set }
 
-    // Session / permissions (stubs in core for CI)
+    // Session / permissions
     func ensurePermissions() async throws
     func configureSessionIfNeeded() async throws
 
     // Core I/O
     func speak(_ text: String) async
-    func listen(timeout: TimeInterval, inactivity: TimeInterval, record: Bool) async throws -> VoiceResult
+    func listen(timeout: TimeInterval,
+                inactivity: TimeInterval,
+                record: Bool) async throws -> VoiceResult
 
     // Short-clip playback (clip)
     func prepareClip(url: URL, gainDB: Float) async throws
@@ -234,7 +476,8 @@ public protocol VoiceIO: AnyObject {
 }
 ~~~
 
-TTSConfigurable (shared with UI; @MainActor)
+### TTSConfigurable (shared with UI; @MainActor)
+
 ~~~swift
 @MainActor
 public protocol TTSConfigurable: AnyObject {
@@ -248,7 +491,8 @@ public protocol TTSConfigurable: AnyObject {
 }
 ~~~
 
-Models (shared)
+### Models (shared)
+
 ~~~swift
 public struct VoiceResult: Sendable {
     public let transcript: String
@@ -275,7 +519,8 @@ public struct Tuning: Sendable, Equatable, Codable {
 }
 ~~~
 
-Recognition context
+### Recognition context
+
 ~~~swift
 public struct RecognitionContext: Sendable {
     public enum Expectation: Sendable {
@@ -283,20 +528,29 @@ public struct RecognitionContext: Sendable {
         case name(allowed: [String])
         case number
     }
+
     public var expectation: Expectation
-    public init(expectation: Expectation = .freeform) { self.expectation = expectation }
+
+    public init(expectation: Expectation = .freeform) {
+        self.expectation = expectation
+    }
 }
 ~~~
 
-Notes
-- listen accepts an optional RecognitionContext via the context: parameter and defaults to .freeform.
-- Pass .number when you expect numeric entries, or .name(allowed:) for constrained name inputs.
-- Both forms compile (with or without context:) since it has a default value.
-- RealVoiceIO currently includes a minimal listen stub that returns "42" for numeric expectation in tests/CI.
-- Clip playback plumbing is present; real audio playback can be layered in your app target as needed.
-- Concurrency: public APIs and callbacks run on @MainActor; avoid capturing @MainActor self on audio threads.
+Notes:
 
-See also
-- Docs/VoiceKitGuide.md for the in-depth guide and examples.
-- VoiceKitUI: VoiceChooserView and ChorusLabView for selecting/tuning voices and experimenting with multi-voice playback.
-- Tests/… for deterministic patterns (ScriptedVoiceIO, FakeTTS).
+- 'listen' in 'RealVoiceIO' uses an internal 'recognitionContext' to choose hints and contextual strings.
+- '.number' contexts may normalize numeric phrases (e.g., "forty two point five" → '"42.5"').
+- '.name(allowed:)' can bias STT toward a small allowed set.
+
+---
+
+## Concurrency notes
+
+- Public APIs and callbacks run on '@MainActor'.
+- The audio input tap runs on a realtime audio queue and is explicitly **nonisolated**:
+  - It never touches '@MainActor' state directly.
+  - It posts into 'STTActivityTracker' and the STT request.
+- Avoid capturing '@MainActor self' inside any callbacks that are executed on realtime audio threads.
+
+For deeper implementation details and simulator quirks, see 'handoff.md' in the VoiceKit repo.

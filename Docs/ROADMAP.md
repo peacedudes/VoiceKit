@@ -9,7 +9,7 @@ Naming
 - Library targets stay:
   - VoiceKit (core)
   - VoiceKitUI (UI)
-- Public docs should refer to “VoiceKit” (core) and “VoiceKitUI”.
+- Public docs should refer to "VoiceKit" (core) and "VoiceKitUI".
 
 Structure (folders by concern)
 - VoiceKit (core):
@@ -45,7 +45,7 @@ Samples (separate repo)
 Next steps (small, incremental)
 1) Reorganize folders (no code changes). Pure git moves to match the structure above.
 2) Add VoiceKitSamples repo scaffolding (two SwiftUI apps, minimal content).
-3) Document “Embedded SFX patterns” in Docs/ProgrammersGuide.md (point to samples).
+3) Document "Embedded SFX patterns" in Docs/ProgrammersGuide.md (point to samples).
 
 Out-of-scope for core (keep it lean)
 - Full STT implementation (beyond current CI-friendly shim).
@@ -54,7 +54,7 @@ Out-of-scope for core (keep it lean)
 
 Versioning
 - Continue tags like v0.1.x.
-- Keep “-local” tags for checkpoints.
+- Keep "-local" tags for checkpoints.
 
 Workflow note
 - Peeks don’t need tee; they should set the clipboard only.
