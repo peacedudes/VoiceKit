@@ -834,9 +834,9 @@ fileprivate extension TTSVoiceProfile {
     var initStr: String { "TTSVoiceProfile(\(initArgs))" }
     var initArgs: String {
         ["id: \"\(id)\"",
-          "rate: \(rate.formatted(decimals: 3))",
-          "pitch: \(pitch.formatted(decimals: 3))",
-          "volume: \(volume.formatted(decimals: 3))"
+          "rate: \(rate.display(decimals: 3))",
+          "pitch: \(pitch.display(decimals: 3))",
+          "volume: \(volume.display(decimals: 3))"
         ].joined(separator: ", ")
     }
 }

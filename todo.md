@@ -43,7 +43,7 @@ This is a lightweight scratchpad for future work. Not a contract; just things wo
   - Current state (late 0.1.x):
     - Per-voice pitch is correctly stored in TTSVoiceProfile and survives sync.
     - Chorus profiles printed to the console show distinct pitch values.
-    - UI now surfaces per-row Speed/Pitch/Vol using formatted() helpers.
+    - UI now surfaces per-row Speed/Pitch/Vol using display() helpers.
   - Later:
     - If chords feel “too similar” on some OS/device combos, consider slightly widening the default pitch offsets used when seeding multiple voices.
 

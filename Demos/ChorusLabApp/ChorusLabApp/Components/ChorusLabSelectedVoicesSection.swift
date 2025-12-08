@@ -55,9 +55,10 @@ public struct ChorusLabSelectedVoicesSection: View {
     }
 
     public var body: some View {
-        ForEach($profiles, id: \.id) { profile in
-            // Unwrap binding element for read-only UI usage in this row
-            let profileValue = profile.wrappedValue
+        // Use indices as row IDs so duplicate voice IDs (same system voice
+        // with different pitch/volume) render independently.
+        ForEach(Array(profiles.indices), id: \.self) { index in
+            let profileValue = profiles[index]
             ChorusLabSelectedVoiceRow(
                 name: resolveName(profileValue.id),
                 rate: profileValue.rate,
@@ -69,9 +70,7 @@ public struct ChorusLabSelectedVoicesSection: View {
             )
             .contentShape(Rectangle())
             .onTapGesture {
-                if let idx = profiles.firstIndex(where: { $0.id == profileValue.id }) {
-                    onEdit(idx)
-                }
+                onEdit(index)
             }
             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                 // Put Sync first so full-swipe defaults to Sync (safer than Delete).
@@ -96,3 +95,43 @@ public struct ChorusLabSelectedVoicesSection: View {
         }
     }
 }
+
+#if DEBUG
+@MainActor
+internal struct ChorusLabSelectedVoicesSection_Previews: PreviewProvider {
+    internal static var previews: some View {
+        PreviewWrapper()
+            .previewLayout(.sizeThatFits)
+            .padding()
+    }
+
+    private struct PreviewWrapper: View {
+        @State private var profiles: [TTSVoiceProfile] = [
+            TTSVoiceProfile(id: "voice.alex", rate: 0.55, pitch: 1.00, volume: 1.00),
+            TTSVoiceProfile(id: "voice.alex", rate: 0.60, pitch: 1.25, volume: 0.90),
+            TTSVoiceProfile(id: "voice.alex", rate: 0.50, pitch: 0.80, volume: 0.85)
+        ]
+        @State private var lastDurationByID: [String: TimeInterval] = [
+            "voice.alex": 2.48
+        ]
+
+        var body: some View {
+            List {
+                ChorusLabSelectedVoicesSection(
+                    profiles: $profiles,
+                    lastDurationByID: $lastDurationByID,
+                    isCalibrating: false,
+                    calibratingVoiceID: nil,
+                    isPlaying: false,
+                    resolveName: { id in id },
+                    timingCellWidth: 48,
+                    onEdit: { _ in },
+                    onSync: { _ in },
+                    onDelete: { _ in }
+                )
+            }
+            .listStyle(.automatic)
+        }
+    }
+}
+#endif

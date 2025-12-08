@@ -40,12 +40,12 @@ public struct ChorusLabSelectedVoiceRow: View {
             DetailsCell(rate: rate, pitch: pitch, volume: volume)
                 .accessibilityLabel("Voice settings")
                 .accessibilityValue(
-                    Text("Speed \(rate.formatted()), Pitch \(pitch.formatted()), Volume \(volume.formatted())"))
+                    Text("Speed \(rate.display()), Pitch \(pitch.display()), Volume \(volume.display())"))
 
             // Timing (right)
             DurationCell(duration: duration, isHighlighted: isCalibrating, width: timingCellWidth)
                 .accessibilityLabel("Last duration")
-                .accessibilityValue(Text(duration.map { $0.formatted(suffix: "s") } ?? "Not measured"))
+                .accessibilityValue(Text(duration.map { $0.display(suffix: "s") } ?? "Not measured"))
 
             Image(systemName: "chevron.right")
                 .font(.caption2)
@@ -64,9 +64,9 @@ private struct DetailsCell: View {
     let pitch: Float
     let volume: Float
     var body: some View {
-        Text(["S \(rate.formatted())",
-              "P \(pitch.formatted())",
-              "Vol \(volume.formatted())"]
+        Text(["S \(rate.display())",
+              "P \(pitch.display())",
+              "Vol \(volume.display())"]
             .joined(separator: " · ")
         )
         .font(.caption2)
@@ -84,7 +84,7 @@ private struct DurationCell: View {
     let isHighlighted: Bool
     let width: CGFloat
     var body: some View {
-        let text = duration.map { $0.formatted(suffix: "s") } ?? ""
+        let text = duration.map { $0.display(suffix: "s") } ?? ""
         Text(text)
             .font(.footnote)
             .monospacedDigit()
@@ -104,16 +104,23 @@ private struct DurationCell: View {
 #if DEBUG
 @MainActor
 internal struct ChorusLabSelectedVoiceRow_Previews: PreviewProvider {
+    internal static var previews: some View {
+        PreviewWrapper()
+            .previewLayout(.sizeThatFits)
+            .padding()
+    }
+
     private struct PreviewWrapper: View {
         @State private var highlight = true
+
         var body: some View {
             VStack(alignment: .leading, spacing: 12) {
                 ChorusLabSelectedVoiceRow(
                     name: "Alex",
-                    rate: 0.55,
-                    pitch: 1.00,
-                    volume: 0.80,
-                    duration: 2.48,
+                    rate: 0.55567,
+                    pitch: 1.0555,
+                    volume: 0.789,
+                    duration: 2.4863,
                     isCalibrating: highlight
                 )
                 ChorusLabSelectedVoiceRow(
@@ -125,14 +132,7 @@ internal struct ChorusLabSelectedVoiceRow_Previews: PreviewProvider {
                     isCalibrating: false
                 )
             }
-            .padding()
         }
-    }
-
-    internal static var previews: some View {
-        PreviewWrapper()
-            .previewDisplayName("ChorusLabSelectedVoiceRow · iPhone SE (3rd gen)")
-            .previewDevice("iPhone SE (3rd generation)")
     }
 }
 #endif

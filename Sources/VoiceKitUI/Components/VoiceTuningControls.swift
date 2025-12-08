@@ -53,7 +53,7 @@ public struct VoiceTuningControls: View {
                 ),
                 range: Double(config.rateRange.lowerBound)...Double(config.rateRange.upperBound),
                 step: Double(config.rateStep ?? 0.0),
-                formatted: { value in value.formatted(decimals: config.rateDecimals, suffix: "x") }
+                formatted: { value in value.display(decimals: config.rateDecimals, suffix: "x") }
             )
             .onChange(of: rate) { _, _ in onEditingChanged?(false) }
 
@@ -70,7 +70,7 @@ public struct VoiceTuningControls: View {
                 ),
                 range: Double(config.pitchRange.lowerBound)...Double(config.pitchRange.upperBound),
                 step: Double(config.pitchStep ?? 0.0),
-                formatted: { value in value.formatted(decimals: config.pitchDecimals) }
+                formatted: { value in value.display(decimals: config.pitchDecimals) }
             )
             .onChange(of: pitch) { _, _ in onEditingChanged?(false) }
 
@@ -88,7 +88,7 @@ public struct VoiceTuningControls: View {
                     ),
                     range: Double(config.volumeRange.lowerBound)...Double(config.volumeRange.upperBound),
                     step: Double(config.volumeStep ?? 0.0),
-                    formatted: { value in value.formatted(decimals: config.volumeDecimals) }
+                    formatted: { value in value.display(decimals: config.volumeDecimals) }
                 )
                 .onChange(of: volume.wrappedValue) { _, _ in onEditingChanged?(false) }
             }
@@ -113,7 +113,7 @@ private struct TunerSliderRow: View {
         value: Binding<Double>,
         range: ClosedRange<Double>,
         step: Double = 0.01,
-        formatted: @escaping (Double) -> String = { $0.formatted() }
+        formatted: @escaping (Double) -> String = { $0.display() }
     ) {
         self.title = title
         self.systemImage = systemImage

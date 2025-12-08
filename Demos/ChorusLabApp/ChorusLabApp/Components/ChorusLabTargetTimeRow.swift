@@ -28,7 +28,7 @@ public struct ChorusLabTargetTimeRow: View {
                 .font(.footnote)
                 .lineLimit(1)
                 .layoutPriority(1)
-            Text(targetSeconds.formatted(suffix: "s"))
+            Text(targetSeconds.display(suffix: "s"))
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
                 // Keep +/- buttons from "dancing" as text width changes,
@@ -49,14 +49,14 @@ public struct ChorusLabTargetTimeRow: View {
                 if isPlaying {
                     ProgressView().controlSize(.mini)
                 }
-                Text(lastChorusSeconds.map { $0.formatted(suffix: "s") } ?? "-s")
+                Text(lastChorusSeconds.map { $0.display(suffix: "s") } ?? "-s")
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             .frame(minWidth: actualMinWidth, alignment: .trailing)
             .accessibilityLabel("Actual time")
-            .accessibilityValue(lastChorusSeconds.map { $0.formatted(suffix: "s") } ?? "Not available")
+            .accessibilityValue(lastChorusSeconds.map { $0.display(suffix: "s") } ?? "Not available")
         }
         .padding(.horizontal)
         .padding(.bottom, 4) // matches Metrics.Padding.headerV

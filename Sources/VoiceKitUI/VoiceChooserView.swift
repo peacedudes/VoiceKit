@@ -178,7 +178,7 @@ public struct VoiceChooserView: View {
                     }
                     // Live preview duration badge
                     if let secs = viewModel.lastPreviewSeconds {
-                        Text(secs.formatted(suffix: "s"))
+                        Text(secs.display(suffix: "s"))
                             .font(.footnote)
                             .monospacedDigit()
                             .foregroundStyle(.primary)

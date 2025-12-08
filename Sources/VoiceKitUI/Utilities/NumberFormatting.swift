@@ -11,10 +11,10 @@ import Foundation
 // MARK: - Generic floating-point formatting
 public extension BinaryFloatingPoint {
     /// Format with a fixed number of fractional digits and optional suffix.
-    /// Example: 0.5.formatted(decimals: 2) -> "0.5"
-    ///          1.2.formatted(decimals: 2, suffix: "×") -> "1.2×"
+    /// Example: 0.5.display(decimals: 2) -> "0.5"
+    ///          1.2.display(decimals: 2, suffix: "×") -> "1.2×"
     @inlinable
-    func formatted(decimals: Int = 2, suffix: String = "") -> String {
+    func display(decimals: Int = 2, suffix: String = "") -> String {
         let places = max(0, decimals)
         // Use a stable English POSIX locale for the numeric part,
         // then trim trailing zeros and any trailing dot, and finally
