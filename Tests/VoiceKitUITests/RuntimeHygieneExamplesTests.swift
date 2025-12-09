@@ -44,7 +44,7 @@ internal final class RuntimeHygieneExamplesTests: XCTestCase {
         XCTAssertTrue(phrase.contains("My name is"))
     }
 
-    // App-like pattern — safe prewarm on main for cached voices
+    // App-like pattern - safe prewarm on main for cached voices
     func testAppStylePrewarmOnMain() async throws {
         _ = SystemVoicesCache.refresh() // main actor context here (test is @MainActor)
         let all = SystemVoicesCache.all()

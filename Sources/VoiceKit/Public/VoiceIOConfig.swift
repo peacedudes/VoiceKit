@@ -23,8 +23,8 @@ public struct VoiceIOConfig: Sendable, Equatable {
     /// How long to suppress STT after TTS finishes, to avoid self-hearing.
     public var ttsSuppressAfterFinish: Double
 
-    public init(trimPrePad: Double = 0.15,
-                trimPostPad: Double = 0.25,
+    public init(trimPrePad: Double = 0.05,
+                trimPostPad: Double = 0.20,
                 clipWaitTimeoutSeconds: Double = 2.0,
                 ttsSuppressAfterFinish: Double = 0.25) {
         self.trimPrePad = trimPrePad
