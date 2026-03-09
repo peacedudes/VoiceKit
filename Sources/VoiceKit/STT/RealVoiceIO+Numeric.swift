@@ -99,7 +99,7 @@ extension RealVoiceIO {
             }
 
             if let teenValue = teens[token] {
-                intValue = (intValue ?? 0) * 1000 + teenValue
+                intValue = (intValue ?? 0) + teenValue
                 i += 1
                 continue
             }
@@ -110,19 +110,19 @@ extension RealVoiceIO {
                     value += onesDigit
                     i += 1
                 }
-                intValue = (intValue ?? 0) * 1000 + value
+                intValue = (intValue ?? 0) + value
                 i += 1
                 continue
             }
 
             if let digitValue = ones[token] {
-                intValue = (intValue ?? 0) * 1000 + digitValue
+                intValue = (intValue ?? 0) + digitValue
                 i += 1
                 continue
             }
 
             if let num = Int(token) {
-                intValue = (intValue ?? 0) * 1000 + num
+                intValue = (intValue ?? 0) + num
                 i += 1
                 continue
             }
