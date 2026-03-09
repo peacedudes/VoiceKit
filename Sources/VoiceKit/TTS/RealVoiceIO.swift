@@ -16,7 +16,7 @@ import CoreGraphics
 @preconcurrency import Speech
 
 @MainActor
-public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
+public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO, TempoMeasurable {
 
     // MARK: - Public callbacks
     public var onListeningChanged: ((Bool) -> Void)?

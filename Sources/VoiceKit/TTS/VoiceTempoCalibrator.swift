@@ -7,12 +7,25 @@
 
 import Foundation
 
+// MARK: - Calibration interface
+
+/// Seam for types that can measure speaking time and configure voice profiles.
+/// Abstracts away RealVoiceIO specifics, enabling testability.
+@MainActor
+public protocol TempoMeasurable: TTSConfigurable {
+    /// Speak text using the given voice and return measured duration (wall-clock from didStart to didFinish).
+    /// CI/fallback paths may return 0.
+    func speakAndMeasure(_ text: String, using voiceID: String?) async -> TimeInterval
+    /// Stop any in-flight speech immediately.
+    func stopAll()
+}
+
 @MainActor
 public enum VoiceTempoCalibrator {
 
     /// Adjusts the rate of the specified voice so that speaking `phrase` takes close to `targetSeconds`.
     /// - Parameters:
-    ///   - io: RealVoiceIO engine (must be @MainActor).
+    ///   - io: Any type conforming to TempoMeasurable (e.g., RealVoiceIO).
     ///   - voiceID: System voice identifier to calibrate.
     ///   - phrase: Sample text used for measurement (keep this fixed across voices).
     ///   - targetSeconds: Desired duration in seconds (e.g., 5.0).
@@ -24,7 +37,7 @@ public enum VoiceTempoCalibrator {
     ///   (iterationIndex, measuredSeconds, nextRateCandidate).
     @discardableResult
     public static func fitRate(
-        io: RealVoiceIO,
+        io: some TempoMeasurable,
         voiceID: String,
         phrase: String,
         targetSeconds: TimeInterval,
