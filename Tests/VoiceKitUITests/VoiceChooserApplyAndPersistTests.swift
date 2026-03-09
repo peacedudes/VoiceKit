@@ -68,9 +68,9 @@ internal final class VoiceChooserApplyAndPersistTests: XCTestCase {
         store.save()
         let loaded = VoiceProfilesStore(filename: filename)
         XCTAssertEqual(loaded.defaultVoiceID, id)
-        XCTAssertEqual(loaded.master.rateVariation, 0.015, accuracy: 0.0001)
-        XCTAssertEqual(loaded.master.pitchVariation, 0.02, accuracy: 0.0001)
-        XCTAssertEqual(loaded.master.volume, 1.1, accuracy: 0.0001)
+        XCTAssertEqual(loaded.tuning.rateVariation, 0.015, accuracy: 0.0001)
+        XCTAssertEqual(loaded.tuning.pitchVariation, 0.02, accuracy: 0.0001)
+        XCTAssertEqual(loaded.tuning.volume, 1.1, accuracy: 0.0001)
     }
 
     // MARK: - Helpers

@@ -101,6 +101,8 @@ public final class VoiceChooserViewModel: ObservableObject {
     }
 
     // Filtered view
+    /// Voices filtered by language and hidden status. Recomputed on each access.
+    /// (Caching is blocked by @Published Set mutation limitations; will be optimized when store is fixed)
     public var filteredVoices: [TTSVoiceInfo] {
         let byLanguage: [TTSVoiceInfo] = {
             switch languageFilter {
