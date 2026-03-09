@@ -23,14 +23,6 @@ public struct VoiceResult: Sendable {
     }
 }
 
-public struct SimpleError: LocalizedError, Sendable {
-    public var message: String
-
-    public init(_ message: String) { self.message = message }
-
-    public var errorDescription: String? { message }
-}
-
 // MARK: - VoiceIO API (main-actor)
 
 /// App-facing voice box surface.

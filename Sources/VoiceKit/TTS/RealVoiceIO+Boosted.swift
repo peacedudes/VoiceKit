@@ -140,7 +140,7 @@ extension RealVoiceIO {
         let waiters = clipWaiters
         clipWaiters = []
         for waiter in waiters {
-            waiter.resume(throwing: SimpleError("Stopped"))
+            waiter.resume(throwing: VoiceIOError.cancelled)
         }
     }
 
@@ -171,7 +171,7 @@ extension RealVoiceIO {
 
         let waiters = clipWaiters
         clipWaiters = []
-        for waiter in waiters { waiter.resume(throwing: SimpleError("Timed out")) }
+        for waiter in waiters { waiter.resume(throwing: VoiceIOError.timedOut) }
     }
     
     // One-shot helper: prepare then start the clip

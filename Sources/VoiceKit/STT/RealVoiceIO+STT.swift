@@ -66,12 +66,12 @@ extension RealVoiceIO {
         micOK = false
         #endif
 
-        guard micOK else { throw SimpleError("Microphone permission denied.") }
+        guard micOK else { throw VoiceIOError.micUnavailable }
 
         // Speech permission
         let status = await PermissionBridge.awaitSpeechAuth()
-        guard status == .authorized else { throw SimpleError("Speech permission denied.") }
-        guard speechRecognizer?.isAvailable == true else { throw SimpleError("Speech recognizer unavailable.") }
+        guard status == .authorized else { throw VoiceIOError.micUnavailable }
+        guard speechRecognizer?.isAvailable == true else { throw VoiceIOError.recognizerUnavailable }
     }
 
     /// Configure audio session for voice I/O where applicable.
@@ -144,7 +144,7 @@ extension RealVoiceIO {
 
         #if os(iOS)
         if !AVAudioSession.sharedInstance().isInputAvailable {
-            throw SimpleError("Mic unavailable.")
+            throw VoiceIOError.micUnavailable
         }
         #endif
 
@@ -159,7 +159,7 @@ extension RealVoiceIO {
         let inputNode = engine.inputNode
         let inputFormat = inputNode.inputFormat(forBus: 0)
         if inputFormat.channelCount == 0 || inputFormat.sampleRate <= 0 {
-            throw SimpleError("Invalid input format.")
+            throw VoiceIOError.audioFormatInvalid
         }
 
         let recordingFile = makeRecordingFileIfNeeded(for: inputFormat, record: record)
@@ -298,7 +298,7 @@ extension RealVoiceIO {
         }
 
         guard let recognizer = speechRecognizer, recognizer.isAvailable else {
-            throw SimpleError("Recognizer unavailable.")
+            throw VoiceIOError.recognizerUnavailable
         }
 
         recognitionRequest = request

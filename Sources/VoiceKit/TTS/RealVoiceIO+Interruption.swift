@@ -139,7 +139,7 @@ extension RealVoiceIO {
                 let waiters = clipWaiters
                 clipWaiters.removeAll()
                 for waiter in waiters {
-                    waiter.resume(throwing: SimpleError("Route changed"))
+                    waiter.resume(throwing: VoiceIOError.micUnavailable)
                 }
             }
         }
