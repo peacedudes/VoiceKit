@@ -119,7 +119,17 @@ public final class VoiceProfilesStore: ObservableObject {
 
     public func setProfile(_ profile: TTSVoiceProfile) { profilesByID[profile.id] = profile }
     public func isActive(_ id: String) -> Bool { activeVoiceIDs.contains(id) }
-    public func toggleActive(_ id: String) { if activeVoiceIDs.contains(id) { activeVoiceIDs.remove(id) } else { activeVoiceIDs.insert(id) }; save() }
+    public func toggleActive(_ id: String) {
+        var updated = activeVoiceIDs
+        if updated.contains(id) { updated.remove(id) } else { updated.insert(id) }
+        activeVoiceIDs = updated
+        save()
+    }
     public func isHidden(_ id: String) -> Bool { hiddenVoiceIDs.contains(id) }
-    public func setHidden(_ id: String, _ hidden: Bool) { if hidden { hiddenVoiceIDs.insert(id) } else { hiddenVoiceIDs.remove(id) }; save() }
+    public func setHidden(_ id: String, _ hidden: Bool) {
+        var updated = hiddenVoiceIDs
+        if hidden { updated.insert(id) } else { updated.remove(id) }
+        hiddenVoiceIDs = updated
+        save()
+    }
 }

@@ -43,7 +43,6 @@ public final class VoiceChooserViewModel: ObservableObject {
     @Published public private(set) var isLoading: Bool = false
     /// Last measured preview duration in seconds, if available.
     @Published public private(set) var lastPreviewSeconds: Double?
-
     // Preview task
     private var previewTask: Task<Void, Never>?
     private var isPreviewing = false
@@ -54,6 +53,28 @@ public final class VoiceChooserViewModel: ObservableObject {
         self.tts = tts
         self.store = store
         self.allowSystemVoices = allowSystemVoices
+    }
+
+    // Filtered view
+    /// Voices filtered by language and hidden status. Computed on each access.
+    /// Note: @Published Set mutations in VoiceProfilesStore now trigger updates
+    /// via reassignment (not direct insert/remove), enabling future caching.
+    public var filteredVoices: [TTSVoiceInfo] {
+        let byLanguage: [TTSVoiceInfo] = {
+            switch languageFilter {
+            case .all:
+                return voices
+            case .current:
+                let base = currentLanguageCode()
+                return voices.filter { baseLanguageCode($0.language).lowercased() == base }
+            case .specific(let code):
+                let base = code.lowercased()
+                return voices.filter { baseLanguageCode($0.language).lowercased() == base }
+            }
+        }()
+        if showHidden { return byLanguage }
+        let hidden = Set(store.hiddenVoiceIDs)
+        return byLanguage.filter { !hidden.contains($0.id) }
     }
 
     // MARK: - Voice loading
@@ -98,27 +119,6 @@ public final class VoiceChooserViewModel: ObservableObject {
             self.enhancedVoiceIDs = []
             self.isLoading = false
         }
-    }
-
-    // Filtered view
-    /// Voices filtered by language and hidden status. Recomputed on each access.
-    /// (Caching is blocked by @Published Set mutation limitations; will be optimized when store is fixed)
-    public var filteredVoices: [TTSVoiceInfo] {
-        let byLanguage: [TTSVoiceInfo] = {
-            switch languageFilter {
-            case .all:
-                return voices
-            case .current:
-                let base = currentLanguageCode()
-                return voices.filter { baseLanguageCode($0.language).lowercased() == base }
-            case .specific(let code):
-                let base = code.lowercased()
-                return voices.filter { baseLanguageCode($0.language).lowercased() == base }
-            }
-        }()
-        if showHidden { return byLanguage }
-        let hidden = Set(store.hiddenVoiceIDs)
-        return byLanguage.filter { !hidden.contains($0.id) }
     }
 
     // MARK: - Store and TTS sync
