@@ -122,7 +122,8 @@ extension RealVoiceIO {
 
         // Pitch and volume with gentle randomization and clamping to valid ranges.
         let basePitch = (defaultProfile?.pitch ?? 1.0)
-        utterance.pitchMultiplier = (basePitch + .random(in: -control.pitchVariation...control.pitchVariation)).clamped(to: 0.5...2.0)
+        let pitchDelta = Float.random(in: -control.pitchVariation...control.pitchVariation)
+        utterance.pitchMultiplier = (basePitch + pitchDelta).clamped(to: 0.5...2.0)
         utterance.volume = (defaultProfile?.volume ?? 1.0).clamped(to: 0.0...1.0)
 
         if let id = voiceID, let profile = profilesByID[id] {
@@ -141,7 +142,13 @@ extension RealVoiceIO {
 
         // Unconditional trace for debugging (visible in Xcode Previews too).
         let vname = utterance.voice?.name ?? "system-default"
-        let trace = "applyProfile[\(source)] id=\(voiceID ?? "nil") name=\(vname) norm=\(String(format: "%.3f", usedNormRate)) avRate=\(String(format: "%.3f", utterance.rate)) pitch=\(String(format: "%.3f", utterance.pitchMultiplier)) vol=\(String(format: "%.2f", utterance.volume))"
+        let normStr = String(format: "%.3f", usedNormRate)
+        let rateStr = String(format: "%.3f", utterance.rate)
+        let pitchStr = String(format: "%.3f", utterance.pitchMultiplier)
+        let volStr = String(format: "%.2f", utterance.volume)
+        let voiceIDStr = voiceID ?? "nil"
+        let trace = "applyProfile[\(source)] id=\(voiceIDStr) name=\(vname) " +
+            "norm=\(normStr) avRate=\(rateStr) pitch=\(pitchStr) vol=\(volStr)"
         log(.info, trace)
         // Also print so Xcode Previews shows it even if the logger is muted
         print("[VoiceKit]", trace)

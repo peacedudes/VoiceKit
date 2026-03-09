@@ -51,6 +51,24 @@ extension RealVoiceIO {
             .split(separator: " ")
             .map(String.init)
 
+        guard let (intValue, decimalPart) = parseNumericTokens(tokens) else {
+            return trimmed
+        }
+
+        if let intValue {
+            if let dec = decimalPart {
+                return "\(intValue).\(dec)"
+            } else {
+                return "\(intValue)"
+            }
+        }
+
+        return trimmed
+    }
+
+    /// Parse token array into integer and optional decimal parts.
+    /// Returns nil if any token is unrecognized or invalid.
+    private static func parseNumericTokens(_ tokens: [String]) -> (intValue: Int?, decimalPart: String?)? {
         let ones: [String: Int] = [
             "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4,
             "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9
@@ -68,72 +86,55 @@ extension RealVoiceIO {
         var decimalPart: String?
         var i = 0
 
-        // Combine multiple chunks by thousands if needed (simple concatenation rule).
-        func commitInt(_ value: Int) {
-            intValue = (intValue ?? 0) * 1000 + value
-        }
-
         while i < tokens.count {
             let token = tokens[i]
 
             if token == "point" {
-                // Build decimal digits from remaining tokens via helper.
                 if let dec = Self.decimalDigits(from: tokens[(i + 1)...], ones: ones) {
                     decimalPart = dec
                 } else {
-                    return trimmed
+                    return nil
                 }
                 break
             }
 
             if let teenValue = teens[token] {
-                commitInt(teenValue)
+                intValue = (intValue ?? 0) * 1000 + teenValue
                 i += 1
                 continue
             }
 
             if let tensValue = tens[token] {
-                // Lookahead to combine tens + ones (e.g., "forty two" -> 42)
                 var value = tensValue
                 if i + 1 < tokens.count, let onesDigit = ones[tokens[i + 1]] {
                     value += onesDigit
                     i += 1
                 }
-                commitInt(value)
+                intValue = (intValue ?? 0) * 1000 + value
                 i += 1
                 continue
             }
 
             if let digitValue = ones[token] {
-                commitInt(digitValue)
+                intValue = (intValue ?? 0) * 1000 + digitValue
                 i += 1
                 continue
             }
 
             if let num = Int(token) {
-                commitInt(num)
+                intValue = (intValue ?? 0) * 1000 + num
                 i += 1
                 continue
             }
 
             if Double(token) != nil {
-                // Already numeric with potential decimal -> return original.
-                return trimmed
+                return nil
             }
 
-            // Unknown token -> return original.
-            return trimmed
+            return nil
         }
 
-        if let intValue {
-            if let dec = decimalPart {
-                return "\(intValue).\(dec)"
-            } else {
-                return "\(intValue)"
-            }
-        }
-
-        return trimmed
+        return (intValue, decimalPart)
     }
 
     /// Backward-compat unlabeled version.

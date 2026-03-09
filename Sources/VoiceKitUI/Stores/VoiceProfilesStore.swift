@@ -105,7 +105,13 @@ public final class VoiceProfilesStore: ObservableObject {
     }
 
     public func save() {
-        let payload = VoiceProfilesFile(defaultVoiceID: defaultVoiceID, tuning: master, profilesByID: profilesByID, activeVoiceIDs: Array(activeVoiceIDs), hiddenVoiceIDs: Array(hiddenVoiceIDs))
+        let payload = VoiceProfilesFile(
+            defaultVoiceID: defaultVoiceID,
+            tuning: master,
+            profilesByID: profilesByID,
+            activeVoiceIDs: Array(activeVoiceIDs),
+            hiddenVoiceIDs: Array(hiddenVoiceIDs)
+        )
         if let data = try? JSONEncoder().encode(payload) {
             try? data.write(to: fileURL, options: [.atomic])
         }

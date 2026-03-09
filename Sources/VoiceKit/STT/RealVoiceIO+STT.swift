@@ -16,59 +16,6 @@ import Foundation
 import Accelerate
 import CoreGraphics
 
-// Tracks when we last observed "loud" audio in the mic stream.
-// Used to decide when the user has gone quiet, independent of STT partials.
-internal actor STTActivityTracker {
-    private var lastLoudTime: TimeInterval?
-    // Simple adaptive estimate of background noise in dB.
-    // Starts at nil; seeded from early observations.
-    private var baselineDB: Float?
-
-    /// Observe a new buffer loudness in dB at the given uptime.
-    /// - Updates the baseline (noise floor) over time.
-    /// - Updates lastLoudTime only when the buffer is sufficiently louder
-    ///   than the baseline (speech vs. background).
-    func observe(db: Float, at time: TimeInterval) {
-        // Seed baseline from first sample.
-        if baselineDB == nil {
-            baselineDB = db
-        }
-
-        guard let currentBaseline = baselineDB else { return }
-
-        // Exponential moving average toward the observed db.
-        // Use a small alpha so the baseline moves slowly and reflects
-        // ambient conditions rather than every transient spike.
-        let alpha: Float = 0.05
-        let newBaseline = currentBaseline + alpha * (db - currentBaseline)
-        baselineDB = newBaseline
-
-        // Margin above baseline to consider this "speech" instead of noise.
-        // This is deliberately modest; we still have an inactivity timeout
-        // and trimming on the raw recording to refine bounds.
-        let margin: Float = 12.0
-        if db >= newBaseline + margin {
-            markLoud(at: time)
-        }
-    }
-
-    func markLoud(at time: TimeInterval) {
-        // Only move forward in time.
-        if let current = lastLoudTime {
-            if time > current { lastLoudTime = time }
-        } else {
-            lastLoudTime = time
-        }
-    }
-
-    func lastLoud() -> TimeInterval? { lastLoudTime }
-
-    func reset(now: TimeInterval? = nil) {
-        baselineDB = nil
-        lastLoudTime = now
-    }
-}
-
 @MainActor
 extension RealVoiceIO {
 
@@ -201,21 +148,8 @@ extension RealVoiceIO {
         }
         #endif
 
-        latestTranscript = ""
-        onTranscriptChanged?("")
-        onLevelChanged?(0)
-        hasFinishedRecognition = false
-        firstSpeechStart = nil
-        lastSpeechEnd = nil
-
-        // Reset activity tracker for this listen. Until we observe loud input
-        // from the tap, inactivity is measured relative to this moment; once
-        // loud buffers arrive, the tracker will be updated from the realtime
-        // queue.
+        resetListenState()
         await sttActivityTracker.reset(now: ProcessInfo.processInfo.systemUptime)
-
-        listenOverallTask?.cancel(); listenOverallTask = nil
-        listenInactivityTask?.cancel(); listenInactivityTask = nil
 
         let engine = AVAudioEngine()
         audioEngine = engine
@@ -273,12 +207,26 @@ extension RealVoiceIO {
 
         startOverallTimer(seconds: timeout)
 
-        let result: VoiceResult = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<VoiceResult, Error>) in
+        let result: VoiceResult = try await withCheckedThrowingContinuation { cont in
             self.listenCont = cont
         }
 
         if Task.isCancelled { throw CancellationError() }
         return result
+    }
+
+    /// Reset all listen state before starting a new listen operation.
+    private func resetListenState() {
+        latestTranscript = ""
+        onTranscriptChanged?("")
+        onLevelChanged?(0)
+        hasFinishedRecognition = false
+        firstSpeechStart = nil
+        lastSpeechEnd = nil
+        listenOverallTask?.cancel()
+        listenOverallTask = nil
+        listenInactivityTask?.cancel()
+        listenInactivityTask = nil
     }
 
     // MARK: - Recognition helpers
@@ -289,9 +237,7 @@ extension RealVoiceIO {
         inactivity: TimeInterval
     ) {
         var text = result.bestTranscription.formattedString
-        let trimmed = text.trimmingCharacters(
-            in: CharacterSet.whitespacesAndNewlines
-        )
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let segments = result.bestTranscription.segments
 
         if case .number = expectation {
@@ -305,22 +251,25 @@ extension RealVoiceIO {
                 self.startInactivityTimer(seconds: inactivity)
             }
 
-            if !segments.isEmpty {
-                var first = self.firstSpeechStart
-                var last = self.lastSpeechEnd
-                for seg in segments {
-                    if first == nil { first = seg.timestamp }
-                    last = max(last ?? 0, seg.timestamp + seg.duration)
-                }
-                self.firstSpeechStart = first
-                self.lastSpeechEnd = last
-            }
+            self.updateSpeechSegments(segments)
 
             if result.isFinal {
                 self.log(.info, "listen(stt) complete via recognizer isFinal")
                 self.completeCurrentListen()
             }
         }
+    }
+
+    private func updateSpeechSegments(_ segments: [SFTranscriptionSegment]) {
+        guard !segments.isEmpty else { return }
+        var first = firstSpeechStart
+        var last = lastSpeechEnd
+        for seg in segments {
+            if first == nil { first = seg.timestamp }
+            last = max(last ?? 0, seg.timestamp + seg.duration)
+        }
+        firstSpeechStart = first
+        lastSpeechEnd = last
     }
 
     // MARK: - Private helpers (STT listen setup)
@@ -378,31 +327,20 @@ extension RealVoiceIO {
 
     // MARK: - Listen completion & timers (live path)
     private func startInactivityTimer(seconds: TimeInterval) {
-        // seconds <= 0 means: disable inactivity timeout for this listen.
         guard seconds > 0 else {
             listenInactivityTask?.cancel()
             listenInactivityTask = nil
             return
         }
-
         listenInactivityTask?.cancel()
         listenInactivityTask = Task { [weak self] in
-            // Poll activity until we've seen `seconds` of silence since the last
-            // loud buffer, or until cancelled. The overall timer still enforces
-            // a hard cap on total listen duration.
             let anchor = ProcessInfo.processInfo.systemUptime
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 250_000_000) // ~0.25s resolution
+                try? await Task.sleep(nanoseconds: 250_000_000)
                 guard let self else { return }
-
                 let now = ProcessInfo.processInfo.systemUptime
                 let last = await self.sttActivityTracker.lastLoud()
-                // Fallback: if we've never seen a "loud" buffer, treat the
-                // timer start as the reference point. We only start this timer
-                // once we have a non-empty transcript, so `anchor` is already
-                // "after the user has spoken at least once".
                 let reference = last ?? anchor
-
                 if now - reference >= seconds {
                     await MainActor.run {
                         self.log(.info, "listen(stt) complete via inactivity timeout \(seconds)s")
@@ -429,35 +367,30 @@ extension RealVoiceIO {
     private func completeCurrentListen() {
         guard !hasFinishedRecognition else { return }
         hasFinishedRecognition = true
-
         listenOverallTask?.cancel(); listenOverallTask = nil
         listenInactivityTask?.cancel(); listenInactivityTask = nil
-
         audioEngine?.stop()
         audioEngine?.inputNode.removeTap(onBus: 0)
         recognitionRequest?.endAudio()
         recognitionTask?.cancel()
-
         let transcript = latestTranscript
-        var recordingURL: URL?
-
-        if currentListenShouldRecord, let raw = rawRecordingURL {
-            // Best-effort trim around detected speech; fall back to raw file.
-            let trimmed = trimAudioSmart(
-                inputURL: raw,
-                sttStart: firstSpeechStart,
-                sttEnd: lastSpeechEnd,
-                prePad: config.trimPrePad,
-                postPad: config.trimPostPad
-            )
-            recordingURL = trimmed ?? raw
-        }
-
+        let recordingURL = processRecordingFile()
         currentListenShouldRecord = false
         rawRecordingURL = nil
-
         let res = VoiceResult(transcript: transcript, recordingURL: recordingURL)
         listenCont?.resume(returning: res)
         listenCont = nil
+    }
+
+    private func processRecordingFile() -> URL? {
+        guard currentListenShouldRecord, let raw = rawRecordingURL else { return nil }
+        let trimmed = trimAudioSmart(
+            inputURL: raw,
+            sttStart: firstSpeechStart,
+            sttEnd: lastSpeechEnd,
+            prePad: config.trimPrePad,
+            postPad: config.trimPostPad
+        )
+        return trimmed ?? raw
     }
 }
