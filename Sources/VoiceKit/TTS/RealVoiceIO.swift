@@ -243,6 +243,9 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
         }
         listenCont = nil
 
+        if let raw = rawRecordingURL {
+            try? FileManager.default.removeItem(at: raw)
+        }
         rawRecordingURL = nil
         currentListenShouldRecord = false
         firstSpeechStart = nil

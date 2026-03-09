@@ -391,6 +391,11 @@ extension RealVoiceIO {
             prePad: config.trimPrePad,
             postPad: config.trimPostPad
         )
-        return trimmed ?? raw
+        let result = trimmed ?? raw
+        // If trimming succeeded and returned a different URL, delete the raw recording.
+        if let trimmed, trimmed != raw {
+            try? FileManager.default.removeItem(at: raw)
+        }
+        return result
     }
 }
