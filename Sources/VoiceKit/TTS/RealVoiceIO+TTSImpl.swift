@@ -150,8 +150,6 @@ extension RealVoiceIO {
         let trace = "applyProfile[\(source)] id=\(voiceIDStr) name=\(vname) " +
             "norm=\(normStr) avRate=\(rateStr) pitch=\(pitchStr) vol=\(volStr)"
         log(.info, trace)
-        // Also print so Xcode Previews shows it even if the logger is muted
-        print("[VoiceKit]", trace)
     }
 
     internal func ttsStartPulse() {}
