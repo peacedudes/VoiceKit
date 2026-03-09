@@ -70,7 +70,7 @@ public struct VoiceProfilesFile: Codable {
 @MainActor
 public final class VoiceProfilesStore: ObservableObject {
     @Published public var defaultVoiceID: String?
-    @Published public var master: Tuning = .init()
+    @Published public var tuning: Tuning = .init()
     @Published public var profilesByID: [String: TTSVoiceProfile] = [:]
     @Published public var activeVoiceIDs: Set<String> = []
     @Published public var hiddenVoiceIDs: Set<String> = []
@@ -90,24 +90,17 @@ public final class VoiceProfilesStore: ObservableObject {
         guard let data = try? Data(contentsOf: fileURL) else { return }
         if let decoded = try? JSONDecoder().decode(VoiceProfilesFile.self, from: data) {
             self.defaultVoiceID = decoded.defaultVoiceID
-            self.master = decoded.tuning
+            self.tuning = decoded.tuning
             self.profilesByID = decoded.profilesByID
             self.activeVoiceIDs = Set(decoded.activeVoiceIDs)
             self.hiddenVoiceIDs = Set(decoded.hiddenVoiceIDs)
         }
     }
 
-    // Transitional convenience: prefer 'tuning' from call sites.
-    // Proxies to 'master' until the persistence and API are renamed.
-    public var tuning: Tuning {
-        get { master }
-        set { master = newValue }
-    }
-
     public func save() {
         let payload = VoiceProfilesFile(
             defaultVoiceID: defaultVoiceID,
-            tuning: master,
+            tuning: tuning,
             profilesByID: profilesByID,
             activeVoiceIDs: Array(activeVoiceIDs),
             hiddenVoiceIDs: Array(hiddenVoiceIDs)

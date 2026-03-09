@@ -129,8 +129,6 @@ public final class VoiceChooserViewModel: ObservableObject {
         store.defaultVoiceID = id
     }
 
-    // Transitional convenience: prefer 'tuning' from UI code.
-    // Proxies to store.master until full rename.
     public func updateTuning(_ tuning: Tuning, previewKind: String? = nil) {
         store.tuning = tuning
     }
