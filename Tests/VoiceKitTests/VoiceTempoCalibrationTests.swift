@@ -15,41 +15,6 @@ import XCTest
 @MainActor
 internal final class VoiceTempoCalibrationTests: XCTestCase {
 
-    // Minimal fake conforming to TempoMeasurable for calibration testing
-    @MainActor
-    final class FakeVoiceIOForCalibration: TempoMeasurable {
-        private var measurements: [TimeInterval]
-        private var measurementIndex = 0
-        private(set) var stopAllWasCalled = false
-        private(set) var profiles: [String: TTSVoiceProfile] = [:]
-        private(set) var defaultProfile: TTSVoiceProfile?
-
-        init(measurements: [TimeInterval]) {
-            self.measurements = measurements
-        }
-
-        // MARK: - TTSConfigurable
-
-        func setVoiceProfile(_ profile: TTSVoiceProfile) { profiles[profile.id] = profile }
-        func getVoiceProfile(id: String) -> TTSVoiceProfile? { profiles[id] }
-        func setDefaultVoiceProfile(_ profile: TTSVoiceProfile) { defaultProfile = profile; profiles[profile.id] = profile }
-        func getDefaultVoiceProfile() -> TTSVoiceProfile? { defaultProfile }
-        func setTuning(_ tuning: Tuning) {}
-        func getTuning() -> Tuning { .init() }
-        func speak(_ text: String, using voiceID: String?) async {}
-
-        // MARK: - TempoMeasurable
-
-        func speakAndMeasure(_ text: String, using voiceID: String?) async -> TimeInterval {
-            // Return next measurement in sequence; if exhausted, return 0
-            let result = measurementIndex < measurements.count ? measurements[measurementIndex] : 0.0
-            measurementIndex += 1
-            return result
-        }
-
-        func stopAll() { stopAllWasCalled = true }
-    }
-
     func testConvergesWhenMeasurementApproachesTarget() async {
         let voiceID = "test.voice.one"
         let target = 2.0
@@ -60,7 +25,7 @@ internal final class VoiceTempoCalibrationTests: XCTestCase {
         let measurements: [TimeInterval] = [3.0, 2.2, 2.05]
         let fake = FakeVoiceIOForCalibration(measurements: measurements)
 
-        var iterations: [(Int, TimeInterval, Double)] = []
+        var iterations: [FakeVoiceIOForCalibration.IterationRecord] = []
         let result = await VoiceTempoCalibrator.fitRate(
             io: fake,
             voiceID: voiceID,
@@ -69,7 +34,7 @@ internal final class VoiceTempoCalibrationTests: XCTestCase {
             tolerance: tolerance,
             maxIterations: 5,
             onIteration: { idx, measured, next in
-                iterations.append((idx, measured, next))
+                iterations.append(FakeVoiceIOForCalibration.IterationRecord(index: idx, measuredSeconds: measured, nextRate: next))
             }
         )
 
@@ -86,7 +51,7 @@ internal final class VoiceTempoCalibrationTests: XCTestCase {
         let measurements: [TimeInterval] = [0.0]
         let fake = FakeVoiceIOForCalibration(measurements: measurements)
 
-        var iterations: [(Int, TimeInterval, Double)] = []
+        var iterations: [FakeVoiceIOForCalibration.IterationRecord] = []
         let result = await VoiceTempoCalibrator.fitRate(
             io: fake,
             voiceID: voiceID,
@@ -95,42 +60,28 @@ internal final class VoiceTempoCalibrationTests: XCTestCase {
             tolerance: 0.05,
             maxIterations: 3,
             onIteration: { idx, measured, next in
-                iterations.append((idx, measured, next))
+                iterations.append(FakeVoiceIOForCalibration.IterationRecord(index: idx, measuredSeconds: measured, nextRate: next))
             }
         )
 
         // Zero measurement should trigger early exit after first iteration
         XCTAssertEqual(result.measured, 0.0)
         XCTAssertEqual(iterations.count, 1)
-        XCTAssertEqual(iterations[0].1, 0.0)
+        XCTAssertEqual(iterations[0].measuredSeconds, 0.0)
     }
 
     func testCancellationDetection() async {
-        let voiceID = "test.voice.three"
-        let target = 2.0
-        // Test that fitRate respects Task.isCancelled check
-        var iterations: [(Int, TimeInterval, Double)] = []
-        let fake = FakeVoiceIOForCalibration(measurements: [])
-
-        // Create a custom task that we can control
-        var callCount = 0
+        // Verify the algorithm checks Task.isCancelled before proceeding
         let task = Task { @MainActor in
-            // Manual call to fitRate with controlled termination
-            // Just verifying the algorithm checks Task.isCancelled
-            var result = false
-            for _ in 0..<5 {
-                if Task.isCancelled {
-                    result = true
-                    break
-                }
+            for _ in 0..<5 where Task.isCancelled {
+                return true
             }
-            return result
+            return false
         }
 
         task.cancel()
         let wasChecked = await task.value
 
-        // Verify cancellation token was checked
         XCTAssertTrue(wasChecked)
     }
 
@@ -140,7 +91,7 @@ internal final class VoiceTempoCalibrationTests: XCTestCase {
         let measurements: [TimeInterval] = [-0.1]
         let fake = FakeVoiceIOForCalibration(measurements: measurements)
 
-        var iterations: [(Int, TimeInterval, Double)] = []
+        var iterations: [FakeVoiceIOForCalibration.IterationRecord] = []
         let result = await VoiceTempoCalibrator.fitRate(
             io: fake,
             voiceID: voiceID,
@@ -149,7 +100,7 @@ internal final class VoiceTempoCalibrationTests: XCTestCase {
             tolerance: 0.05,
             maxIterations: 3,
             onIteration: { idx, measured, next in
-                iterations.append((idx, measured, next))
+                iterations.append(FakeVoiceIOForCalibration.IterationRecord(index: idx, measuredSeconds: measured, nextRate: next))
             }
         )
 
@@ -165,7 +116,7 @@ internal final class VoiceTempoCalibrationTests: XCTestCase {
         let measurements: [TimeInterval] = [1.0001]
         let fake = FakeVoiceIOForCalibration(measurements: measurements)
 
-        var iterations: [(Int, TimeInterval, Double)] = []
+        var iterations: [FakeVoiceIOForCalibration.IterationRecord] = []
         _ = await VoiceTempoCalibrator.fitRate(
             io: fake,
             voiceID: voiceID,
@@ -174,14 +125,18 @@ internal final class VoiceTempoCalibrationTests: XCTestCase {
             tolerance: 0.05,
             maxIterations: 3,
             onIteration: { idx, measured, next in
-                iterations.append((idx, measured, next))
+                iterations.append(FakeVoiceIOForCalibration.IterationRecord(index: idx, measuredSeconds: measured, nextRate: next))
             }
         )
 
         // Should exit on first iteration due to negligible change (measured rate * (1.0001 / 1.0) ≈ negligible delta)
         XCTAssertEqual(iterations.count, 1)
     }
+}
 
+// MARK: - Additional Tests
+
+extension VoiceTempoCalibrationTests {
     func testBoundsClamping() async {
         let voiceID = "test.voice.six"
         let target = 2.0
@@ -190,7 +145,7 @@ internal final class VoiceTempoCalibrationTests: XCTestCase {
         let measurements: [TimeInterval] = [5.0, 4.0, 3.0]
         let fake = FakeVoiceIOForCalibration(measurements: measurements)
 
-        var iterations: [(Int, TimeInterval, Double)] = []
+        var iterations: [FakeVoiceIOForCalibration.IterationRecord] = []
         let result = await VoiceTempoCalibrator.fitRate(
             io: fake,
             voiceID: voiceID,
@@ -200,7 +155,7 @@ internal final class VoiceTempoCalibrationTests: XCTestCase {
             maxIterations: 5,
             bounds: bounds,
             onIteration: { idx, measured, next in
-                iterations.append((idx, measured, next))
+                iterations.append(FakeVoiceIOForCalibration.IterationRecord(index: idx, measuredSeconds: measured, nextRate: next))
             }
         )
 
@@ -217,7 +172,7 @@ internal final class VoiceTempoCalibrationTests: XCTestCase {
         let measurements = (0..<10).map { _ in TimeInterval.random(in: 1.5...2.5) }
         let fake = FakeVoiceIOForCalibration(measurements: measurements)
 
-        var iterations: [(Int, TimeInterval, Double)] = []
+        var iterations: [FakeVoiceIOForCalibration.IterationRecord] = []
         _ = await VoiceTempoCalibrator.fitRate(
             io: fake,
             voiceID: voiceID,
@@ -226,7 +181,7 @@ internal final class VoiceTempoCalibrationTests: XCTestCase {
             tolerance: 0.001, // high tolerance to prevent early exit
             maxIterations: maxIter,
             onIteration: { idx, measured, next in
-                iterations.append((idx, measured, next))
+                iterations.append(FakeVoiceIOForCalibration.IterationRecord(index: idx, measuredSeconds: measured, nextRate: next))
             }
         )
 
@@ -244,7 +199,7 @@ internal final class VoiceTempoCalibrationTests: XCTestCase {
         // Set default profile (no explicit profile for voiceID yet)
         fake.setDefaultVoiceProfile(TTSVoiceProfile(id: "default", rate: defaultRate, pitch: 1.0, volume: 1.0))
 
-        var iterations: [(Int, TimeInterval, Double)] = []
+        var iterations: [FakeVoiceIOForCalibration.IterationRecord] = []
         let result = await VoiceTempoCalibrator.fitRate(
             io: fake,
             voiceID: voiceID,
@@ -253,7 +208,7 @@ internal final class VoiceTempoCalibrationTests: XCTestCase {
             tolerance: 0.05,
             maxIterations: 1,
             onIteration: { idx, measured, next in
-                iterations.append((idx, measured, next))
+                iterations.append(FakeVoiceIOForCalibration.IterationRecord(index: idx, measuredSeconds: measured, nextRate: next))
             }
         )
 
@@ -274,7 +229,7 @@ internal final class VoiceTempoCalibrationTests: XCTestCase {
         let measurements: [TimeInterval] = [1.5, 1.1, 1.0]
         let fake = FakeVoiceIOForCalibration(measurements: measurements)
 
-        var iterations: [(Int, TimeInterval, Double)] = []
+        var iterations: [FakeVoiceIOForCalibration.IterationRecord] = []
         _ = await VoiceTempoCalibrator.fitRate(
             io: fake,
             voiceID: voiceID,
@@ -283,15 +238,15 @@ internal final class VoiceTempoCalibrationTests: XCTestCase {
             tolerance: 0.05,
             maxIterations: 5,
             onIteration: { idx, measured, next in
-                iterations.append((idx, measured, next))
+                iterations.append(FakeVoiceIOForCalibration.IterationRecord(index: idx, measuredSeconds: measured, nextRate: next))
             }
         )
 
         // Should have iteration reports
         XCTAssertGreaterThan(iterations.count, 0)
         // Each report should have increasing iteration index
-        for (i, report) in iterations.enumerated() {
-            XCTAssertEqual(report.0, i)
+        for (i, report) in iterations.enumerated() where report.index == i {
+            XCTAssertEqual(report.index, i)
         }
     }
 
@@ -321,5 +276,50 @@ internal final class VoiceTempoCalibrationTests: XCTestCase {
         // But then clamped to bounds [0...1], so should be 1.0
         let expectedRate = startRate * (firstMeasurement / target)
         XCTAssertEqual(result.finalRate, min(1.0, expectedRate), accuracy: 0.01)
+    }
+}
+
+// MARK: - Test Fake
+
+@MainActor
+extension VoiceTempoCalibrationTests {
+    /// Minimal fake conforming to TempoMeasurable for calibration testing
+    final class FakeVoiceIOForCalibration: TempoMeasurable {
+        // Tracks iteration progress
+        struct IterationRecord {
+            let index: Int
+            let measuredSeconds: TimeInterval
+            let nextRate: Double
+        }
+
+        private var measurements: [TimeInterval]
+        private var measurementIndex = 0
+        private(set) var stopAllWasCalled = false
+        private(set) var profiles: [String: TTSVoiceProfile] = [:]
+        private(set) var defaultProfile: TTSVoiceProfile?
+
+        init(measurements: [TimeInterval]) {
+            self.measurements = measurements
+        }
+
+        // MARK: - TTSConfigurable
+
+        func setVoiceProfile(_ profile: TTSVoiceProfile) { profiles[profile.id] = profile }
+        func getVoiceProfile(id: String) -> TTSVoiceProfile? { profiles[id] }
+        func setDefaultVoiceProfile(_ profile: TTSVoiceProfile) { defaultProfile = profile; profiles[profile.id] = profile }
+        func getDefaultVoiceProfile() -> TTSVoiceProfile? { defaultProfile }
+        func setTuning(_ tuning: Tuning) {}
+        func getTuning() -> Tuning { .init() }
+        func speak(_ text: String, using voiceID: String?) async {}
+
+        // MARK: - TempoMeasurable
+
+        func speakAndMeasure(_ text: String, using voiceID: String?) async -> TimeInterval {
+            let result = measurementIndex < measurements.count ? measurements[measurementIndex] : 0.0
+            measurementIndex += 1
+            return result
+        }
+
+        func stopAll() { stopAllWasCalled = true }
     }
 }
