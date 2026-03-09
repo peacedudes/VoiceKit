@@ -14,11 +14,27 @@ import XCTest
 internal final class RealVoiceIOSTTTests: XCTestCase {
 
     func testNormalizeNumeric() {
+        // Basic cases
         XCTAssertEqual(RealVoiceIO.normalizeNumeric(from: "  42 "), "42")
         XCTAssertEqual(RealVoiceIO.normalizeNumeric(from: "seven"), "7")
         XCTAssertEqual(RealVoiceIO.normalizeNumeric(from: "Nineteen"), "19")
-        // Decimals are allowed; ensure parsing keeps the decimal
+        // Decimals
         XCTAssertEqual(RealVoiceIO.normalizeNumeric(from: "forty-two point five"), "42.5")
+        // Hundreds
+        XCTAssertEqual(RealVoiceIO.normalizeNumeric(from: "two hundred"), "200")
+        XCTAssertEqual(RealVoiceIO.normalizeNumeric(from: "two hundred three"), "203")
+        XCTAssertEqual(RealVoiceIO.normalizeNumeric(from: "one hundred twenty three"), "123")
+        // Thousands
+        XCTAssertEqual(RealVoiceIO.normalizeNumeric(from: "one thousand"), "1000")
+        XCTAssertEqual(RealVoiceIO.normalizeNumeric(from: "one thousand five"), "1005")
+        XCTAssertEqual(RealVoiceIO.normalizeNumeric(from: "five thousand"), "5000")
+        XCTAssertEqual(RealVoiceIO.normalizeNumeric(from: "twenty three thousand"), "23000")
+        // Complex combinations
+        XCTAssertEqual(RealVoiceIO.normalizeNumeric(from: "one thousand two hundred thirty four"), "1234")
+        XCTAssertEqual(RealVoiceIO.normalizeNumeric(from: "five thousand forty two"), "5042")
+        // Millions
+        XCTAssertEqual(RealVoiceIO.normalizeNumeric(from: "one million"), "1000000")
+        XCTAssertEqual(RealVoiceIO.normalizeNumeric(from: "two million five hundred thousand"), "2500000")
     }
 
     func testFinishRecognitionIsIdempotent() {

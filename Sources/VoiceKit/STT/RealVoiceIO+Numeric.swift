@@ -68,6 +68,10 @@ extension RealVoiceIO {
 
     /// Parse token array into integer and optional decimal parts.
     /// Returns nil if any token is unrecognized or invalid.
+    /// Handles: ones, teens, tens, hundreds, thousands, millions and decimal parts.
+    /// Example: "one thousand two hundred thirty four" → 1234
+    ///          "forty two" → 42
+    ///          "five point three" → 5.3
     private static func parseNumericTokens(_ tokens: [String]) -> (intValue: Int?, decimalPart: String?)? {
         let ones: [String: Int] = [
             "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4,
@@ -81,9 +85,13 @@ extension RealVoiceIO {
             "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
             "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90
         ]
+        let scales: [String: Int] = [
+            "hundred": 100, "thousand": 1000, "million": 1000000
+        ]
 
         var intValue: Int?
         var decimalPart: String?
+        var current = 0 // Accumulator for the current scale (before multiplying by hundred/thousand/million)
         var i = 0
 
         while i < tokens.count {
@@ -98,8 +106,23 @@ extension RealVoiceIO {
                 break
             }
 
+            // Check for scale multipliers (hundred, thousand, million)
+            if let scale = scales[token] {
+                if scale < 1000 {
+                    // "hundred" multiplies the current accumulator
+                    current = (current == 0 ? 1 : current) * scale
+                } else {
+                    // "thousand" and "million" multiply and add to total
+                    let toAdd = (current == 0 ? 1 : current) * scale
+                    intValue = (intValue ?? 0) + toAdd
+                    current = 0
+                }
+                i += 1
+                continue
+            }
+
             if let teenValue = teens[token] {
-                intValue = (intValue ?? 0) + teenValue
+                current += teenValue
                 i += 1
                 continue
             }
@@ -110,19 +133,19 @@ extension RealVoiceIO {
                     value += onesDigit
                     i += 1
                 }
-                intValue = (intValue ?? 0) + value
+                current += value
                 i += 1
                 continue
             }
 
             if let digitValue = ones[token] {
-                intValue = (intValue ?? 0) + digitValue
+                current += digitValue
                 i += 1
                 continue
             }
 
             if let num = Int(token) {
-                intValue = (intValue ?? 0) + num
+                current += num
                 i += 1
                 continue
             }
@@ -132,6 +155,11 @@ extension RealVoiceIO {
             }
 
             return nil
+        }
+
+        // Add any remaining accumulated value to the total
+        if current > 0 {
+            intValue = (intValue ?? 0) + current
         }
 
         return (intValue, decimalPart)
