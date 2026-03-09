@@ -12,6 +12,18 @@
 import Foundation
 @preconcurrency import AVFoundation
 
+// MARK: - Boosted playback provider
+
+public protocol BoostedNodesProvider {
+    func reset()
+    static func live() -> BoostedNodesProvider
+}
+
+public struct LiveBoostedNodesProvider: BoostedNodesProvider {
+    public static func live() -> BoostedNodesProvider { LiveBoostedNodesProvider() }
+    public func reset() {}
+}
+
 @MainActor
 extension RealVoiceIO {
 
