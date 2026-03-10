@@ -238,6 +238,28 @@ reject NaN/infinite values, document what 0 means for each field.
 
 ---
 
+### 13. Punctuation normalization flattens voice inflection (workaround, not solution)
+
+**File:** `Sources/VoiceKit/TTS/RealVoiceIO+TTSImpl.swift`
+
+AVSpeechSynthesis resets rate/pitch adjustments after sentence-ending punctuation
+(.!?), breaking voice calibration mid-utterance. The current fix normalizes all
+punctuation to commas, which preserves rate but removes inflection cues. Voices
+end up sounding flat because `.` (falling tone), `!` (emphasis), and `?` (rising
+tone) are semantic markers that affect naturalness.
+
+**Better approach:** Split utterances at sentence boundaries, create separate
+`AVSpeechUtterance` objects for each sentence, and speak them sequentially while
+maintaining the voice profile across all. This way:
+- Each sentence keeps its natural punctuation and inflection
+- Rate calibration persists (same profile applies to all sentences)
+- Sentences are logically separate anyway
+
+Fix: Extract sentence-splitting logic, queue utterances with profile preservation,
+and manage the sequence as a single "logical utterance" from the caller's perspective.
+
+---
+
 ## Code Smell
 
 ### 13. `RealVoiceIO+Boosted.swift` uses static dictionaries keyed by ObjectIdentifier
@@ -336,12 +358,13 @@ problem as much as a capability one, but it's real.
 2. **Fix numeric parsing `* 1000` logic** — Correctness bug. Wrong answers in production.
 3. **Remove the `print` in TTSImpl** — Logging noise in every production app.
 4. **Rename `master` → `tuning`** — One grep, no design decisions required.
-5. **Add recording file cleanup** — Resource leak. Slow-motion, but real.
-6. **Delete `SeamsLive.swift`** — Move `BoostedNodesProvider` to its real home or remove it.
-7. **Cache `filteredVoices`** — Performance and testability improvement.
-8. **Document `TTSVoiceProfile.rate` semantics** — Saves confusion for every future caller.
-9. **Test `VoiceTempoCalibrator`** — Untested non-trivial algorithm.
-10. **Fix numeric parsing to support hundreds/thousands** — Completeness.
+5. **Replace punctuation normalization with sentence splitting** — Better voice quality; current approach flattens inflection.
+6. **Add recording file cleanup** — Resource leak. Slow-motion, but real.
+7. **Delete `SeamsLive.swift`** — Move `BoostedNodesProvider` to its real home or remove it.
+8. **Cache `filteredVoices`** — Performance and testability improvement.
+9. **Document `TTSVoiceProfile.rate` semantics** — Saves confusion for every future caller.
+10. **Test `VoiceTempoCalibrator`** — Untested non-trivial algorithm.
+11. **Fix numeric parsing to support hundreds/thousands** — Completeness.
 
 ---
 
