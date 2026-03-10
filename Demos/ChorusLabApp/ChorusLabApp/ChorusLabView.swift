@@ -98,19 +98,13 @@ private enum Metrics {
     }
     /// Global rate and pitch adjustment ranges.
     enum Adjustments {
-        /// Denominator for slow-down mapping in ChorusMath.adjustedRate.
-        /// Prevents over-slowing voices when rateScale < 1.0.
-        static let slowRange: Double = 0.75
-        /// Range of global speed multiplier: 0.05× (very slow) to 2.0× (very fast).
+        static let slowRange: Double = 0.75  // Denominator for slow-down in ChorusMath
         static let speedRange: ClosedRange<Double> = 0.05...2.0
-        /// Range of global pitch offset: ±0.9 semitone range (±900 cents, roughly ±1 octave when combined with voice pitch).
         static let pitchOffsetRange: ClosedRange<Double> = -0.9...0.9
     }
     /// Pitch clamping bounds for all voices.
     enum Pitch {
-        /// Minimum pitch multiplier (lower limit for available voice range).
         static let clampLo: Float = 0.5
-        /// Maximum pitch multiplier (upper limit for available voice range).
         static let clampHi: Float = 2.0
     }
 }
@@ -122,7 +116,7 @@ private enum Metrics {
 ///
 /// **Core Concepts**:
 /// - **Voice Selection**: Users add system voices to a chorus and tune each voice's pitch, volume, and rate.
-/// - **Rate Calibration**: VoiceTempoCalibrator iteratively adjusts speaking rate to match a user-specified target duration.
+/// - **Rate Calibration**: Iteratively adjust speaking rate to match target duration.
 /// - **Global Adjustments**: rateScale and pitchOffset apply to all voices simultaneously for ensemble-wide tweaks.
 /// - **Baseline vs. Effective**: baseProfiles store un-scaled rates/pitches; selectedProfiles are the computed result
 ///   of applyAdjustments, which combines baseline + global sliders.
@@ -184,7 +178,6 @@ internal struct ChorusLabView: View {
     // MARK: - Playback state
     /// True while chorus playback is in progress.
     @State private var isPlaying: Bool = false
-
     // MARK: - Tuner integration
     /// Whether the voice tuner sheet is currently visible.
     @State private var showTuner = false
@@ -194,20 +187,16 @@ internal struct ChorusLabView: View {
     @State private var tunerEngine = RealVoiceIO()
     /// Index of the voice being edited in selectedProfiles (nil if adding a new voice).
     @State private var editingIndex: Int?
-
     // MARK: - Feedback
     /// True when "Copied to Clipboard" feedback is visible.
     /// Triggers a spring animation + auto-dismiss after ~0.9s.
     @State private var didCopy: Bool = false
-
     /// Focus state for the text editor; cleared when "Done" is tapped on iOS.
     @FocusState private var isTextEditorFocused: Bool
-
     // MARK: - Deprecated state (kept for backward compatibility)
     /// Unused; retained in state to avoid breaking existing code that might reference these.
     @State private var pitch: Float = 1.0
     @State private var rate: Float = 0.55
-
     // MARK: - Internal state proxies for extension helpers
     /// Computed properties exposing @State properties for mutation by helper extensions.
     /// These allow ChorusLabView+Logic.swift to access private state without making it public.
@@ -536,7 +525,7 @@ internal struct ChorusLabView: View {
                         calibratingVoiceID = voiceID
                         let prevScale = rateScale
                         rateScale = 1.0
-                        let io = engineFactory()
+                        let engine = engineFactory()
                         defer {
                             isCalibrating = false
                             calibratingVoiceID = nil
@@ -678,9 +667,9 @@ internal struct ChorusLabView: View {
                 // Inline to avoid calling a mutating helper from an immutable context
                 Task { @MainActor in
                     isPlaying = true
-                    let t0 = Date()
+                    let startTime = Date()
                     await chorus.speak(customText, withVoiceProfiles: selectedProfiles)
-                    let elapsed = Date().timeIntervalSince(t0)
+                    let elapsed = Date().timeIntervalSince(startTime)
                     lastChorusSeconds = elapsed
                     isPlaying = false
                 }
@@ -764,9 +753,15 @@ internal struct ChorusLabView: View {
         let pitchOffsets: [Float] = [-0.05, 0.05, 0.1, -0.1]
 
         for (index, voice) in slice.enumerated() {
-            var profile = TTSVoiceProfile(id: voice.id, rate: Metrics.Defaults.rate, pitch: Metrics.Defaults.pitch, volume: Metrics.Defaults.volume)
+            var profile = TTSVoiceProfile(
+                id: voice.id,
+                rate: Metrics.Defaults.rate,
+                pitch: Metrics.Defaults.pitch,
+                volume: Metrics.Defaults.volume
+            )
             if index < pitchOffsets.count {
-                profile.pitch = (profile.pitch + pitchOffsets[index]).clamped(to: Metrics.Pitch.clampLo...Metrics.Pitch.clampHi)
+                let adjustedPitch = profile.pitch + pitchOffsets[index]
+                profile.pitch = adjustedPitch.clamped(to: Metrics.Pitch.clampLo...Metrics.Pitch.clampHi)
             }
             picks.append(profile)
         }
@@ -834,14 +829,18 @@ internal struct ChorusLabView: View {
     /// Resyncs baseProfiles and reapplies global adjustments to ensure consistency.
     private func applyTunerSelection() {
         guard let id = tunerSelection else { return }
-        // Prefer the specific profile returned by the tuner engine; fall back to its default;
-        // finally, seed a mid profile if neither is available yet.
+        // Prefer tuned profile, fall back to engine default, then seed mid-range values.
         var tuned: TTSVoiceProfile? = tunerEngine.getVoiceProfile(id: id)
         if tuned == nil, let def = tunerEngine.getDefaultVoiceProfile() {
             tuned = TTSVoiceProfile(id: id, rate: def.rate, pitch: def.pitch, volume: def.volume)
         }
         if tuned == nil {
-            tuned = TTSVoiceProfile(id: id, rate: Metrics.Defaults.rate, pitch: Metrics.Defaults.pitch, volume: Metrics.Defaults.volume)
+            tuned = TTSVoiceProfile(
+                id: id,
+                rate: Metrics.Defaults.rate,
+                pitch: Metrics.Defaults.pitch,
+                volume: Metrics.Defaults.volume
+            )
         }
         guard let tuned else { return }
         if let idx = editingIndex, selectedProfiles.indices.contains(idx) {
@@ -942,10 +941,10 @@ internal enum ChorusMath {
     /// Non-mutating; returns a new array of adjusted profiles.
     ///
     /// - Parameters:
-    ///   - baseProfiles: Original voice profiles (not modified).
-    ///   - rateScale: Global rate multiplier (see adjustedRate for mapping).
-    ///   - pitchOffset: Amount to add to each voice's pitch multiplier, clamped to Metrics.Pitch range.
-    /// - Returns: New profiles with adjusted rate and pitch values.
+    ///   - baseProfiles: Original profiles (unmodified).
+    ///   - rateScale: Global rate multiplier (see adjustedRate).
+    ///   - pitchOffset: Added to each voice's pitch, clamped to Metrics.Pitch range.
+    /// - Returns: Profiles with adjusted rate and pitch.
     static func applyAdjustments(
         baseProfiles: [TTSVoiceProfile],
         rateScale: Double,
