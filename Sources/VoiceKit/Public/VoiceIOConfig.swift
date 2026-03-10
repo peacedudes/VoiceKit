@@ -26,13 +26,16 @@ public struct VoiceIOConfig: Sendable, Equatable {
     public var trimPostPad: Double
 
     /// Maximum time to wait for a prepared clip to start playback before timing out (seconds).
-    /// Must be > 0. Used only by boosted clip scheduling. Default (2.0) accommodates
-    /// system audio setup delays.
+    /// Must be > 0. Intended for boosted clip scheduling, but currently unused in VoiceKit.
+    /// Retained for potential future use or app-level integration.
+    /// Default (2.0) would accommodate system audio setup delays if implemented.
     public var clipWaitTimeoutSeconds: Double
 
     /// Duration to suppress STT listening after TTS finishes speaking (seconds).
-    /// Must be >= 0. Prevents the recognizer from hearing back the speaker's own voice.
-    /// Typical value: 0.2 to 0.5 depending on speaker volume and acoustic environment.
+    /// Must be >= 0. Intended to prevent the recognizer from hearing back the speaker's own voice,
+    /// but currently unused in VoiceKit (STT and TTS are not auto-coordinated).
+    /// Retained for potential future use or app-level integration.
+    /// Typical value if implemented: 0.2 to 0.5 depending on speaker volume and environment.
     public var ttsSuppressAfterFinish: Double
 
     /// Initializes a configuration with custom values.

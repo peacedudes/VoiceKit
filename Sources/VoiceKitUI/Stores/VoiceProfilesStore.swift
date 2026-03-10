@@ -67,16 +67,35 @@ public struct VoiceProfilesFile: Codable {
     }
 }
 
+/// Persisted voice configuration state.
+/// Stores voice profiles, tuning, and UI state (default voice, active/hidden lists).
+/// All state is automatically persisted to a JSON file in the app support directory.
 @MainActor
 public final class VoiceProfilesStore: ObservableObject {
+    /// ID of the currently selected default voice (used when speak() is called without a voice id).
     @Published public var defaultVoiceID: String?
+
+    /// Global TTS tuning (rate/pitch/volume variation and scaling).
     @Published public var tuning: Tuning = .init()
+
+    /// All stored voice profiles, keyed by voice id.
+    /// Apps typically populate this with system voices or custom voice configurations.
     @Published public var profilesByID: [String: TTSVoiceProfile] = [:]
+
+    /// Set of voice ids marked as "active" (for multi-voice synthesis, e.g., VoiceChorus).
+    /// Note: Use reassignment (not direct mutation) to ensure @Published triggers updates.
     @Published public var activeVoiceIDs: Set<String> = []
+
+    /// Set of voice ids marked as "hidden" (filtered out from most UI lists).
+    /// Note: Use reassignment (not direct mutation) to ensure @Published triggers updates.
     @Published public var hiddenVoiceIDs: Set<String> = []
 
     private let fileURL: URL
 
+    /// Initialize the store, creating the app support directory if needed.
+    /// Automatically loads persisted state from the file (if it exists).
+    ///
+    /// - Parameter filename: Name of the JSON file to load/save (default: "voices.json").
     public init(filename: String = "voices.json") {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
@@ -86,6 +105,8 @@ public final class VoiceProfilesStore: ObservableObject {
         load()
     }
 
+    /// Load state from the persisted JSON file.
+    /// Called automatically on init. Safe to call again to reload (e.g., after external updates).
     public func load() {
         guard let data = try? Data(contentsOf: fileURL) else { return }
         if let decoded = try? JSONDecoder().decode(VoiceProfilesFile.self, from: data) {
@@ -97,6 +118,8 @@ public final class VoiceProfilesStore: ObservableObject {
         }
     }
 
+    /// Persist current state to the JSON file atomically.
+    /// Called automatically by mutation methods (setProfile, toggleActive, setHidden).
     public func save() {
         let payload = VoiceProfilesFile(
             defaultVoiceID: defaultVoiceID,
@@ -110,6 +133,9 @@ public final class VoiceProfilesStore: ObservableObject {
         }
     }
 
+    /// Get or create a voice profile for the given voice info.
+    /// If a profile already exists, returns it; otherwise creates one with application defaults
+    /// (rate 0.55, pitch 1.0, volume 0.9) and stores it.
     public func profile(for info: TTSVoiceInfo) -> TTSVoiceProfile {
         if let profile = profilesByID[info.id] { return profile }
         let profile = TTSVoiceProfile(id: info.id, rate: 0.55, pitch: 1.0, volume: 0.9)
@@ -117,15 +143,26 @@ public final class VoiceProfilesStore: ObservableObject {
         return profile
     }
 
+    /// Store or update a voice profile.
     public func setProfile(_ profile: TTSVoiceProfile) { profilesByID[profile.id] = profile }
+
+    /// Check if a voice id is marked active.
     public func isActive(_ id: String) -> Bool { activeVoiceIDs.contains(id) }
+
+    /// Toggle the active status of a voice id and persist the change.
+    /// Note: Mutations use reassignment pattern to ensure @Published triggers updates.
     public func toggleActive(_ id: String) {
         var updated = activeVoiceIDs
         if updated.contains(id) { updated.remove(id) } else { updated.insert(id) }
         activeVoiceIDs = updated
         save()
     }
+
+    /// Check if a voice id is marked hidden.
     public func isHidden(_ id: String) -> Bool { hiddenVoiceIDs.contains(id) }
+
+    /// Set the hidden status of a voice id and persist the change.
+    /// Note: Mutations use reassignment pattern to ensure @Published triggers updates.
     public func setHidden(_ id: String, _ hidden: Bool) {
         var updated = hiddenVoiceIDs
         if hidden { updated.insert(id) } else { updated.remove(id) }

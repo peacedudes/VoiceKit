@@ -14,14 +14,26 @@ import AVFoundation
 import Foundation
 import VoiceKit
 
+/// ViewModel for voice selection and tuning UI (e.g., VoiceChooserView).
+///
+/// Manages:
+/// - Loading available voices (from a provider or system cache)
+/// - Filtering voices by language and hidden status
+/// - Synchronizing voice profiles and tuning between UI and persistent store
+/// - Playing preview audio with timing measurement
+///
+/// The ViewModel accepts a TTSConfigurable for voice synthesis and a
+/// VoiceProfilesStore for state persistence. It's suitable for both app UI
+/// and automated UI tests (by passing a mock TTS or ScriptedVoiceIO).
 @MainActor
 public final class VoiceChooserViewModel: ObservableObject {
     // MARK: - Language and filtering
 
+    /// Language filtering modes for voice lists.
     public enum LanguageFilter: Equatable {
-        case current
-        case all
-        case specific(String) // base code like "en"
+        case current  // Filter to current system locale language
+        case all      // Show all voices regardless of language
+        case specific(String)  // Filter to a specific language code (e.g., "en", "fr")
     }
 
     // Inputs
@@ -124,18 +136,26 @@ public final class VoiceChooserViewModel: ObservableObject {
 
     // MARK: - Store and TTS sync
 
+    /// Store a voice profile update (persisted to disk).
     public func updateProfile(_ profile: TTSVoiceProfile) {
         store.setProfile(profile)
     }
 
+    /// Set the default voice and persist the change.
     public func setDefaultVoice(id: String) {
         store.defaultVoiceID = id
     }
 
+    /// Update global tuning (persisted to disk).
+    /// - Parameters:
+    ///   - tuning: The new tuning values (rate/pitch/volume variation and scaling).
+    ///   - previewKind: Unused parameter; retained for API compatibility.
     public func updateTuning(_ tuning: Tuning, previewKind: String? = nil) {
         store.tuning = tuning
     }
 
+    /// Apply all stored profiles and tuning to the TTS engine.
+    /// Call this after updating profiles or tuning to make changes take effect.
     public func applyToTTS() {
         tts.setTuning(store.tuning)
         for profile in store.profilesByID.values {
@@ -162,6 +182,8 @@ public final class VoiceChooserViewModel: ObservableObject {
 
     // MARK: - Samples and previews
 
+    /// Generate a sample phrase showcasing the voice.
+    /// Default phrase: "My name is [voice name]." Optional suffix can be appended.
     public func samplePhrase(for profile: TTSVoiceProfile, suffix: String? = nil) -> String {
         let name = systemDisplayName(for: profile.id) ?? "Voice"
         var phrase = "My name is \(name)."
@@ -169,6 +191,12 @@ public final class VoiceChooserViewModel: ObservableObject {
         return phrase
     }
 
+    /// Play a preview of text using the specified voice, measuring the duration.
+    /// Automatically stops any existing preview before starting a new one.
+    /// Updates lastPreviewSeconds with the measured duration once complete.
+    /// - Parameters:
+    ///   - phrase: The text to speak.
+    ///   - voiceID: The voice profile id to use.
     public func playPreview(phrase: String, voiceID: String) {
         stopPreview()
         isPreviewing = true
@@ -184,6 +212,7 @@ public final class VoiceChooserViewModel: ObservableObject {
         }
     }
 
+    /// Stop any ongoing preview playback and cancel the preview task.
     public func stopPreview() {
         previewTask?.cancel()
         previewTask = nil

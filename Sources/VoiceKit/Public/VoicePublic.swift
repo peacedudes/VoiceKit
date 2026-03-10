@@ -13,6 +13,13 @@ import CoreGraphics
 
 // MARK: - Public results and errors
 
+/// Result of a voice listening (STT) operation.
+///
+/// - transcript: The recognized text from the user's speech.
+/// - recordingURL: Optional URL to the trimmed audio recording (if `record: true` was passed to `listen()`).
+///   If trimming succeeded, this is a trimmed .caf file with silence removed.
+///   If trimming failed, this is the raw recording. The file is temporary and should be
+///   copied or processed immediately; it may be deleted on the next operation.
 public struct VoiceResult: Sendable {
     public let transcript: String
     public let recordingURL: URL?
@@ -27,26 +34,82 @@ public struct VoiceResult: Sendable {
 
 /// App-facing voice box surface.
 /// Owns speaking, listening, short clips, lifecycle, and UI callbacks.
+/// All methods are @MainActor-isolated and must be called from the main thread.
 @MainActor
 public protocol VoiceIO: AnyObject {
+    /// Called when listening state changes (true when listening starts, false when it finishes).
     var onListeningChanged: ((Bool) -> Void)? { get set }
+
+    /// Called when transcript text changes during STT.
     var onTranscriptChanged: ((String) -> Void)? { get set }
+
+    /// Called with normalized audio level [0, 1] during listening.
+    /// Currently unused in production (reserved for future UI level meters).
     var onLevelChanged: ((CGFloat) -> Void)? { get set }
+
+    /// Called when TTS speaking state changes (true when speaking starts, false when it finishes).
     var onTTSSpeakingChanged: ((Bool) -> Void)? { get set }
+
+    /// Called with a pulsing animation value [0, 1] (sine wave) during TTS synthesis.
+    /// Useful for visual feedback like glowing indicators or breathing animations.
     var onTTSPulse: ((CGFloat) -> Void)? { get set }
+
+    /// Called with optional status messages for debugging or user feedback.
+    /// Value is nil when status is cleared.
     var onStatusMessageChanged: ((String?) -> Void)? { get set }
 
+    /// Ensure microphone and speech recognition permissions are granted.
+    /// Throws `VoiceIOError.micUnavailable` or `.recognizerUnavailable` on failure.
     func ensurePermissions() async throws
+
+    /// Configure audio session for voice I/O (iOS: set playback category, sample rate, etc).
+    /// On macOS, this is typically a no-op; the system manages audio setup.
     func configureSessionIfNeeded() async throws
 
+    /// Speak text using the default voice profile.
+    /// Synthesizes audio and plays it using the system TTS engine.
+    /// Does not block; speaking happens asynchronously.
     func speak(_ text: String) async
+
+    /// Listen for speech input using live STT.
+    ///
+    /// - Parameters:
+    ///   - timeout: Maximum duration to listen, in seconds. 0 means no overall timeout.
+    ///   - inactivity: Silence threshold in seconds. Listening stops when silence exceeds this duration.
+    ///     0 means no inactivity-based timeout (only overall timeout matters).
+    ///   - record: If true, save the raw audio recording to the temp directory.
+    ///
+    /// - Returns: VoiceResult containing the transcript and optional recording URL.
+    /// - Throws: `VoiceIOError.timedOut` if overall timeout exceeded,
+    ///   `VoiceIOError.cancelled` if cancelled by caller, or other errors on permission/format issues.
     func listen(timeout: TimeInterval, inactivity: TimeInterval, record: Bool) async throws -> VoiceResult
 
+    /// Prepare a clip for immediate playback (preload audio and configure mixing).
+    /// Must be followed by `startPreparedClip()` to actually play.
+    ///
+    /// - Parameters:
+    ///   - url: Local file URL to the audio clip.
+    ///   - gainDB: Gain adjustment in decibels. 0 = no change, negative = quieter, positive = louder.
     func prepareClip(url: URL, gainDB: Float) async throws
+
+    /// Start playback of a previously prepared clip.
+    /// Must call `prepareClip()` first.
     func startPreparedClip() async throws
+
+    /// Convenience: prepare and immediately play a clip in one call.
+    ///
+    /// - Parameters:
+    ///   - url: Local file URL to the audio clip.
+    ///   - gainDB: Gain adjustment in decibels.
     func playClip(url: URL, gainDB: Float) async throws
 
+    /// Stop all ongoing speech (TTS) and listening (STT) immediately.
+    /// Does not reset internal state; use `hardReset()` for complete cleanup.
     func stopAll()
+
+    /// Perform a complete reset of all voice I/O state.
+    /// Stops any in-flight listening or speaking, cleans up audio resources, and resets state variables.
+    /// Call this before tearing down the VoiceIO instance or when you need a fresh start.
     func hardReset()
 }
 
@@ -124,6 +187,24 @@ public struct TTSVoiceProfile: Sendable, Equatable, Codable {
     }
 }
 
+/// Global TTS variation applied on top of voice profiles at synthesis time.
+///
+/// Tuning allows subtle randomization to make speech sound more natural.
+/// Unlike `TTSVoiceProfile` (which is per-voice), Tuning applies globally across all utterances.
+///
+/// **rateVariation**: Random jitter applied to the profile rate. In [0, 1]; at synthesis time,
+/// a random delta in [-rateVariation, +rateVariation] is added to the profile's rate.
+/// Example: profile rate 0.5 + variation 0.1 = each utterance gets a rate in [0.4, 0.6].
+/// Default: 0 (no variation; all utterances use the profile rate exactly).
+///
+/// **pitchVariation**: Random jitter applied to the profile pitch multiplier. In [0, 1];
+/// similar to rateVariation, a random delta is added at synthesis time.
+/// Default: 0 (no variation).
+///
+/// **volume**: Global amplitude scaling applied to all utterances. In [0, 1].
+/// This is separate from profile volume and is applied multiplicatively.
+/// Example: profile volume 0.8 * tuning volume 0.5 = final volume 0.4.
+/// Default: 1.0 (no scaling).
 public struct Tuning: Sendable, Equatable, Codable {
     public var rateVariation: Float
     public var pitchVariation: Float
@@ -138,24 +219,57 @@ public struct Tuning: Sendable, Equatable, Codable {
     }
 }
 
-/// TTS tuning + preview surface.
-/// Lets UI and helpers configure voice profiles and tuning, then speak
-/// short utterances for a specific voice id.
+/// TTS voice profile and tuning configuration interface.
+///
+/// Used by UI components and helpers to configure which voice speaks and how.
+/// Typical usage: VoiceChooserView sets profiles and tuning; VoiceChorus and
+/// other playback helpers read them and apply during synthesis.
+///
+/// Implementations (like RealVoiceIO) manage voice profiles, a default voice,
+/// and global tuning settings. All methods are @MainActor-isolated.
 @MainActor
 public protocol TTSConfigurable: AnyObject {
+    /// Store a profile for a voice id (create or update).
+    /// If the voice id already exists, this overwrites the previous profile.
     func setVoiceProfile(_ profile: TTSVoiceProfile)
+
+    /// Retrieve the stored profile for a voice id, or nil if not found.
     func getVoiceProfile(id: String) -> TTSVoiceProfile?
+
+    /// Set the default voice profile (used when speak() is called without an explicit voice id).
+    /// This also stores the profile in the voices map.
     func setDefaultVoiceProfile(_ profile: TTSVoiceProfile)
+
+    /// Get the currently configured default voice profile, or nil if none is set.
     func getDefaultVoiceProfile() -> TTSVoiceProfile?
+
+    /// Set the global tuning (rate/pitch/volume variation and scaling).
     func setTuning(_ tuning: Tuning)
+
+    /// Get the current tuning configuration.
     func getTuning() -> Tuning
 
-    /// Speak text using an optional voice profile id (nil uses default).
+    /// Speak text using an optionally specified voice profile.
+    /// - Parameters:
+    ///   - text: The text to synthesize and speak.
+    ///   - voiceID: Voice profile id to use. Nil uses the default voice profile.
+    /// Does not block; speaking happens asynchronously.
     func speak(_ text: String, using voiceID: String?) async
 }
 
 // MARK: - Recognition context
 
+/// Hints about what the user is expected to say, used by STT to improve accuracy.
+///
+/// The STT recognizer uses these hints to bias recognition toward expected inputs.
+/// For example, if you expect a number, the recognizer learns to listen for digits
+/// and number words rather than general freeform speech.
+///
+/// - **freeform**: No expectations; recognize whatever the user says.
+/// - **name**: User is expected to say one of the given allowed names.
+///   The recognizer will bias toward these strings and may reject speech that doesn't match.
+/// - **number**: User is expected to speak a number (e.g., "42", "two hundred three").
+///   The recognizer uses numeric contextual strings and post-processes speech accordingly.
 public struct RecognitionContext: Sendable {
     public enum Expectation: Sendable {
         case freeform
@@ -165,6 +279,8 @@ public struct RecognitionContext: Sendable {
 
     public var expectation: Expectation
 
+    /// Initialize with an expectation.
+    /// - Parameter expectation: The type of speech expected (default: .freeform).
     public init(expectation: Expectation = .freeform) { self.expectation = expectation }
 
     /// Convenience helper: returns true if expectation is `.number`.
