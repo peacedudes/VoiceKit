@@ -90,9 +90,8 @@ public struct TTSVoiceInfo: Identifiable, Hashable, Codable, Sendable {
 /// Per-voice speaking profile: rate (pace), pitch (tone), and volume (amplitude).
 ///
 /// **rate**: Normalized speaking pace in [0, 1]. Zero is slowest; 1.0 is fastest.
-/// Default init: 0.5 (perceptually linear midpoint for `AVSpeechUtterance.rate`).
-/// Note: Applications often preset profiles to 0.55 for conversational pace, which
-/// is slightly above neutral and perceived as natural for most voices.
+/// - Struct default (when constructed directly): 0.5 (perceptually linear midpoint)
+/// - Application default (via VoiceProfilesStore): 0.55 (slightly conversational for most voices)
 /// System range: `AVSpeechUtterance.rate` maps to [0.1, 10.0] internally, but
 /// perception is approximately linear in the range [0.3, 1.0].
 /// **Interaction with Tuning**: `Tuning.rateVariation` is applied as a random jitter
@@ -100,14 +99,17 @@ public struct TTSVoiceInfo: Identifiable, Hashable, Codable, Sendable {
 ///
 /// **pitch**: Relative pitch multiplier in [0.5, 2.0]. One is neutral voice tone;
 /// < 1 produces lower pitch; > 1 produces higher pitch.
-/// Maps to `AVSpeechUtterance.pitchMultiplier`.
+/// Default: 1.0. Maps to `AVSpeechUtterance.pitchMultiplier`.
 ///
 /// **volume**: Relative amplitude in [0, 1]. Zero is silent; 1.0 is full volume.
+/// - Struct default: 1.0
+/// - Application default (via VoiceProfilesStore): 0.9
 /// Applied at synthesis time. Maps to `AVSpeechUtterance.volume`.
 ///
 /// **Mutability**: The voice id (`id`) is immutable, making profiles safe to share
 /// and cache. Rate, pitch, and volume are mutable for runtime tuning via UI or
-/// automation.
+/// automation. When constructing profiles directly (not via store), consider using
+/// the store defaults (0.55 rate, 0.9 volume) for UI consistency.
 public struct TTSVoiceProfile: Sendable, Equatable, Codable {
     public let id: String
     public var rate: Double
