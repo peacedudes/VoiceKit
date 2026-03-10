@@ -10,19 +10,41 @@
 import Foundation
 
 /// Configuration for RealVoiceIO behavior.
-/// All values have sensible defaults.
+/// All values have sensible defaults suitable for most applications.
+///
+/// Values are not validated at initialization time; invalid values (negative,
+/// NaN, or infinity) will produce unexpected behavior at runtime. Applications
+/// should validate or clamp values before construction if they come from user
+/// input or untrusted sources.
 public struct VoiceIOConfig: Sendable, Equatable {
-    // Recording trim
+    /// Padding to add before the detected start of speech when trimming recordings (seconds).
+    /// Must be >= 0. Typical values: 0.05 to 0.1. Allows capturing slight lead-in.
     public var trimPrePad: Double
+
+    /// Padding to add after the detected end of speech when trimming recordings (seconds).
+    /// Must be >= 0. Typical values: 0.1 to 0.3. Allows capturing slight tail-out and breath.
     public var trimPostPad: Double
 
-    // Clip playback
+    /// Maximum time to wait for a prepared clip to start playback before timing out (seconds).
+    /// Must be > 0. Used only by boosted clip scheduling. Default (2.0) accommodates
+    /// system audio setup delays.
     public var clipWaitTimeoutSeconds: Double
 
-    // TTS
-    /// How long to suppress STT after TTS finishes, to avoid self-hearing.
+    /// Duration to suppress STT listening after TTS finishes speaking (seconds).
+    /// Must be >= 0. Prevents the recognizer from hearing back the speaker's own voice.
+    /// Typical value: 0.2 to 0.5 depending on speaker volume and acoustic environment.
     public var ttsSuppressAfterFinish: Double
 
+    /// Initializes a configuration with custom values.
+    ///
+    /// - Parameters:
+    ///   - trimPrePad: Pre-speech padding in seconds (default: 0.05)
+    ///   - trimPostPad: Post-speech padding in seconds (default: 0.20)
+    ///   - clipWaitTimeoutSeconds: Clip startup timeout in seconds (default: 2.0)
+    ///   - ttsSuppressAfterFinish: STT suppression after TTS in seconds (default: 0.25)
+    ///
+    /// **Warning**: No validation is performed. Negative, NaN, or infinite values
+    /// will cause undefined behavior. Use default config for safety.
     public init(trimPrePad: Double = 0.05,
                 trimPostPad: Double = 0.20,
                 clipWaitTimeoutSeconds: Double = 2.0,

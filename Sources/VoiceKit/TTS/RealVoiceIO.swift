@@ -141,10 +141,6 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO, TempoMeasura
         }
     }
 
-    public static func makeLive(config: VoiceIOConfig = VoiceIOConfig()) -> RealVoiceIO {
-        RealVoiceIO(config: config)
-    }
-
     // MARK: - TTSConfigurable
 
     public func setVoiceProfile(_ profile: TTSVoiceProfile) { profilesByID[profile.id] = profile }
@@ -256,14 +252,5 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO, TempoMeasura
         speakContinuations.removeAll()
         ttsStartTimes.removeAll()
         measureContinuations.removeAll()
-    }
-}
-
-// MARK: - RecognitionContext helpers used by the listen shim
-
-public extension RecognitionContext {
-    var expectNumber: Bool {
-        if case .number = expectation { return true }
-        return false
     }
 }

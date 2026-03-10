@@ -14,8 +14,8 @@ import TestSupport
 internal final class CoreSanityTests: TestSupport.QoSNeutralizingTestCase {
 
     func testMakeLiveAndBasicSpeak() async throws {
-        // Use VoiceIOConfig directly (no RealVoiceIO.Config)
-        let io = RealVoiceIO.makeLive(config: VoiceIOConfig())
+        // Construct RealVoiceIO with config
+        let io = RealVoiceIO(config: VoiceIOConfig())
 
         // Minimal TTS profile (no displayName)
         let profile = TTSVoiceProfile(id: "com.apple.speech.synthesis.voice.Alex", rate: 0.55, pitch: 1.0, volume: 1.0)

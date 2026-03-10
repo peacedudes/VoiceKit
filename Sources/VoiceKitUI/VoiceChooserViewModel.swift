@@ -43,6 +43,7 @@ public final class VoiceChooserViewModel: ObservableObject {
     @Published public private(set) var isLoading: Bool = false
     /// Last measured preview duration in seconds, if available.
     @Published public private(set) var lastPreviewSeconds: Double?
+
     // Preview task
     private var previewTask: Task<Void, Never>?
     private var isPreviewing = false
@@ -55,10 +56,10 @@ public final class VoiceChooserViewModel: ObservableObject {
         self.allowSystemVoices = allowSystemVoices
     }
 
-    // Filtered view
     /// Voices filtered by language and hidden status. Computed on each access.
-    /// Note: @Published Set mutations in VoiceProfilesStore now trigger updates
-    /// via reassignment (not direct insert/remove), enabling future caching.
+    /// Note: While this computes on every access rather than caching, the computation
+    /// is fast (filtered list size is small) and SwiftUI only calls this during view
+    /// updates anyway. Caching would require careful synchronization with store changes.
     public var filteredVoices: [TTSVoiceInfo] {
         let byLanguage: [TTSVoiceInfo] = {
             switch languageFilter {

@@ -89,21 +89,25 @@ public struct TTSVoiceInfo: Identifiable, Hashable, Codable, Sendable {
 
 /// Per-voice speaking profile: rate (pace), pitch (tone), and volume (amplitude).
 ///
-/// **rate**: Normalized pace in range [0, 1]. Zero is slowest; one is fastest.
-/// Default 0.5 is midpoint, but we typically use 0.55 for conversational pace.
-/// Maps directly to `AVSpeechUtterance.rate` (which has range 0.1 ... 10.0 in
-/// the system, but voice playback is perceptually linear around 0.5).
-/// Interacts with `Tuning.rateVariation`: variation is applied as a jitter
-/// around the profile rate at synthesis time.
+/// **rate**: Normalized speaking pace in [0, 1]. Zero is slowest; 1.0 is fastest.
+/// Default init: 0.5 (perceptually linear midpoint for `AVSpeechUtterance.rate`).
+/// Note: Applications often preset profiles to 0.55 for conversational pace, which
+/// is slightly above neutral and perceived as natural for most voices.
+/// System range: `AVSpeechUtterance.rate` maps to [0.1, 10.0] internally, but
+/// perception is approximately linear in the range [0.3, 1.0].
+/// **Interaction with Tuning**: `Tuning.rateVariation` is applied as a random jitter
+/// around this profile rate at synthesis time, creating more natural variation.
 ///
-/// **pitch**: Relative pitch multiplier [0.5, 2.0]. One is neutral; < 1 is lower,
-/// > 1 is higher. Maps to `AVSpeechUtterance.pitchMultiplier`.
+/// **pitch**: Relative pitch multiplier in [0.5, 2.0]. One is neutral voice tone;
+/// < 1 produces lower pitch; > 1 produces higher pitch.
+/// Maps to `AVSpeechUtterance.pitchMultiplier`.
 ///
-/// **volume**: Relative amplitude [0, 1]. Applied at synthesis time.
-/// Maps to `AVSpeechUtterance.volume`.
+/// **volume**: Relative amplitude in [0, 1]. Zero is silent; 1.0 is full volume.
+/// Applied at synthesis time. Maps to `AVSpeechUtterance.volume`.
 ///
-/// Profiles are immutable by voice id (the `id` is `let`), making them safe
-/// to share and store. Rate, pitch, and volume are mutable for runtime tuning.
+/// **Mutability**: The voice id (`id`) is immutable, making profiles safe to share
+/// and cache. Rate, pitch, and volume are mutable for runtime tuning via UI or
+/// automation.
 public struct TTSVoiceProfile: Sendable, Equatable, Codable {
     public let id: String
     public var rate: Double
@@ -160,6 +164,12 @@ public struct RecognitionContext: Sendable {
     public var expectation: Expectation
 
     public init(expectation: Expectation = .freeform) { self.expectation = expectation }
+
+    /// Convenience helper: returns true if expectation is `.number`.
+    public var expectNumber: Bool {
+        if case .number = expectation { return true }
+        return false
+    }
 }
 
 public extension RecognitionContext {
@@ -178,11 +188,31 @@ public extension RecognitionContext {
 
 // MARK: - Operation gate
 
+/// A simple async gate for serializing access to a critical section.
+///
+/// **Purpose**: Prevent concurrent execution of mutually exclusive operations.
+/// For example, ensuring that TTS synthesis and STT listening don't overlap,
+/// or that voice I/O operations complete before a hard reset.
+///
+/// **Usage**:
+/// ```swift
+/// let gate = VoiceOpGate()
+/// await gate.acquire()
+/// defer { Task { await gate.release() } }
+/// // Perform protected operation here
+/// ```
+///
+/// **Limitations**: This is a simple cooperative lock without timeouts or fairness
+/// guarantees. If `acquire()` is called and the gate is already held, the caller
+/// will poll with a 200μs sleep. For production code requiring timeout or
+/// fair queuing, consider using a more sophisticated synchronization primitive.
 public actor VoiceOpGate {
     private var busy = false
 
     public init() {}
 
+    /// Acquire exclusive access, blocking until the gate is free.
+    /// No timeout; waits indefinitely if the gate is held by another task.
     public func acquire() async {
         while busy {
             try? await Task.sleep(nanoseconds: 200_000)
@@ -190,6 +220,10 @@ public actor VoiceOpGate {
         busy = true
     }
 
+    /// Release the gate, allowing other waiters to proceed.
     public func release() async { busy = false }
+
+    /// Force-clear the gate without checking state.
+    /// Use only for cleanup/reset after an error.
     public func forceClear() async { busy = false }
 }
