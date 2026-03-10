@@ -56,6 +56,8 @@ public enum VoiceTempoCalibrator {
         io.setVoiceProfile(profile)
 
         var lastMeasured: TimeInterval = 0
+        // Track history for linear interpolation (learned rate prediction)
+        var history: [(rate: Double, measured: TimeInterval)] = []
 
         for i in 0..<maxIterations {
             // Allow callers to cancel calibration (e.g. a "Stop" button).
@@ -74,6 +76,9 @@ public enum VoiceTempoCalibrator {
                 break
             }
 
+            // Add to history for learning
+            history.append((profile.rate, lastMeasured))
+
             // Compute next rate candidate relative to target
             let current = profile.rate
             var nextRate = current
@@ -84,17 +89,54 @@ public enum VoiceTempoCalibrator {
                 break
             }
 
-            // Proportional update toward target:
-            // If measured > target, increase rate; if measured < target, decrease.
-            // current * (measured/target) moves in the right direction.
-            var updated = current * (lastMeasured / max(targetSeconds, 0.0001))
-            // Clamp
-            if updated.isNaN || !updated.isFinite { updated = current }
-            updated = min(max(updated, bounds.lowerBound), bounds.upperBound)
-            nextRate = updated
+            // Smart rate prediction using history (learned linear relationship).
+            // If we have 2+ measurements, use linear interpolation to predict the needed rate.
+            var candidateRate: Double
+            var hasInterpolation = false
+
+            if history.count >= 2 {
+                let prev = history[history.count - 2]
+                let curr = history[history.count - 1]
+                let rateChange = curr.rate - prev.rate
+                let measuredChange = curr.measured - prev.measured
+
+                // Linear model: measured ≈ a + b*rate
+                // Slope = how much duration changes per unit rate change
+                if abs(rateChange) > 0.0001 && abs(measuredChange) > 0.0001 {
+                    let slope = measuredChange / rateChange
+                    // Predict: solve for rate where measured = targetSeconds
+                    // targetSeconds = curr.measured + slope * (rate - curr.rate)
+                    // rate = curr.rate + (targetSeconds - curr.measured) / slope
+                    let predicted = curr.rate + (targetSeconds - curr.measured) / slope
+                    // Use predicted rate, but blend with proportional for stability
+                    let proportional = current * (lastMeasured / max(targetSeconds, 0.0001))
+                    candidateRate = predicted * 0.6 + proportional * 0.4
+                    hasInterpolation = true
+                } else {
+                    // Rates or measurements haven’t changed; use proportional
+                    candidateRate = current * (lastMeasured / max(targetSeconds, 0.0001))
+                }
+            } else {
+                // First iteration: use simple proportional (full strength, no damping)
+                candidateRate = current * (lastMeasured / max(targetSeconds, 0.0001))
+            }
+
+            // Apply gentle damping only when we have interpolation history (prevents oscillation).
+            // On iteration 1, use full candidate (no damping needed).
+            if hasInterpolation {
+                // Blend: stay 60% toward current, move 40% toward candidate
+                nextRate = current * 0.6 + candidateRate * 0.4
+            } else {
+                // First iteration or no good history: use candidate at full strength
+                nextRate = candidateRate
+            }
+
+            // Clamp and safety
+            if nextRate.isNaN || !nextRate.isFinite { nextRate = current }
+            nextRate = min(max(nextRate, bounds.lowerBound), bounds.upperBound)
 
             // If the change is negligible, stop to avoid micro-churn
-            if abs(updated - current) < 0.001 {
+            if abs(nextRate - current) < 0.001 {
                 onIteration?(i, lastMeasured, current)
                 break
             }
