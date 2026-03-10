@@ -114,6 +114,20 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO, TempoMeasura
     // Continuation for the current live listen (non-CI path)
     internal var listenCont: CheckedContinuation<VoiceResult, Error>?
 
+    // MARK: - Boosted clip playback state
+
+    /// Pending continuations waiting for clip completion.
+    internal var clipWaitersState: [CheckedContinuation<Void, Error>] = []
+
+    /// AVAudioPlayer for short-clip (boosted) playback.
+    internal var avClipPlayerState: AVAudioPlayer?
+
+    /// AVAudioPlayerNode (retained for test compatibility; not actively used).
+    internal var clipPlayerNodeState: AVAudioPlayerNode?
+
+    /// Flag tracking whether this clip session has completed.
+    internal var clipCompletedState = false
+
     // MARK: - Init
 
     override public init() {
@@ -252,5 +266,13 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO, TempoMeasura
         speakContinuations.removeAll()
         ttsStartTimes.removeAll()
         measureContinuations.removeAll()
+
+        // Clear clip playback state.
+        avClipPlayer?.stop()
+        avClipPlayerState = nil
+        clipPlayerNodeState?.stop()
+        clipPlayerNodeState = nil
+        clipWaitersState.removeAll()
+        clipCompletedState = false
     }
 }
