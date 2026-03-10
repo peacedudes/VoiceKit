@@ -15,11 +15,11 @@ import VoiceKitUI
 internal extension ChorusLabView {
     // MARK: - Copy-to-clipboard (chorus setup export)
 
-    /// Generate a Swift code snippet for the current chorus, print it to the console, and copy it to the system clipboard.
-    /// Useful for users who want to embed their tuned chorus setup into their own apps.
-    /// The snippet includes the phrase and all tuned voice profiles with exact rate, pitch, and volume values.
+    /// Generate a Swift code snippet for the current chorus and copy it to the clipboard.
+    /// Useful for embedding tuned chorus setups in apps. The snippet includes phrase,
+    /// voice profiles, and exact rate, pitch, and volume values.
     func copyChorusSetup() {
-        let snippet = makeChorusSnippet(for: vk_selectedProfiles)
+        let snippet = makeChorusSnippet(for: vkSelectedProfiles)
         print(snippet)
         copyToClipboard(snippet)
     }
@@ -52,11 +52,11 @@ internal extension ChorusLabView {
     /// This is the single source of truth for chorus-wide tuning; all slider changes flow through this.
     /// The logic is centralized in ChorusMath for testability and consistency.
     mutating func applyGlobalAdjustments() {
-        guard !vk_baseProfiles.isEmpty else { return }
-        vk_selectedProfiles = ChorusMath.applyAdjustments(
-            baseProfiles: vk_baseProfiles,
-            rateScale: vk_rateScale,
-            pitchOffset: vk_pitchOffset
+        guard !vkBaseProfiles.isEmpty else { return }
+        vkSelectedProfiles = ChorusMath.applyAdjustments(
+            baseProfiles: vkBaseProfiles,
+            rateScale: vkRateScale,
+            pitchOffset: vkPitchOffset
         )
     }
 }
@@ -70,22 +70,22 @@ internal extension ChorusLabView {
     /// Measures the elapsed time and updates lastChorusSeconds upon completion.
     /// Sets isPlaying=true before speaking and false after.
     mutating func startChorus() async {
-        vk_isPlaying = true
-        let t0 = Date()
-        await chorus.speak(vk_customText, withVoiceProfiles: vk_selectedProfiles)
-        let elapsed = Date().timeIntervalSince(t0)
-        vk_lastChorusSeconds = elapsed
-        vk_isPlaying = false
+        vkIsPlaying = true
+        let startTime = Date()
+        await chorus.speak(vkCustomText, withVoiceProfiles: vkSelectedProfiles)
+        let elapsed = Date().timeIntervalSince(startTime)
+        vkLastChorusSeconds = elapsed
+        vkIsPlaying = false
     }
 
     /// Stop the chorus and cancel any in-flight calibration.
     /// Cancels the calibrationTask if running and immediately stops chorus playback via chorus.stop().
     /// Clears all playback and calibration state flags.
     mutating func stopAll() async {
-        vk_calibrationTask?.cancel()
-        vk_calibrationTask = nil
-        vk_isCalibrating = false
+        vkCalibrationTask?.cancel()
+        vkCalibrationTask = nil
+        vkIsCalibrating = false
         chorus.stop()
-        if vk_isPlaying { vk_isPlaying = false }
+        if vkIsPlaying { vkIsPlaying = false }
     }
 }

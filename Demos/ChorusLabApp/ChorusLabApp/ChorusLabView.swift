@@ -214,67 +214,67 @@ internal struct ChorusLabView: View {
     /// Naming convention: `vk_*` for state proxies, `_*` for constant proxies.
 
     /// Proxy to selectedProfiles (the effective voices after global adjustments).
-    internal var vk_selectedProfiles: [TTSVoiceProfile] {
+    internal var vkSelectedProfiles: [TTSVoiceProfile] {
         get { selectedProfiles } set { selectedProfiles = newValue }
     }
     /// Proxy to baseProfiles (unscaled voice configurations).
-    internal var vk_baseProfiles: [TTSVoiceProfile] {
+    internal var vkBaseProfiles: [TTSVoiceProfile] {
         get { baseProfiles } set { baseProfiles = newValue }
     }
     /// Proxy to global rate scale multiplier.
-    internal var vk_rateScale: Double {
+    internal var vkRateScale: Double {
         get { rateScale } set { rateScale = newValue }
     }
     /// Proxy to global pitch offset.
-    internal var vk_pitchOffset: Double {
+    internal var vkPitchOffset: Double {
         get { pitchOffset } set { pitchOffset = newValue }
     }
     /// Proxy to tuner sheet presentation state.
-    internal var vk_showTuner: Bool {
+    internal var vkShowTuner: Bool {
         get { showTuner } set { showTuner = newValue }
     }
     /// Proxy to tuner voice selection (the ID being edited/added).
-    internal var vk_tunerSelection: String? {
+    internal var vkTunerSelection: String? {
         get { tunerSelection } set { tunerSelection = newValue }
     }
     /// Proxy to tuner engine instance.
-    internal var vk_tunerEngine: RealVoiceIO {
+    internal var vkTunerEngine: RealVoiceIO {
         get { tunerEngine } set { tunerEngine = newValue }
     }
     /// Proxy to editing index (nil for new voice, otherwise index in selectedProfiles).
-    internal var vk_editingIndex: Int? {
+    internal var vkEditingIndex: Int? {
         get { editingIndex } set { editingIndex = newValue }
     }
     /// Proxy to playback state.
-    internal var vk_isPlaying: Bool {
+    internal var vkIsPlaying: Bool {
         get { isPlaying } set { isPlaying = newValue }
     }
     /// Proxy to calibration state.
-    internal var vk_isCalibrating: Bool {
+    internal var vkIsCalibrating: Bool {
         get { isCalibrating } set { isCalibrating = newValue }
     }
     /// Proxy to the active calibration task (allows cancellation).
-    internal var vk_calibrationTask: Task<Void, Never>? {
+    internal var vkCalibrationTask: Task<Void, Never>? {
         get { calibrationTask } set { calibrationTask = newValue }
     }
     /// Proxy to per-voice measured durations during calibration.
-    internal var vk_lastDurationByID: [String: TimeInterval] {
+    internal var vkLastDurationByID: [String: TimeInterval] {
         get { lastDurationByID } set { lastDurationByID = newValue }
     }
     /// Proxy to the most recent chorus duration measurement.
-    internal var vk_lastChorusSeconds: Double? {
+    internal var vkLastChorusSeconds: Double? {
         get { lastChorusSeconds } set { lastChorusSeconds = newValue }
     }
     /// Proxy to the voice ID currently being calibrated (nil if syncing all).
-    internal var vk_calibratingVoiceID: String? {
+    internal var vkCalibratingVoiceID: String? {
         get { calibratingVoiceID } set { calibratingVoiceID = newValue }
     }
     /// Proxy to the chorus text input.
-    internal var vk_customText: String {
+    internal var vkCustomText: String {
         get { customText } set { customText = newValue }
     }
     /// Proxy to target duration (avoids collision with SwiftUI's _targetSeconds backing storage).
-    internal var vk_targetSeconds: Double {
+    internal var vkTargetSeconds: Double {
         get { targetSeconds } set { targetSeconds = newValue }
     }
 
@@ -282,14 +282,14 @@ internal struct ChorusLabView: View {
     /// Expose design tokens to extension files while keeping Metrics private.
     /// Rationale: Extensibility without cluttering the main file with magic numbers.
 
-    internal var _defaultsRate: Double { Metrics.Defaults.rate }
-    internal var _defaultsPitch: Float { Metrics.Defaults.pitch }
-    internal var _defaultsVolume: Float { Metrics.Defaults.volume }
-    internal var _pitchClampLo: Float { Metrics.Pitch.clampLo }
-    internal var _pitchClampHi: Float { Metrics.Pitch.clampHi }
-    internal var _slowRange: Double { Metrics.Adjustments.slowRange }
-    internal var _calTolerance: Double { Metrics.Calibration.tolerance }
-    internal var _calMaxIterations: Int { Metrics.Calibration.maxIterations }
+    internal var defaultsRate: Double { Metrics.Defaults.rate }
+    internal var defaultsPitch: Float { Metrics.Defaults.pitch }
+    internal var defaultsVolume: Float { Metrics.Defaults.volume }
+    internal var pitchClampLo: Float { Metrics.Pitch.clampLo }
+    internal var pitchClampHi: Float { Metrics.Pitch.clampHi }
+    internal var slowRange: Double { Metrics.Adjustments.slowRange }
+    internal var calTolerance: Double { Metrics.Calibration.tolerance }
+    internal var calMaxIterations: Int { Metrics.Calibration.maxIterations }
 
     // iOS-only: edit mode toggling for List reordering
     #if os(iOS)
