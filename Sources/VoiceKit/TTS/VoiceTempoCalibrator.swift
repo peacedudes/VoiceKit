@@ -24,6 +24,11 @@ public protocol TempoMeasurable: TTSConfigurable {
 public enum VoiceTempoCalibrator {
 
     /// Adjusts the rate of the specified voice so that speaking `phrase` takes close to `targetSeconds`.
+    ///
+    /// **Note on punctuation**: AVSpeechSynthesis resets rate/pitch after sentence-ending punctuation (.!?),
+    /// causing post-punctuation text to ignore calibration. This is handled transparently by RealVoiceIO's
+    /// speakAndMeasure() method, which normalizes punctuation automatically for all utterances.
+    ///
     /// - Parameters:
     ///   - io: Any type conforming to TempoMeasurable (e.g., RealVoiceIO).
     ///   - voiceID: System voice identifier to calibrate.

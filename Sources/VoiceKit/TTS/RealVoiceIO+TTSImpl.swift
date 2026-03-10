@@ -27,6 +27,18 @@ extension RealVoiceIO {
         }
     }
 
+    /// Normalize sentence-ending punctuation to commas to preserve rate/pitch adjustments
+    /// across the entire utterance. AVSpeechSynthesis resets rate/pitch after .!? marks,
+    /// causing post-punctuation text to be unaffected by voice profile tuning.
+    /// This ensures consistent playback of calibrated voices throughout the phrase.
+    internal func normalizeUtterancePunctuation(_ text: String) -> String {
+        text.replacingOccurrences(
+            of: "[.!?]",
+            with: ",",
+            options: .regularExpression
+        )
+    }
+
     public func speak(_ text: String) async {
         await speak(text, using: defaultProfile?.id)
     }
@@ -42,7 +54,8 @@ extension RealVoiceIO {
 
         ensureSynth()
         guard let synthesizer else { return 0.0 }
-        let utterance = AVSpeechUtterance(string: text)
+        let normalizedText = normalizeUtterancePunctuation(text)
+        let utterance = AVSpeechUtterance(string: normalizedText)
         applyProfile(to: utterance, voiceID: voiceID ?? defaultProfile?.id)
 
         let key = ObjectIdentifier(utterance)
@@ -81,7 +94,8 @@ extension RealVoiceIO {
         ensureSynth()
         log(.info, "speak(text:\(text.prefix(48))\(text.count > 48 ? "..." : ""), voiceID:\(voiceID ?? "nil"))")
         guard let synthesizer else { return }
-        let utterance = AVSpeechUtterance(string: text)
+        let normalizedText = normalizeUtterancePunctuation(text)
+        let utterance = AVSpeechUtterance(string: normalizedText)
         applyProfile(to: utterance, voiceID: voiceID ?? defaultProfile?.id)
 
         let key = ObjectIdentifier(utterance)
