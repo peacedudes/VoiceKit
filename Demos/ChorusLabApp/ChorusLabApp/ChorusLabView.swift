@@ -11,165 +11,285 @@ import VoiceKit
 import VoiceKitUI
 
 // MARK: - Design tokens
+/// Design system constants for ChorusLabView: spacing, ranges, UI styling, and algorithm parameters.
+///
+/// Values are grouped by semantic category to make configuration transparent and modifiable.
+/// All hardcoded layout and behavior parameters live here for easy A/B testing and cross-platform tuning.
 private enum Metrics {
+    /// Padding applied to various view containers.
+    /// Distinguishes iOS (compact, edge-to-edge) from macOS (wider, centered).
     enum Padding {
+        /// Minimal vertical padding between rows (e.g., header separator).
         static let headerV: CGFloat = 4
+        /// Default horizontal padding on iOS: respects system safe area.
         static let iosH: CGFloat = 16
+        /// Default horizontal padding on macOS: larger margins for wider screens.
         static let macH: CGFloat = 32
         #if os(macOS)
+        /// Platform-specific horizontal padding applied to headers and footers.
         static let headerH: CGFloat = macH
+        /// Platform-specific padding around the voice list. macOS centers narrower lists.
         static let listH: CGFloat = macH
         #else
+        /// On iOS, header padding matches the safe area; list stays edge-to-edge for mobile-style UX.
         static let headerH: CGFloat = iosH
-        // On iOS, keep the list edge-to-edge; only macOS gets extra horizontal padding.
+        /// On iOS, keep the list edge-to-edge; only macOS gets extra horizontal padding.
         static let listH: CGFloat = 0
         #endif
     }
+    /// Layout measurements for specific UI elements.
     enum Layout {
+        /// Spacer width between inline hints and input controls.
         static let inlineHintSpacer: CGFloat = 50
+        /// Minimum width reserved for the "actual time" display in timing rows.
         static let actualTimeMinWidth: CGFloat = 60
+        /// Fixed width of each timing cell (for duration values per voice).
         static let timingCellWidth: CGFloat = 40
     }
+    /// Slider and control parameters.
     enum Controls {
+        /// Granularity of slider increments (e.g., rate and pitch offset adjustments).
         static let sliderStep: Double = 0.01
     }
+    /// Default values for newly added voices, matching TTSVoiceProfile and VoiceProfilesStore conventions.
     enum Defaults {
-        // Match initializer types: rate is Double; pitch/volume are Float
+        /// Default speaking pace for new voices (0.55 is slightly conversational).
+        /// Rate type is Double to match TTSVoiceProfile.rate.
         static let rate: Double = 0.55
+        /// Default pitch multiplier (1.0 = neutral tone, no shift).
         static let pitch: Float = 1.0
+        /// Default relative amplitude (1.0 = full volume).
         static let volume: Float = 1.0
     }
+    /// Button styling and sizing constants.
     enum Buttons {
-        // Stabilize Play/Stop label swap
+        /// Minimum label width to prevent "Play" ↔ "Stop" text from causing layout jump.
         static let playTextMinWidth: CGFloat = 100
+        /// Horizontal padding inside action buttons.
         static let horizontalPad: CGFloat = 14
+        /// Vertical padding inside action buttons.
         static let verticalPad: CGFloat = 4
 
         #if os(macOS)
+        /// Apply macOS header button style (bordered, small size).
         static func applyHeaderStyle<V: View>(_ view: V) -> some View {
             view.buttonStyle(.bordered).controlSize(.small)
         }
         #else
+        /// Apply iOS header button style (plain, minimal chrome).
         static func applyHeaderStyle<V: View>(_ view: V) -> some View {
             view.buttonStyle(.plain)
         }
         #endif
     }
+    /// Rate calibration algorithm parameters (used by VoiceTempoCalibrator).
     enum Calibration {
+        /// Target accuracy: if measured duration is within ±5% of goal, consider it "close enough".
         static let tolerance: Double = 0.05
+        /// Maximum refinement iterations to prevent infinite loops on voices that don't track rate well.
         static let maxIterations: Int = 3
     }
+    /// Target duration input range and step size.
     enum Timing {
+        /// Users can set target duration from 1 to 20 seconds (covers typical utterances and demo purposes).
         static let targetSecondsRange: ClosedRange<Double> = 1.0...20.0
+        /// Slider step of 0.25s for target duration (quarter-second increments for reasonable control).
         static let targetSecondsStep: Double = 0.25
     }
+    /// Global rate and pitch adjustment ranges.
     enum Adjustments {
+        /// Denominator for slow-down mapping in ChorusMath.adjustedRate.
+        /// Prevents over-slowing voices when rateScale < 1.0.
         static let slowRange: Double = 0.75
+        /// Range of global speed multiplier: 0.05× (very slow) to 2.0× (very fast).
         static let speedRange: ClosedRange<Double> = 0.05...2.0
+        /// Range of global pitch offset: ±0.9 semitone range (±900 cents, roughly ±1 octave when combined with voice pitch).
         static let pitchOffsetRange: ClosedRange<Double> = -0.9...0.9
     }
+    /// Pitch clamping bounds for all voices.
     enum Pitch {
+        /// Minimum pitch multiplier (lower limit for available voice range).
         static let clampLo: Float = 0.5
+        /// Maximum pitch multiplier (upper limit for available voice range).
         static let clampHi: Float = 2.0
     }
 }
+/// Multi-voice chorus synthesis demo featuring rate calibration, global pitch/rate adjustments, and audio export.
+///
+/// **Purpose**: Showcase VoiceKit's capabilities for real-time voice composition: select multiple voices,
+/// adjust their speech rates (with automatic calibration to match a target duration), apply global pitch and
+/// speed offsets, and replay with live timing feedback.
+///
+/// **Core Concepts**:
+/// - **Voice Selection**: Users add system voices to a chorus and tune each voice's pitch, volume, and rate.
+/// - **Rate Calibration**: VoiceTempoCalibrator iteratively adjusts speaking rate to match a user-specified target duration.
+/// - **Global Adjustments**: rateScale and pitchOffset apply to all voices simultaneously for ensemble-wide tweaks.
+/// - **Baseline vs. Effective**: baseProfiles store un-scaled rates/pitches; selectedProfiles are the computed result
+///   of applyAdjustments, which combines baseline + global sliders.
+///
+/// **State Management**:
+/// - Most state is internal (@State), exposed via `vk_*` proxies for extension helpers (ChorusLabView+Logic).
+/// - @State is used throughout; no external dependency injection of ObservableObject.
+/// - Calibration runs asynchronously via Task, respecting cancellation.
+/// - Both playback and calibration are mutually exclusive via isPlaying / isCalibrating flags.
+///
+/// **Dependencies**:
+/// - Injected: voicesProvider (source of system voices), engineFactory (creates TTS instances).
+/// - Internal: chorus (VoiceChorus for multi-voice playback), tunerEngine (RealVoiceIO for voice tuning UI).
 @MainActor
 internal struct ChorusLabView: View {
+    // MARK: - Voice profiles and selection
+    /// The currently selected voices for chorus playback (after applying global adjustments).
+    /// Computed from baseProfiles + global sliders via ChorusMath.applyAdjustments.
     @State private var selectedProfiles: [TTSVoiceProfile] = []
-    @State private var pitch: Float = 1.0
-    @State private var rate: Float = 0.55
+    /// Baseline voice profiles without global rate/pitch adjustments applied.
+    /// Snapshot of selectedProfiles before sliders are moved; used to re-derive selectedProfiles.
+    @State private var baseProfiles: [TTSVoiceProfile] = []
+
+    // MARK: - Text input
+    /// The phrase that all voices will speak in the chorus.
+    /// Default seed text showcases multi-voice expressiveness.
     @State private var customText: String =  """
         Hey diddle diddle, the cat and the fiddle,
         the cow jumped over the moon.
         The little boy laughed
         """
-    @State private var targetSeconds: Double = 5.0
-    @State private var isCalibrating: Bool = false
-    @State private var calibrationTask: Task<Void, Never>?
-    @State private var lastDurationByID: [String: TimeInterval] = [:]
-    @State private var lastChorusSeconds: Double?
-    @State private var isPlaying: Bool = false
-    @State private var calibratingVoiceID: String?
-    // Baseline profiles and global adjustments for chorus-wide tweaks
-    @State private var baseProfiles: [TTSVoiceProfile] = []
-    @State private var rateScale: Double = 1.0       // Multiplies baseline rate
-    @State private var pitchOffset: Double = 0.0     // Adds to baseline pitch
 
-    // Tuner presentation
+    // MARK: - Global adjustments
+    /// Rate scale multiplier applied to all voices (1.0 = unchanged, >1 = faster, <1 = slower).
+    /// Computed by ChorusMath.adjustedRate to amplify relative to baseline (prevents over-scaling).
+    @State private var rateScale: Double = 1.0
+    /// Pitch offset added to all voices' pitch multipliers (clamped to Metrics.Pitch range).
+    @State private var pitchOffset: Double = 0.0
+
+    // MARK: - Timing and targeting
+    /// User's target duration in seconds for the entire chorus utterance.
+    /// Used by calibration algorithm to fit voice rates.
+    @State private var targetSeconds: Double = 5.0
+    /// Most recent measured duration of the entire chorus (updated after each playback or calibration iteration).
+    @State private var lastChorusSeconds: Double?
+    /// Map of voice ID → last measured duration for that voice during calibration.
+    /// Displayed in the voice rows to give per-voice feedback.
+    @State private var lastDurationByID: [String: TimeInterval] = [:]
+
+    // MARK: - Calibration state
+    /// True while rate calibration is in progress (one or more voices being auto-tuned).
+    @State private var isCalibrating: Bool = false
+    /// The voice ID currently being calibrated (used to highlight the row).
+    /// Nil if "sync all" is running (highlights none).
+    @State private var calibratingVoiceID: String?
+    /// Async task handle for the active calibration (allows cancellation via .cancel()).
+    @State private var calibrationTask: Task<Void, Never>?
+
+    // MARK: - Playback state
+    /// True while chorus playback is in progress.
+    @State private var isPlaying: Bool = false
+
+    // MARK: - Tuner integration
+    /// Whether the voice tuner sheet is currently visible.
     @State private var showTuner = false
+    /// The voice ID selected in the tuner (for adding or editing).
     @State private var tunerSelection: String?
+    /// RealVoiceIO instance for the tuner (allows users to preview and adjust voice profiles).
     @State private var tunerEngine = RealVoiceIO()
+    /// Index of the voice being edited in selectedProfiles (nil if adding a new voice).
     @State private var editingIndex: Int?
-    // Copy-to-clipboard feedback
+
+    // MARK: - Feedback
+    /// True when "Copied to Clipboard" feedback is visible.
+    /// Triggers a spring animation + auto-dismiss after ~0.9s.
     @State private var didCopy: Bool = false
 
+    /// Focus state for the text editor; cleared when "Done" is tapped on iOS.
     @FocusState private var isTextEditorFocused: Bool
 
-    // MARK: - Internal proxies for logic extension (keep @State private)
-    // These expose controlled access for helpers in ChorusLabView+Logic.swift.
+    // MARK: - Deprecated state (kept for backward compatibility)
+    /// Unused; retained in state to avoid breaking existing code that might reference these.
+    @State private var pitch: Float = 1.0
+    @State private var rate: Float = 0.55
+
+    // MARK: - Internal state proxies for extension helpers
+    /// Computed properties exposing @State properties for mutation by helper extensions.
+    /// These allow ChorusLabView+Logic.swift to access private state without making it public.
+    /// Naming convention: `vk_*` for state proxies, `_*` for constant proxies.
+
+    /// Proxy to selectedProfiles (the effective voices after global adjustments).
     internal var vk_selectedProfiles: [TTSVoiceProfile] {
         get { selectedProfiles } set { selectedProfiles = newValue }
     }
+    /// Proxy to baseProfiles (unscaled voice configurations).
     internal var vk_baseProfiles: [TTSVoiceProfile] {
         get { baseProfiles } set { baseProfiles = newValue }
     }
+    /// Proxy to global rate scale multiplier.
     internal var vk_rateScale: Double {
         get { rateScale } set { rateScale = newValue }
     }
+    /// Proxy to global pitch offset.
     internal var vk_pitchOffset: Double {
         get { pitchOffset } set { pitchOffset = newValue }
     }
+    /// Proxy to tuner sheet presentation state.
     internal var vk_showTuner: Bool {
         get { showTuner } set { showTuner = newValue }
     }
+    /// Proxy to tuner voice selection (the ID being edited/added).
     internal var vk_tunerSelection: String? {
         get { tunerSelection } set { tunerSelection = newValue }
     }
+    /// Proxy to tuner engine instance.
     internal var vk_tunerEngine: RealVoiceIO {
         get { tunerEngine } set { tunerEngine = newValue }
     }
+    /// Proxy to editing index (nil for new voice, otherwise index in selectedProfiles).
     internal var vk_editingIndex: Int? {
         get { editingIndex } set { editingIndex = newValue }
     }
+    /// Proxy to playback state.
+    internal var vk_isPlaying: Bool {
+        get { isPlaying } set { isPlaying = newValue }
+    }
+    /// Proxy to calibration state.
+    internal var vk_isCalibrating: Bool {
+        get { isCalibrating } set { isCalibrating = newValue }
+    }
+    /// Proxy to the active calibration task (allows cancellation).
+    internal var vk_calibrationTask: Task<Void, Never>? {
+        get { calibrationTask } set { calibrationTask = newValue }
+    }
+    /// Proxy to per-voice measured durations during calibration.
+    internal var vk_lastDurationByID: [String: TimeInterval] {
+        get { lastDurationByID } set { lastDurationByID = newValue }
+    }
+    /// Proxy to the most recent chorus duration measurement.
+    internal var vk_lastChorusSeconds: Double? {
+        get { lastChorusSeconds } set { lastChorusSeconds = newValue }
+    }
+    /// Proxy to the voice ID currently being calibrated (nil if syncing all).
+    internal var vk_calibratingVoiceID: String? {
+        get { calibratingVoiceID } set { calibratingVoiceID = newValue }
+    }
+    /// Proxy to the chorus text input.
+    internal var vk_customText: String {
+        get { customText } set { customText = newValue }
+    }
+    /// Proxy to target duration (avoids collision with SwiftUI's _targetSeconds backing storage).
+    internal var vk_targetSeconds: Double {
+        get { targetSeconds } set { targetSeconds = newValue }
+    }
 
-    // Internal constant proxies for logic in another file (keeps Metrics private)
+    // MARK: - Constant proxies for extensions
+    /// Expose design tokens to extension files while keeping Metrics private.
+    /// Rationale: Extensibility without cluttering the main file with magic numbers.
+
     internal var _defaultsRate: Double { Metrics.Defaults.rate }
     internal var _defaultsPitch: Float { Metrics.Defaults.pitch }
     internal var _defaultsVolume: Float { Metrics.Defaults.volume }
     internal var _pitchClampLo: Float { Metrics.Pitch.clampLo }
     internal var _pitchClampHi: Float { Metrics.Pitch.clampHi }
     internal var _slowRange: Double { Metrics.Adjustments.slowRange }
-
-    // Calibration constants for logic in another file
     internal var _calTolerance: Double { Metrics.Calibration.tolerance }
     internal var _calMaxIterations: Int { Metrics.Calibration.maxIterations }
-
-    // Additional state proxies used by play/stop/sync helpers
-    internal var vk_isPlaying: Bool {
-        get { isPlaying } set { isPlaying = newValue }
-    }
-    internal var vk_isCalibrating: Bool {
-        get { isCalibrating } set { isCalibrating = newValue }
-    }
-    internal var vk_calibrationTask: Task<Void, Never>? {
-        get { calibrationTask } set { calibrationTask = newValue }
-    }
-    internal var vk_lastDurationByID: [String: TimeInterval] {
-        get { lastDurationByID } set { lastDurationByID = newValue }
-    }
-    internal var vk_lastChorusSeconds: Double? {
-        get { lastChorusSeconds } set { lastChorusSeconds = newValue }
-    }
-    internal var vk_calibratingVoiceID: String? {
-        get { calibratingVoiceID } set { calibratingVoiceID = newValue }
-    }
-    internal var vk_customText: String {
-        get { customText } set { customText = newValue }
-    }
-    // Avoid colliding with SwiftUI's synthesized _targetSeconds backing storage
-    internal var vk_targetSeconds: Double {
-        get { targetSeconds } set { targetSeconds = newValue }
-    }
 
     // iOS-only: edit mode toggling for List reordering
     #if os(iOS)
@@ -183,26 +303,25 @@ internal struct ChorusLabView: View {
     let engineFactory: () -> RealVoiceIO
     let chorus: VoiceChorus
 
-    /// Create the Chorus Lab view with injectable dependencies.
+    /// Initialize with injected dependencies for testability and reuse.
     /// - Parameters:
-    ///   - voicesProvider: Source of system voices (defaults to SystemVoicesCache).
-    ///   - engineFactory: Factory for engines.
-    ///
-    /// Note: The zero-argument convenience init supplies the defaults from a
-    /// @MainActor context to keep Swift 6 isolation happy.
+    ///   - voicesProvider: Source of available system voices (allows testing with fake voices).
+    ///   - engineFactory: Factory closure that creates new TTS engines on demand.
+    ///     Used for chorus playback, tuning UI, and rate calibration (each may get its own instance).
     init(
         voicesProvider: any SystemVoicesProvider,
         engineFactory: @escaping () -> RealVoiceIO
     ) {
         self.voicesProvider = voicesProvider
         self.engineFactory = engineFactory
-        // VoiceChorus.Engine == any TTSConfigurable & VoiceIO.
+        // Create the chorus engine factory (wraps engineFactory and upcasts to VoiceChorus.Engine).
         self.chorus = VoiceChorus(makeEngine: {
             engineFactory() as (any TTSConfigurable & VoiceIO)
         })
     }
 
-    /// Convenience initializer using the default voices provider and engine factory.
+    /// Convenience initializer with default system voices and engine factory.
+    /// Suitable for production use; uses SystemVoicesCache and RealVoiceIO by default.
     init() {
         self.init(
             voicesProvider: DefaultSystemVoicesProvider(),
@@ -466,7 +585,13 @@ internal struct ChorusLabView: View {
         }
     }
 
-    // MARK: - Calibration (synchronize rates)
+    // MARK: - Calibration and tuning
+
+    /// Synchronize all selected voice rates to match the target duration.
+    /// Runs rate calibration in parallel for each voice, updates baseProfiles and selectedProfiles with fitted rates.
+    /// The global rateScale is temporarily normalized to 1.0 during calibration to avoid interaction effects;
+    /// it is restored afterward.
+    /// Any in-flight calibration is cancelled before starting a new one.
     private func synchronizeRates() {
         guard !selectedProfiles.isEmpty else { return }
         isCalibrating = true
@@ -605,15 +730,17 @@ internal struct ChorusLabView: View {
     // Cancel any in-flight calibration and stop the chorus immediately.
     // (moved: stopAll -> ChorusLabView+Logic.swift)
 
-    // Use system voices (RealVoiceIO no longer exposes availableVoices()).
-    @MainActor
+    /// Retrieve all available system voices, sorted alphabetically by name.
+    /// Used to populate the voice selection menu and seed initial voices.
     func availableVoices() -> [TTSVoiceInfo] {
         voicesProvider.all()
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    /// Seed initial voices so users can play the chorus immediately.
-    /// Picks `count` random distinct system voices from the current language and nudges pitch to differentiate.
+    /// Populate the chorus with random voices from the user's preferred language.
+    /// Each voice gets a slight pitch offset for tonal differentiation. Establishes baseProfiles and selectedProfiles.
+    /// Called once on first appearance if the chorus is empty, to provide an immediate playable setup.
+    /// - Parameter count: Number of random voices to select (default: 2).
     private func seedInitialVoices(count: Int = 2) {
         // Filter to current language base code (e.g., "en").
         let baseLang: String = {
@@ -649,8 +776,10 @@ internal struct ChorusLabView: View {
     }
 
     // MARK: - Tuner integration
-    /// Present the voice tuner to add a new voice.
-    /// Seeds the tuner with a random voice from the user's preferred language.
+
+    /// Show the voice tuner sheet to add a new voice to the chorus.
+    /// Seeds the tuner with a random voice from the user's preferred language, or any voice if none match.
+    /// VoiceChooserView allows full profile adjustment (pitch, volume, rate) and preview playback.
     private func presentAddVoice() {
         editingIndex = nil
         // Use the injected engine factory for testability and consistency.
@@ -686,18 +815,23 @@ internal struct ChorusLabView: View {
         showTuner = true
     }
 
+    /// Show the voice tuner sheet to edit an existing voice in the chorus.
+    /// Pre-populates the tuner with the current profile so the user sees their adjustments.
+    /// - Parameter index: Index in selectedProfiles of the voice to edit.
     private func presentEditVoice(index: Int) {
         guard selectedProfiles.indices.contains(index) else { return }
         editingIndex = index
         tunerEngine = engineFactory()
-        // Seed tuner with current profile
         let prof = selectedProfiles[index]
         tunerEngine.setVoiceProfile(prof)
-        tunerEngine.setDefaultVoiceProfile(prof) // ensure sliders reflect the current row exactly
+        tunerEngine.setDefaultVoiceProfile(prof)
         tunerSelection = prof.id
         showTuner = true
     }
 
+    /// Apply the result of voice tuning (from VoiceChooserView) back to the chorus.
+    /// If editingIndex is set, updates the voice in place. Otherwise, appends a new voice.
+    /// Resyncs baseProfiles and reapplies global adjustments to ensure consistency.
     private func applyTunerSelection() {
         guard let id = tunerSelection else { return }
         // Prefer the specific profile returned by the tuner engine; fall back to its default;
@@ -731,8 +865,14 @@ internal struct ChorusLabView: View {
     }
 }
 
-// MARK: - Snippet building (single source of truth)
-// Internal so tests can call it via @testable import VoiceKitUI.
+// MARK: - Code generation
+
+/// Generate a Swift code snippet that recreates the current chorus setup.
+/// Users can copy this snippet and paste it into their app to reproduce the exact voice profiles and phrase.
+/// - Parameters:
+///   - phrase: The text to speak in the generated snippet (default: placeholder).
+///   - profiles: The voice profiles to serialize.
+/// - Returns: Formatted Swift code snippet (multi-line string) ready to paste.
 internal func makeChorusSnippet(_ phrase: String = "Your phrase", for profiles: [TTSVoiceProfile]) -> String {
     guard !profiles.isEmpty else { return "" }
 
@@ -766,36 +906,46 @@ internal struct ChorusLabView_Previews: PreviewProvider {
 }
 
 // MARK: - Unit-testable helpers
-/// Helpers for chorus tuning logic. Pure and unit-testable.
+
+/// Pure mathematical helpers for chorus rate and pitch adjustment.
+/// Separated from view logic for testability and reusability.
 internal enum ChorusMath {
-    /// Compute an adjusted rate from a baseline rate and a global rate scale.
-    /// Mapping is amplified relative to the base:
-    /// - rateScale > 1.0 moves toward 1.0 by a fraction of headroom (1.0 - base)
-    /// - rateScale < 1.0 pulls toward 0.0 by a fraction of the base value
-    /// Values are clamped to 0...1 to match TTSVoiceProfile.rate expectations.
+    /// Compute an adjusted speaking rate from a baseline rate and a global scale multiplier.
+    ///
+    /// **Mapping**: Moves relative to the headroom (1.0 is fastest):
+    /// - `rateScale > 1.0`: Moves from baseline toward 1.0 (speeding up). Amplified by available headroom.
+    /// - `rateScale < 1.0`: Moves from baseline toward 0.0 (slowing down). Controlled by slowRange to prevent over-slowness.
+    ///
+    /// This asymmetric mapping prevents unintuitive behavior where the same scale amount produces different
+    /// perceptual shifts depending on whether we're speeding up or slowing down.
+    ///
     /// - Parameters:
-    ///   - baseRate: The original voice rate, in 0...1.
-    ///   - rateScale: Global multiplier. 1.0 = unchanged; >1.0 speeds up; <1.0 slows down.
-    ///   - slowRange: Denominator for mapping 1.0→0.x into t:0...1 (prevents over-slowing too quickly).
-    /// - Returns: New rate in 0...1.
+    ///   - baseRate: Baseline speaking pace in [0, 1] (0 = slowest, 1 = fastest).
+    ///   - rateScale: Global multiplier where 1.0 = unchanged, >1.0 = faster, <1.0 = slower.
+    ///   - slowRange: Denominator controlling the slow-down ramp. Typical: 0.75 (Metrics.Adjustments.slowRange).
+    /// - Returns: Adjusted rate clamped to [0, 1].
     static func adjustedRate(baseRate: Double, rateScale: Double, slowRange: Double) -> Double {
         if rateScale >= 1.0 {
-            // Map 1.0→2.0 into t:0...1 and push toward 1.0 by headroom
+            // Speed up: move toward 1.0 by fraction of headroom (1.0 - base)
             let factor = max(0.0, min(1.0, rateScale - 1.0))
             return (baseRate + (1.0 - baseRate) * factor).clamped(to: 0.0...1.0)
         } else {
-            // Map 1.0→0.25 into t:0...1 and pull toward 0.0 by fraction of base
+            // Slow down: move toward 0.0 by fraction of base, dampened by slowRange
             let factor = max(0.0, min(1.0, (1.0 - rateScale) / slowRange))
             return (baseRate - baseRate * factor).clamped(to: 0.0...1.0)
         }
     }
 
-    /// Apply global rate scale and pitch offset to a set of baseline profiles.
+    /// Compute effective voice profiles by applying global rate scale and pitch offset to baseline profiles.
+    ///
+    /// This is the central transform that derives selectedProfiles from baseProfiles whenever sliders change.
+    /// Non-mutating; returns a new array of adjusted profiles.
+    ///
     /// - Parameters:
-    ///   - baseProfiles: The baseline chorus (not mutated).
-    ///   - rateScale: Global rate multiplier (see adjustedRate).
-    ///   - pitchOffset: Global offset added to pitch, then clamped.
-    /// - Returns: New profiles array with adjusted rate and pitch.
+    ///   - baseProfiles: Original voice profiles (not modified).
+    ///   - rateScale: Global rate multiplier (see adjustedRate for mapping).
+    ///   - pitchOffset: Amount to add to each voice's pitch multiplier, clamped to Metrics.Pitch range.
+    /// - Returns: New profiles with adjusted rate and pitch values.
     static func applyAdjustments(
         baseProfiles: [TTSVoiceProfile],
         rateScale: Double,
@@ -812,26 +962,36 @@ internal enum ChorusMath {
     }
 }
 
-// MARK: - Injected dependencies
-/// Abstraction over the source of system voices, to enable testing and reuse.
+// MARK: - Dependency injection protocols
+
+/// Abstraction layer for voice source, enabling testing with fake voices and production use with system voices.
+/// Implemented by DefaultSystemVoicesProvider (system voices) and testable fakes.
 internal protocol SystemVoicesProvider {
+    /// Return all available voices.
+    /// Must be called from the main actor (VoiceKit constraint).
     @MainActor
     func all() -> [TTSVoiceInfo]
 }
 
-/// Default provider backed by SystemVoicesCache.
+/// Default implementation: retrieves available voices from SystemVoicesCache (backing AVSpeechSynthesisVoice).
 internal struct DefaultSystemVoicesProvider: SystemVoicesProvider {
+    /// Query the system voice cache for all available voices.
     @MainActor
     func all() -> [TTSVoiceInfo] {
         SystemVoicesCache.all()
     }
 }
 
+// MARK: - TTSVoiceProfile serialization
+
+/// Serialization helpers to convert a profile into Swift code suitable for copy-to-clipboard.
 fileprivate extension TTSVoiceProfile {
-    // Build a Swift initializer string that reproduces this profile.
-    // Example:
-    // TTSVoiceProfile(id: "com.apple.speech.synthesis.voice.Alex", rate: 0.55, pitch: 1, volume: 1)
+    /// Generate a complete Swift initializer expression for this profile.
+    /// Example: `TTSVoiceProfile(id: "com.apple.speech.synthesis.voice.Alex", rate: 0.55, pitch: 1, volume: 1)`
     var initStr: String { "TTSVoiceProfile(\(initArgs))" }
+
+    /// Generate the argument list for a TTSVoiceProfile initializer (id, rate, pitch, volume).
+    /// Values are rounded to 3 decimal places for readability.
     var initArgs: String {
         ["id: \"\(id)\"",
           "rate: \(rate.display(decimals: 3))",
