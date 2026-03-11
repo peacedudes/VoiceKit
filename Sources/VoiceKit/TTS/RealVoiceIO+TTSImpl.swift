@@ -27,62 +27,32 @@ extension RealVoiceIO {
         }
     }
 
-    /// Normalize sentence-ending punctuation to commas to preserve rate/pitch adjustments
-    /// across the entire utterance. AVSpeechSynthesis resets rate/pitch after .!? marks,
-    /// causing post-punctuation text to be unaffected by voice profile tuning.
-    /// This ensures consistent playback of calibrated voices throughout the phrase.
-    internal func normalizeUtterancePunctuation(_ text: String) -> String {
-        text.replacingOccurrences(
-            of: "[.!?]",
-            with: ",",
-            options: .regularExpression
-        )
-    }
-
-    public func speak(_ text: String) async {
-        await speak(text, using: defaultProfile?.id)
-    }
-
-    /// Speak and return measured wall-clock duration from didStart to didFinish for this utterance.
-    /// In CI mode, we avoid AVSpeech and return a tiny synthetic duration.
-    public func speakAndMeasure(_ text: String, using voiceID: String?) async -> TimeInterval {
-        // CI fast-path: avoid AVSpeech on headless runners.
-        if IsCI.running {
-            await speak(text, using: voiceID)
-            return 0.0
-        }
-
-        ensureSynth()
-        guard let synthesizer else { return 0.0 }
-        let normalizedText = normalizeUtterancePunctuation(text)
-        let utterance = AVSpeechUtterance(string: normalizedText)
-        applyProfile(to: utterance, voiceID: voiceID ?? defaultProfile?.id)
-
-        let key = ObjectIdentifier(utterance)
-        return await withTaskCancellationHandler(
-            operation: {
-                await withCheckedContinuation { (cont: CheckedContinuation<TimeInterval, Never>) in
-                    // Store continuation; didFinish / didCancel will compute and resume.
-                    measureContinuations[key] = cont
-                    synthesizer.speak(utterance)
+    /// Split text at sentence boundaries (. ! ?) while keeping punctuation.
+    /// Returns an array of sentences, each with its terminal punctuation.
+    internal func splitSentences(_ text: String) -> [String] {
+        var sentences: [String] = []
+        var current = ""
+        for char in text {
+            current.append(char)
+            if ".!?".contains(char) {
+                let trimmed = current.trimmingCharacters(in: .whitespaces)
+                if !trimmed.isEmpty {
+                    sentences.append(trimmed)
                 }
-            },
-            onCancel: {
-                // Interrupt any in-flight utterance immediately. This will
-                // trigger speechSynthesizer(_:didCancel:), which in turn
-                // resumes the continuation (returning 0.0s by design).
-                Task { @MainActor [weak self] in
-                    guard let self, let synth = self.synthesizer, synth.isSpeaking else { return }
-                    synth.stopSpeaking(at: .immediate)
-                }
+                current = ""
             }
-        )
+        }
+        let trimmed = current.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty {
+            sentences.append(trimmed)
+        }
+        return sentences
     }
 
-    public func speak(_ text: String, using voiceID: String?) async {
-        // CI fast-path: avoid AVSpeech on headless runners where delegate callbacks can stall.
+    /// Speak a single sentence (internal, no normalization). Splits text into sentences
+    /// and speaks sequentially, preserving punctuation and voice profile across all.
+    private func speakSentence(_ sentence: String, using voiceID: String?) async {
         if IsCI.running {
-            log(.info, "speak(ci-fast-path, voiceID:\(voiceID ?? "nil"))")
             onTTSSpeakingChanged?(true)
             ttsStartPulse()
             await Task.yield()
@@ -92,10 +62,8 @@ extension RealVoiceIO {
         }
 
         ensureSynth()
-        log(.info, "speak(text:\(text.prefix(48))\(text.count > 48 ? "..." : ""), voiceID:\(voiceID ?? "nil"))")
         guard let synthesizer else { return }
-        let normalizedText = normalizeUtterancePunctuation(text)
-        let utterance = AVSpeechUtterance(string: normalizedText)
+        let utterance = AVSpeechUtterance(string: sentence)
         applyProfile(to: utterance, voiceID: voiceID ?? defaultProfile?.id)
 
         let key = ObjectIdentifier(utterance)
@@ -107,6 +75,60 @@ extension RealVoiceIO {
         } catch {
             ttsStopPulse()
             log(.error, "speak(error): \(error.localizedDescription)")
+        }
+    }
+
+    public func speak(_ text: String) async {
+        await speak(text, using: defaultProfile?.id)
+    }
+
+    /// Speak and return measured wall-clock duration. Splits text into sentences
+    /// and sums total time from first didStart to last didFinish.
+    /// In CI mode, we avoid AVSpeech and return a tiny synthetic duration.
+    public func speakAndMeasure(_ text: String, using voiceID: String?) async -> TimeInterval {
+        if IsCI.running {
+            await speak(text, using: voiceID)
+            return 0.0
+        }
+
+        let sentences = splitSentences(text)
+        var totalTime: TimeInterval = 0.0
+        for sentence in sentences {
+            let duration = await speakAndMeasureSentence(sentence, using: voiceID)
+            totalTime += duration
+        }
+        return totalTime
+    }
+
+    /// Speak a single sentence and measure its duration.
+    private func speakAndMeasureSentence(_ sentence: String, using voiceID: String?) async -> TimeInterval {
+        ensureSynth()
+        guard let synthesizer else { return 0.0 }
+        let utterance = AVSpeechUtterance(string: sentence)
+        applyProfile(to: utterance, voiceID: voiceID ?? defaultProfile?.id)
+
+        let key = ObjectIdentifier(utterance)
+        return await withTaskCancellationHandler(
+            operation: {
+                await withCheckedContinuation { (cont: CheckedContinuation<TimeInterval, Never>) in
+                    measureContinuations[key] = cont
+                    synthesizer.speak(utterance)
+                }
+            },
+            onCancel: {
+                Task { @MainActor [weak self] in
+                    guard let self, let synth = self.synthesizer, synth.isSpeaking else { return }
+                    synth.stopSpeaking(at: .immediate)
+                }
+            }
+        )
+    }
+
+    public func speak(_ text: String, using voiceID: String?) async {
+        log(.info, "speak(text:\(text.prefix(48))\(text.count > 48 ? "..." : ""), voiceID:\(voiceID ?? "nil"))")
+        let sentences = splitSentences(text)
+        for sentence in sentences {
+            await speakSentence(sentence, using: voiceID)
         }
     }
 

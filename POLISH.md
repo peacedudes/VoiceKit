@@ -25,43 +25,15 @@ in the initial review have been addressed. What follows is what remains.
 ✓ Recording file cleanup — raw recordings deleted after trimming
 ✓ `VoiceTempoCalibrator` tests — 10-test comprehensive suite added
 ✓ SimpleError → VoiceIOError — unified to typed error handling
+✓ `BoostedNodesProvider` consolidation — all state now @MainActor stored properties on RealVoiceIO (no static dicts)
+✓ `VoiceIOConfig` validation — NaN/infinite/negative values clamped to safe ranges; no more undefined behavior
+✓ Punctuation normalization → sentence splitting — split at `.!?`, speak sequentially, preserves inflection and rate calibration
 
 ---
 
 ## Outstanding Issues
 
-### 1. `BoostedNodesProvider` uses static dictionaries with ObjectIdentifier keys
-
-**File:** `Sources/VoiceKit/TTS/RealVoiceIO+Boosted.swift`
-
-The `BoostedNodesProvider` protocol exists but its implementation (`LiveBoostedNodesProvider`)
-is a stub. Actual state is stored in static dictionaries keyed by `ObjectIdentifier(self)`,
-which is the pre-Swift 6 pattern for per-instance state in extensions.
-
-This works but has two problems:
-1. Memory is held indefinitely unless explicitly cleaned up via `cleanup(id:)`
-2. If an instance is deallocated without calling `hardReset()`, dict entries remain
-
-**Better approach:** Either finish the provider seam (route all state through it,
-making it properly testable), or consolidate the static dicts into real `@MainActor`
-stored properties on `RealVoiceIO` itself.
-
----
-
-### 2. `VoiceIOConfig` documents missing validation but doesn't implement it
-
-**File:** `Sources/VoiceKit/Public/VoiceIOConfig.swift`
-
-The init warns: "No validation is performed. Negative, NaN, or infinite values will
-cause undefined behavior." Users passing untrusted values (from UI, config files, etc.)
-are expected to validate themselves, which puts the burden in the wrong place.
-
-Fix: Add guards in the init. Clamp pads to reasonable ranges, reject NaN/infinite,
-document what 0 means for timeout fields.
-
----
-
-### 3. `handleRecognitionSuccess` uses `Task { @MainActor in }` from nonisolated context
+### 1. `handleRecognitionSuccess` uses `Task { @MainActor in }` from nonisolated context
 
 **File:** `Sources/VoiceKit/STT/RealVoiceIO+STT.swift:247`
 
@@ -74,7 +46,7 @@ with explicit priority, or restructure the callback setup to be `@MainActor` dir
 
 ---
 
-### 4. `filteredVoices` in VoiceChooserViewModel is computed, not cached
+### 2. `filteredVoices` in VoiceChooserViewModel is computed, not cached
 
 **File:** `Sources/VoiceKitUI/VoiceChooserViewModel.swift:75`
 
@@ -87,7 +59,7 @@ more efficient.
 
 ---
 
-### 5. No public API to extend STT inactivity timeout mid-listen
+### 3. No public API to extend STT inactivity timeout mid-listen
 
 **File:** `Sources/VoiceKit/STT/RealVoiceIO+STT.swift`
 
@@ -100,31 +72,11 @@ Fix: Add public `extendListen(by:)` to defer the timeout, or document that passi
 
 ---
 
-### 6. Punctuation normalization flattens voice inflection (workaround, not solution)
-
-**File:** `Sources/VoiceKit/TTS/RealVoiceIO+TTSImpl.swift`
-
-AVSpeechSynthesis resets rate/pitch adjustments after `.!?`, breaking calibration.
-Current fix normalizes punctuation to commas, preserving rate but removing inflection.
-Voices sound flat because `.` (falling), `!` (emphasis), `?` (rising) are semantic.
-
-**Better approach:** Split utterances at sentence boundaries, speak sequentially while
-maintaining voice profile across all. Each sentence keeps its punctuation and inflection;
-rate calibration persists.
-
-Fix: Extract sentence-splitting logic, queue utterances with profile preservation,
-manage as a single "logical utterance" from caller's perspective.
-
----
-
 ## Priority Order (if tackling these)
 
-1. **Replace punctuation normalization with sentence splitting** — Better voice quality.
-2. **Cache `filteredVoices` as @Published** — Performance and testability.
-3. **Add `VoiceIOConfig` validation** — Catch errors at boundary, not at runtime.
-4. **Consolidate `BoostedNodesProvider` state** — Either finish the seam or use stored properties.
-5. **Add `extendListen(by:)` to STT** — Improve timer control.
-6. **Fix `handleRecognitionSuccess` isolation** — Use `MainActor.run` instead of deferred Task.
+1. **Cache `filteredVoices` as @Published** — Performance and testability.
+2. **Add `extendListen(by:)` to STT** — Improve timer control.
+3. **Fix `handleRecognitionSuccess` isolation** — Use `MainActor.run` instead of deferred Task.
 
 ---
 

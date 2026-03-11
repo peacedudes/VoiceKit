@@ -539,9 +539,9 @@ internal struct ChorusLabView: View {
                             calibrationTask = nil
                         }
                         await Task.yield()
-                        io.setVoiceProfile(selectedProfiles[idx])
+                        engine.setVoiceProfile(selectedProfiles[idx])
                         let result = await VoiceTempoCalibrator.fitRate(
-                            io: io,
+                            io: engine,
                             voiceID: voiceID,
                             phrase: customText,
                             targetSeconds: targetSeconds,
