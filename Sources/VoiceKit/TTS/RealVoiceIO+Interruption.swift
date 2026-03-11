@@ -135,7 +135,7 @@ extension RealVoiceIO {
         if reason == .oldDeviceUnavailable {
             if clipPlayer?.isPlaying == true {
                 clipPlayer?.stop()
-                boostedProvider.reset()
+                clipCompletedState = false
                 let waiters = clipWaiters
                 clipWaiters.removeAll()
                 for waiter in waiters {

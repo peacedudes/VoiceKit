@@ -12,49 +12,58 @@ import Foundation
 /// Configuration for RealVoiceIO behavior.
 /// All values have sensible defaults suitable for most applications.
 ///
-/// Values are not validated at initialization time; invalid values (negative,
-/// NaN, or infinity) will produce unexpected behavior at runtime. Applications
-/// should validate or clamp values before construction if they come from user
-/// input or untrusted sources.
+/// Invalid values (negative, NaN, or infinity) are automatically clamped to safe ranges
+/// to prevent undefined behavior at runtime. This allows safe construction from user input
+/// or untrusted sources without requiring pre-validation.
 public struct VoiceIOConfig: Sendable, Equatable {
     /// Padding to add before the detected start of speech when trimming recordings (seconds).
-    /// Must be >= 0. Typical values: 0.05 to 0.1. Allows capturing slight lead-in.
+    /// Automatically clamped to [0, 1.0]. Typical values: 0.05 to 0.1. Allows capturing slight lead-in.
     public var trimPrePad: Double
 
     /// Padding to add after the detected end of speech when trimming recordings (seconds).
-    /// Must be >= 0. Typical values: 0.1 to 0.3. Allows capturing slight tail-out and breath.
+    /// Automatically clamped to [0, 2.0]. Typical values: 0.1 to 0.3. Allows capturing slight tail-out and breath.
     public var trimPostPad: Double
 
     /// Maximum time to wait for a prepared clip to start playback before timing out (seconds).
-    /// Must be > 0. Intended for boosted clip scheduling, but currently unused in VoiceKit.
+    /// Automatically clamped to (0, 60.0]. Intended for boosted clip scheduling, but currently unused in VoiceKit.
     /// Retained for potential future use or app-level integration.
     /// Default (2.0) would accommodate system audio setup delays if implemented.
     public var clipWaitTimeoutSeconds: Double
 
     /// Duration to suppress STT listening after TTS finishes speaking (seconds).
-    /// Must be >= 0. Intended to prevent the recognizer from hearing back the speaker's own voice,
-    /// but currently unused in VoiceKit (STT and TTS are not auto-coordinated).
-    /// Retained for potential future use or app-level integration.
+    /// Automatically clamped to [0, 5.0]. A value of 0 disables suppression. Intended to prevent
+    /// the recognizer from hearing back the speaker's own voice, but currently unused in VoiceKit
+    /// (STT and TTS are not auto-coordinated). Retained for potential future use or app-level integration.
     /// Typical value if implemented: 0.2 to 0.5 depending on speaker volume and environment.
     public var ttsSuppressAfterFinish: Double
 
     /// Initializes a configuration with custom values.
     ///
     /// - Parameters:
-    ///   - trimPrePad: Pre-speech padding in seconds (default: 0.05)
-    ///   - trimPostPad: Post-speech padding in seconds (default: 0.20)
-    ///   - clipWaitTimeoutSeconds: Clip startup timeout in seconds (default: 2.0)
-    ///   - ttsSuppressAfterFinish: STT suppression after TTS in seconds (default: 0.25)
+    ///   - trimPrePad: Pre-speech padding in seconds (default: 0.05; clamped to [0, 1.0])
+    ///   - trimPostPad: Post-speech padding in seconds (default: 0.20; clamped to [0, 2.0])
+    ///   - clipWaitTimeoutSeconds: Clip startup timeout in seconds (default: 2.0; clamped to (0, 60.0])
+    ///   - ttsSuppressAfterFinish: STT suppression after TTS in seconds (default: 0.25; clamped to [0, 5.0])
     ///
-    /// **Warning**: No validation is performed. Negative, NaN, or infinite values
-    /// will cause undefined behavior. Use default config for safety.
+    /// All values are validated and clamped to safe ranges. NaN and infinite values are treated as 0
+    /// (for padding/suppress fields) or 0.1 (for timeout fields), then clamped to the valid range.
     public init(trimPrePad: Double = 0.05,
                 trimPostPad: Double = 0.20,
                 clipWaitTimeoutSeconds: Double = 2.0,
                 ttsSuppressAfterFinish: Double = 0.25) {
-        self.trimPrePad = trimPrePad
-        self.trimPostPad = trimPostPad
-        self.clipWaitTimeoutSeconds = clipWaitTimeoutSeconds
-        self.ttsSuppressAfterFinish = ttsSuppressAfterFinish
+        // Validate and clamp padding values (must be >= 0)
+        let validTrimPrePad = trimPrePad.isFinite && trimPrePad >= 0 ? trimPrePad : 0
+        let validTrimPostPad = trimPostPad.isFinite && trimPostPad >= 0 ? trimPostPad : 0
+
+        // Validate and clamp timeout values (must be > 0)
+        let validClipTimeout = clipWaitTimeoutSeconds.isFinite && clipWaitTimeoutSeconds > 0
+            ? clipWaitTimeoutSeconds : 0.1
+        let validTtsSuppress = ttsSuppressAfterFinish.isFinite && ttsSuppressAfterFinish >= 0
+            ? ttsSuppressAfterFinish : 0
+
+        self.trimPrePad = min(validTrimPrePad, 1.0)
+        self.trimPostPad = min(validTrimPostPad, 2.0)
+        self.clipWaitTimeoutSeconds = min(max(validClipTimeout, 0.01), 60.0)
+        self.ttsSuppressAfterFinish = min(validTtsSuppress, 5.0)
     }
 }
