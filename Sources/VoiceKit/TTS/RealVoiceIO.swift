@@ -227,6 +227,17 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO, TempoMeasura
         synthesizer?.stopSpeaking(at: .immediate)
     }
 
+    /// Extend the STT inactivity timeout by marking current time as a "loud" moment.
+    /// Useful when the app detects user activity (e.g., button press) and wants to prevent
+    /// the listen from timing out during an intentional pause.
+    /// - Parameter: unused; reserved for future API expansion (e.g., to extend by a specific duration).
+    public func extendListen(by: TimeInterval? = nil) {
+        let now = ProcessInfo.processInfo.systemUptime
+        Task {
+            await sttActivityTracker.markLoud(at: now)
+        }
+    }
+
     public func hardReset() {
         // Stop any TTS in progress.
         stopAll()

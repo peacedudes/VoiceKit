@@ -231,42 +231,51 @@ extension RealVoiceIO {
 
     // MARK: - Recognition helpers
 
-    private func handleRecognitionSuccess(
+    nonisolated private func handleRecognitionSuccess(
         result: SFSpeechRecognitionResult,
         expectation: RecognitionContext.Expectation,
         inactivity: TimeInterval
     ) {
-        var text = result.bestTranscription.formattedString
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let segments = result.bestTranscription.segments
+        let rawText = result.bestTranscription.formattedString
+        let trimmed = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Extract segment timings before crossing actor boundary.
+        let segmentTimings = result.bestTranscription.segments.map { ($0.timestamp, $0.duration) }
 
-        if case .number = expectation {
-            text = Self.normalizeNumeric(from: text)
-        }
+        Task {
+            await MainActor.run {
+                var text = rawText
+                if case .number = expectation {
+                    text = Self.normalizeNumeric(from: text)
+                }
 
-        Task { @MainActor in
-            if !trimmed.isEmpty {
-                self.latestTranscript = text
-                self.onTranscriptChanged?(text)
-                self.startInactivityTimer(seconds: inactivity)
-            }
+                if !trimmed.isEmpty {
+                    self.latestTranscript = text
+                    self.onTranscriptChanged?(text)
+                    self.startInactivityTimer(seconds: inactivity)
+                }
 
-            self.updateSpeechSegments(segments)
+                self.updateSpeechSegmentTimings(segmentTimings)
 
-            if result.isFinal {
-                self.log(.info, "listen(stt) complete via recognizer isFinal")
-                self.completeCurrentListen()
+                if result.isFinal {
+                    self.log(.info, "listen(stt) complete via recognizer isFinal")
+                    self.completeCurrentListen()
+                }
             }
         }
     }
 
     private func updateSpeechSegments(_ segments: [SFTranscriptionSegment]) {
-        guard !segments.isEmpty else { return }
+        let timings = segments.map { ($0.timestamp, $0.duration) }
+        updateSpeechSegmentTimings(timings)
+    }
+
+    private func updateSpeechSegmentTimings(_ timings: [(TimeInterval, TimeInterval)]) {
+        guard !timings.isEmpty else { return }
         var first = firstSpeechStart
         var last = lastSpeechEnd
-        for seg in segments {
-            if first == nil { first = seg.timestamp }
-            last = max(last ?? 0, seg.timestamp + seg.duration)
+        for (timestamp, duration) in timings {
+            if first == nil { first = timestamp }
+            last = max(last ?? 0, timestamp + duration)
         }
         firstSpeechStart = first
         lastSpeechEnd = last
