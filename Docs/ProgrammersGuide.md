@@ -187,10 +187,16 @@ await io.speak("Hello <sfx:\(dingURL.absoluteString)> world")
 
 ### Parsing rules
 
+- **Sentence splitting**: Text is automatically split at `.`, `!`, `?` boundaries
 - **Token format**: `<sfx:URL>` where URL is anything until the closing `>`
-- **Text segments**: Separated by tokens; each segment is synthesized in order
-- **SFX clips**: Played sequentially with 0dB gain between TTS segments
+- **Synthesis order**: Each sentence segment is synthesized sequentially
+- **SFX playback**: Tokens are played between segments with 0dB gain
 - **Voice profile**: Applied uniformly to all text segments
+
+Example parsing: `"Hello world. <sfx:ding> How are you?"`
+- Segment 1: "Hello world." (synthesized)
+- Segment 2: ding.caf (played)
+- Segment 3: "How are you?" (synthesized)
 
 ### When to use
 
@@ -442,10 +448,10 @@ Controls advanced behaviours of 'RealVoiceIO'. All values have sensible defaults
 
 Fields (relevant ones):
 
-- 'trimPrePad: Double' - seconds of audio to keep *before* detected speech when trimming recordings.
-- 'trimPostPad: Double' - seconds of audio to keep *after* detected speech.
-- 'clipWaitTimeoutSeconds: Double' - how long to wait for a short clip to complete before timing out.
-- 'ttsSuppressAfterFinish: Double' - brief suppression window after TTS to avoid the mic "hearing" its own output.
+- 'trimPrePad: Double' - seconds of audio to keep *before* detected speech when trimming recordings. Preserves breath and consonant attack.
+- 'trimPostPad: Double' - seconds of audio to keep *after* detected speech. Preserves word tail and natural intonation.
+- 'clipWaitTimeoutSeconds: Double' - maximum duration to wait for a short clip (playClip, startPreparedClip) to complete. If the audio device is disconnected mid-playback, this prevents the app from hanging indefinitely.
+- 'ttsSuppressAfterFinish: Double' - duration to suppress microphone input immediately after TTS finishes. Prevents the microphone from picking up the speaker output when listen() starts immediately after speak().
 
 Usage example:
 

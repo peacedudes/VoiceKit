@@ -243,10 +243,10 @@ await io.speak("Hello <sfx:\(dingURL.absoluteString)> world")
 ~~~
 
 Behavior:
-- Text is split into segments separated by SFX tokens.
-- Text segments are synthesized in order; SFX URLs are played sequentially.
-- Each segment is synthesized using the specified voice profile.
-- SFX clips are played with 0dB gain.
+- Text is automatically split at sentence boundaries (`.`, `!`, `?`) and by SFX tokens.
+- Each sentence segment is synthesized sequentially using the specified voice profile.
+- SFX tokens are played between segments with 0dB gain.
+- Example: `"Hello world. <sfx:ding> How are you?"` → speaks "Hello world.", plays ding, then speaks "How are you?"
 
 Comparison with other approaches:
 

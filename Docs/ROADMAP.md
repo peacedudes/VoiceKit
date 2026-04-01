@@ -30,9 +30,10 @@ Status
 - ViewModel: VoiceChooserViewModel added; typealias preserves existing tests.
 
 SFX inlined into spoken text (scope)
-- In core, keep a minimal, token-based helper (already present in VoiceQueue.parseTextForSFX).
-- Do not auto-parse raw URLs in the core library.
-- Rich interpolation (URLs, playlists, named SFX packs) belongs in sample apps.
+- In core, provide two parsing helpers:
+  - `VoiceQueue.parseTextForSFX()` — parses `<sfx:name>` tokens with a resolver function
+  - `RealVoiceIO.parseTextForSFXWithURLs()` — parses `<sfx:URL>` tokens with direct URLs (used by speak())
+- Rich interpolation (playlists, named SFX packs) belongs in sample apps.
 
 Samples (separate repo)
 - Repo: VoiceKitSamples (to publish later).
