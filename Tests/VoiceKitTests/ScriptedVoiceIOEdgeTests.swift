@@ -47,7 +47,7 @@ internal final class ScriptedVoiceIOEdgeTests: XCTestCase {
         var endCount = 0
         var sawAnyPulse = false
 
-        voice.onTTSSpeakingChanged = { speaking in
+        voice.onSpeakingChanged = { speaking in
             if speaking {
                 if startCount == 0 { startedFirst.fulfill() } else if startCount == 1 { startedSecond.fulfill() }
                 startCount += 1
@@ -56,7 +56,7 @@ internal final class ScriptedVoiceIOEdgeTests: XCTestCase {
                 endCount += 1
             }
         }
-        voice.onTTSPulse = { level in if level > 0 { sawAnyPulse = true } }
+        voice.onPulseChanged = { level in if level > 0 { sawAnyPulse = true } }
 
         await voice.speak("first")
         await voice.speak("second")

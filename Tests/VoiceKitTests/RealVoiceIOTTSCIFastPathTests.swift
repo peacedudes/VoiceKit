@@ -26,7 +26,7 @@ internal final class RealVoiceIOTTSCIFastPathTests: TestSupport.QoSNeutralizingT
         var toggles: [Bool] = []
         let exp = XCTestExpectation(description: "speaking toggled false")
 
-        io.onTTSSpeakingChanged = { speaking in
+        io.onSpeakingChanged = { speaking in
             toggles.append(speaking)
             if speaking == false {
                 exp.fulfill()

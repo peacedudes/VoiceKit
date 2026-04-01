@@ -53,10 +53,10 @@ extension RealVoiceIO {
     /// and speaks sequentially, preserving punctuation and voice profile across all.
     private func speakSentence(_ sentence: String, using voiceID: String?) async {
         if IsCI.running {
-            onTTSSpeakingChanged?(true)
+            onSpeakingChanged?(true)
             ttsStartPulse()
             await Task.yield()
-            onTTSSpeakingChanged?(false)
+            onSpeakingChanged?(false)
             ttsStopPulse()
             return
         }
@@ -251,7 +251,7 @@ extension RealVoiceIO {
         let key = ObjectIdentifier(utterance)
         Task { @MainActor in
             self.log(.info, "tts didStart")
-            self.onTTSSpeakingChanged?(true)
+            self.onSpeakingChanged?(true)
             self.ttsStartPulse()
             // Record start time for this utterance (used by speakAndMeasure)
             let now = ProcessInfo.processInfo.systemUptime
@@ -278,7 +278,7 @@ extension RealVoiceIO {
                 mCont.resume(returning: 0.0)
             }
             self.log(.info, "tts didFinish")
-            self.onTTSSpeakingChanged?(false)
+            self.onSpeakingChanged?(false)
             self.ttsStopPulse()
         }
     }
@@ -300,7 +300,7 @@ extension RealVoiceIO {
                 // no-op
             }
             self.log(.warn, "tts didCancel")
-            self.onTTSSpeakingChanged?(false)
+            self.onSpeakingChanged?(false)
             self.ttsStopPulse()
         }
     }
@@ -312,7 +312,7 @@ extension RealVoiceIO {
             self.ttsPhase += 0.2
             let glow = max(0, sin(self.ttsPhase))
             self.ttsGlow = CGFloat(glow)
-            self.onTTSPulse?(self.ttsGlow)
+            self.onPulseChanged?(self.ttsGlow)
         }
     }
 }

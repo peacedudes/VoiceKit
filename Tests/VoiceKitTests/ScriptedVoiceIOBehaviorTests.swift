@@ -24,10 +24,10 @@ internal final class ScriptedVoiceIOBehaviorTests: XCTestCase {
         let ended = expectation(description: "speaking ended")
         var sawPulse = false
 
-        io.onTTSSpeakingChanged = { isSpeaking in
+        io.onSpeakingChanged = { isSpeaking in
             if isSpeaking { started.fulfill() } else { ended.fulfill() }
         }
-        io.onTTSPulse = { level in
+        io.onPulseChanged = { level in
             if level > 0 { sawPulse = true }
         }
 

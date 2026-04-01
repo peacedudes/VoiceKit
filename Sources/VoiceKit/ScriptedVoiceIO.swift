@@ -15,8 +15,8 @@ public final class ScriptedVoiceIO: VoiceIO {
     public var onListeningChanged: ((Bool) -> Void)?
     public var onTranscriptChanged: ((String) -> Void)?
     public var onLevelChanged: ((CGFloat) -> Void)?
-    public var onTTSSpeakingChanged: ((Bool) -> Void)?
-    public var onTTSPulse: ((CGFloat) -> Void)?
+    public var onSpeakingChanged: ((Bool) -> Void)?
+    public var onPulseChanged: ((CGFloat) -> Void)?
     public var onStatusMessageChanged: ((String?) -> Void)?
 
     private var queue: [String]
@@ -39,17 +39,17 @@ public final class ScriptedVoiceIO: VoiceIO {
     public func configureSessionIfNeeded() async throws { }
 
     public func speak(_ text: String) async {
-        onTTSSpeakingChanged?(true)
-        onTTSPulse?(0.35)
+        onSpeakingChanged?(true)
+        onPulseChanged?(0.35)
         let steps = 6
         for stepIndex in 0..<steps {
             let phase = Double(stepIndex) / Double(steps - 1)
             let level = 0.28 + 0.24 * sin(phase * .pi)
-            onTTSPulse?(CGFloat(level))
+            onPulseChanged?(CGFloat(level))
             try? await Task.sleep(nanoseconds: 50_000_000)
         }
-        onTTSPulse?(0.0)
-        onTTSSpeakingChanged?(false)
+        onPulseChanged?(0.0)
+        onSpeakingChanged?(false)
     }
 
     public func listen(timeout: TimeInterval, inactivity: TimeInterval, record: Bool) async throws -> VoiceResult {
@@ -84,8 +84,8 @@ public final class ScriptedVoiceIO: VoiceIO {
         onListeningChanged?(false)
         onTranscriptChanged?("")
         onLevelChanged?(0)
-        onTTSPulse?(0)
-        onTTSSpeakingChanged?(false)
+        onPulseChanged?(0)
+        onSpeakingChanged?(false)
         onStatusMessageChanged?(nil)
     }
 }

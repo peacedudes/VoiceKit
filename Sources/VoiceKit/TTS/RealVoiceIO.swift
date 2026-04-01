@@ -22,8 +22,8 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO, TempoMeasura
     public var onListeningChanged: ((Bool) -> Void)?
     public var onTranscriptChanged: ((String) -> Void)?
     public var onLevelChanged: ((CGFloat) -> Void)?
-    public var onTTSSpeakingChanged: ((Bool) -> Void)?
-    public var onTTSPulse: ((CGFloat) -> Void)?
+    public var onSpeakingChanged: ((Bool) -> Void)?
+    public var onPulseChanged: ((CGFloat) -> Void)?
     public var onStatusMessageChanged: ((String?) -> Void)?
 
     // MARK: - Debug logging (opt-in)

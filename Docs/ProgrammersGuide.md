@@ -558,8 +558,8 @@ public protocol VoiceIO: AnyObject {
     var onListeningChanged: ((Bool) -> Void)? { get set }
     var onTranscriptChanged: ((String) -> Void)? { get set }
     var onLevelChanged: ((CGFloat) -> Void)? { get set }
-    var onTTSSpeakingChanged: ((Bool) -> Void)? { get set }
-    var onTTSPulse: ((CGFloat) -> Void)? { get set }
+    var onSpeakingChanged: ((Bool) -> Void)? { get set }
+    var onPulseChanged: ((CGFloat) -> Void)? { get set }
     var onStatusMessageChanged: ((String?) -> Void)? { get set }
 
     // Session / permissions

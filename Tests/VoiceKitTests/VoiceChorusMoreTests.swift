@@ -23,8 +23,8 @@ internal final class VoiceChorusMoreTests: XCTestCase {
         var onListeningChanged: ((Bool) -> Void)?
         var onTranscriptChanged: ((String) -> Void)?
         var onLevelChanged: ((CGFloat) -> Void)?
-        var onTTSSpeakingChanged: ((Bool) -> Void)?
-        var onTTSPulse: ((CGFloat) -> Void)?
+        var onSpeakingChanged: ((Bool) -> Void)?
+        var onPulseChanged: ((CGFloat) -> Void)?
         var onStatusMessageChanged: ((String?) -> Void)?
 
         // Tracking

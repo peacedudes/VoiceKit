@@ -48,11 +48,11 @@ public protocol VoiceIO: AnyObject {
     var onLevelChanged: ((CGFloat) -> Void)? { get set }
 
     /// Called when TTS speaking state changes (true when speaking starts, false when it finishes).
-    var onTTSSpeakingChanged: ((Bool) -> Void)? { get set }
+    var onSpeakingChanged: ((Bool) -> Void)? { get set }
 
     /// Called with a pulsing animation value [0, 1] (sine wave) during TTS synthesis.
     /// Useful for visual feedback like glowing indicators or breathing animations.
-    var onTTSPulse: ((CGFloat) -> Void)? { get set }
+    var onPulseChanged: ((CGFloat) -> Void)? { get set }
 
     /// Called with optional status messages for debugging or user feedback.
     /// Value is nil when status is cleared.
