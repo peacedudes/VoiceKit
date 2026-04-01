@@ -436,7 +436,46 @@ final class RealSTTSmokeTests: XCTestCase {
 }
 ~~~
 
-CI: don’t set 'REAL_STT_SMOKE' → test is skipped.
+CI: don’t set ‘REAL_STT_SMOKE’ → test is skipped.
+
+### CI detection: IsCI.running
+
+VoiceKit automatically detects CI environments via the `IsCI` utility. When `IsCI.running == true`:
+
+- ‘ensurePermissions()’ succeeds immediately (no system dialogs)
+- ‘listen()’ returns deterministic stub results:
+  - If ‘RecognitionContext.expectation == .number’, returns transcript "42"
+  - Otherwise, returns the current ‘latestTranscript’ (default: empty string)
+  - No audio hardware is accessed
+- ‘speak()’ uses a minimal synthetic path (no ‘AVSpeechSynthesizer’ instantiation)
+- All operations are fully deterministic and fast
+
+**Detection priority:**
+
+1. ‘VOICEKIT_FORCE_CI’ environment variable (override): "1", "true", or "yes" forces CI mode
+2. ‘CI’ environment variable (standard): set by GitHub Actions, GitLab CI, and other platforms
+3. If neither is set, defaults to false (real hardware mode)
+
+**Usage in tests:**
+
+~~~swift
+// Force CI mode in a test scheme:
+// Build → Schemes → Edit Scheme → Test → Environment Variables
+// Add: VOICEKIT_FORCE_CI = true
+
+// Or skip a test in CI:
+func testRealSTTFeature() async throws {
+    guard !IsCI.running else {
+        throw XCTSkip("Skipping real STT test in CI")
+    }
+    // ...real audio test...
+}
+
+// Or force real mode even in CI (for smoke tests):
+// VOICEKIT_FORCE_CI = false
+~~~
+
+For full details, see the `IsCI` enum documentation in `Sources/VoiceKit/Utilities/IsCI.swift`.
 
 ---
 
