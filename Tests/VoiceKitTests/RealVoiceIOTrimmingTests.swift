@@ -96,4 +96,23 @@ internal final class RealVoiceIOTrimmingTests: XCTestCase {
         XCTAssertGreaterThan(duration, 0.05, "Trimmed file should not be effectively empty")
         XCTAssertLessThan(duration, 0.6, "Trimmed file should be shorter than the original")
     }
+
+    func testTrimVeryShortAudio() throws {
+        let io = RealVoiceIO()
+        // Create a 50ms clip (< 100ms edge case)
+        let url = try makeTempAudio(duration: 0.05, silenceHead: 0.005, silenceTail: 0.005)
+        let file = try AVAudioFile(forReading: url)
+        let originalDuration = Double(file.length) / file.fileFormat.sampleRate
+        XCTAssertTrue(originalDuration < 0.1, "Test setup: audio should be < 100ms")
+
+        // Trim with no pads
+        let trimmed = io.trimAudioSmart(inputURL: url, sttStart: nil, sttEnd: nil, prePad: 0.0, postPad: 0.0)
+        XCTAssertNotNil(trimmed, "Trimming very short audio should not crash")
+
+        // If trimming succeeded, verify output is readable and non-empty
+        if let trimmedURL = trimmed, trimmedURL != url {
+            let trimmedFile = try AVAudioFile(forReading: trimmedURL)
+            XCTAssertGreaterThan(trimmedFile.length, 0, "Trimmed output should have frames")
+        }
+    }
 }

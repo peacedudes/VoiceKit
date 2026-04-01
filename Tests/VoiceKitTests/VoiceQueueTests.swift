@@ -185,4 +185,54 @@ internal final class VoiceQueueTests: XCTestCase {
             "speak: world:vY"
         ])
     }
+
+    func testEmbeddedSFXParsingSkipsWhenResolverReturnsNil() async {
+        let io = FakeIO()
+        let queue = VoiceQueue(primary: io)
+        let resolver: VoiceQueue.SFXResolver = { _ in nil }  // All SFX resolve to nil
+
+        queue.enqueueParsingSFX(text: "Hello <sfx:missing> world", resolver: resolver, defaultVoiceID: "vZ")
+        await queue.play()
+
+        // Missing SFX (resolver returns nil) should be skipped; only text spoken
+        XCTAssertEqual(io.log, [
+            "speak:Hello :vZ",
+            "speak: world:vZ"
+        ])
+    }
+
+    func testMalformedSFXTokensAreIgnored() async {
+        let io = FakeIO()
+        let queue = VoiceQueue(primary: io)
+
+        // Incomplete tokens like <sfx: (no closing >) should not match regex
+        queue.enqueueParsingSFX(text: "Hello <sfx: world", resolver: { _ in nil }, defaultVoiceID: "v1")
+        await queue.play()
+
+        // Entire text should be spoken as-is since token doesn't match
+        XCTAssertEqual(io.log, [
+            "speak:Hello <sfx: world:v1"
+        ])
+    }
+
+    func testPartiallyMalformedTokens() async {
+        let io = FakeIO()
+        let queue = VoiceQueue(primary: io)
+
+        // Pattern "<sfx:.*?>" matches greedily until the closing >, so
+        // "<sfx: middle <sfx:incomplete>" gets parsed as a name (which won't resolve)
+        queue.enqueueParsingSFX(
+            text: "Start <sfx: middle <sfx:incomplete> end",
+            resolver: { _ in nil },  // All names resolve to nil
+            defaultVoiceID: "v1"
+        )
+        await queue.play()
+
+        // The regex matches "<sfx: middle <sfx:incomplete>" as a token with name " middle <sfx:incomplete"
+        // Since resolver returns nil, the token is skipped; only "Start " and " end" are spoken
+        XCTAssertEqual(io.log, [
+            "speak:Start :v1",
+            "speak: end:v1"
+        ])
+    }
 }
