@@ -126,9 +126,20 @@ extension RealVoiceIO {
 
     public func speak(_ text: String, using voiceID: String?) async {
         log(.info, "speak(text:\(text.prefix(48))\(text.count > 48 ? "..." : ""), voiceID:\(voiceID ?? "nil"))")
-        let sentences = splitSentences(text)
-        for sentence in sentences {
-            await speakSentence(sentence, using: voiceID)
+        let parts = parseTextForSFXWithURLs(text)
+        for part in parts {
+            switch part {
+            case .text(let segment) where !segment.isEmpty:
+                let sentences = splitSentences(segment)
+                for sentence in sentences {
+                    await speakSentence(sentence, using: voiceID)
+                }
+            case .sfx(let url):
+                // Safe to ignore: SFX playback failures don't halt speak sequencing; speaker continues
+                try? await playClip(url: url, gainDB: 0)
+            case .text: // empty text segment; skip
+                break
+            }
         }
     }
 
@@ -190,6 +201,45 @@ extension RealVoiceIO {
 
     internal func ttsStartPulse() {}
     internal func ttsStopPulse() {}
+
+    // MARK: - SFX Parsing
+
+    internal enum SFXPart {
+        case text(String)
+        case sfx(URL)
+    }
+
+    /// Parse text for <sfx:URL> tokens and return alternating text/SFX parts.
+    /// Example: "Hello <sfx:http://example.com/ding.caf> world" → [.text("Hello "), .sfx(...), .text(" world")]
+    internal func parseTextForSFXWithURLs(_ text: String) -> [SFXPart] {
+        // Pattern: <sfx: URL> - URL is anything until the closing >
+        let pattern = #"<sfx:\s*([^>]+)>"#
+        // Safe to ignore: regex compile failure is extremely unlikely; fallback to unparsed text (SFX tokens won't be recognized)
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [.text(text)] }
+
+        var parts: [SFXPart] = []
+        var cursor = text.startIndex
+
+        for match in regex.matches(in: text, range: NSRange(text.startIndex..<text.endIndex, in: text)) {
+            guard let range = Range(match.range, in: text) else { continue }
+            let before = String(text[cursor..<range.lowerBound])
+            if !before.isEmpty { parts.append(.text(before)) }
+
+            if let urlRange = Range(match.range(at: 1), in: text) {
+                let urlString = String(text[urlRange]).trimmingCharacters(in: .whitespaces)
+                if let url = URL(string: urlString) {
+                    parts.append(.sfx(url))
+                }
+            }
+
+            cursor = range.upperBound
+        }
+
+        let tail = String(text[cursor..<text.endIndex])
+        if !tail.isEmpty { parts.append(.text(tail)) }
+        if parts.isEmpty { parts = [.text(text)] }
+        return parts
+    }
 }
 
 // MARK: - AVSpeechSynthesizerDelegate (nonisolated entry points; hop to main)

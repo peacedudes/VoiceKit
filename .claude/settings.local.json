@@ -6,7 +6,10 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(printf \\\\n:*)",
-      "Bash(find /Users/rdoggett/Developer/Tests/VoiceKit/Sources/VoiceKit/Public -name \"*.swift\" -exec wc -l {} + | sort -n)"
+      "Bash(find /Users/rdoggett/Developer/Tests/VoiceKit/Sources/VoiceKit/Public -name \"*.swift\" -exec wc -l {} + | sort -n)",
+      "Bash(sed -i '' 's/Metrics\\\\./ChorusLabMetrics./g' /Users/rdoggett/Developer/Tests/VoiceKit/Demos/ChorusLabApp/ChorusLabApp/ChorusLabView+Proxies.swift && sed -i '' 's/Metrics\\\\./ChorusLabMetrics./g' /Users/rdoggett/Developer/Tests/VoiceKit/Demos/ChorusLabApp/ChorusLabApp/ChorusLabView+Logic.swift)",
+      "Bash(git checkout:*)",
+      "Read(//tmp/**)"
     ]
   }
 }

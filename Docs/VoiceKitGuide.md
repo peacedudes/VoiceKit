@@ -230,6 +230,44 @@ Internally:
 
 ---
 
+## Embedded SFX in speak()
+
+For simple "phrase + SFX" patterns, you can embed SFX tokens directly in text passed to 'speak()':
+
+~~~swift
+let io = RealVoiceIO()
+let dingURL = Bundle.main.url(forResource: "ding", withExtension: "caf")!
+
+// Speak "Hello", play ding.caf, then speak "world"
+await io.speak("Hello <sfx:\(dingURL.absoluteString)> world")
+~~~
+
+Behavior:
+- Text is split into segments separated by SFX tokens.
+- Text segments are synthesized in order; SFX URLs are played sequentially.
+- Each segment is synthesized using the specified voice profile.
+- SFX clips are played with 0dB gain.
+
+Comparison with other approaches:
+
+| Use Case | Method | Pros | Cons |
+|----------|--------|------|------|
+| Simple: "phrase + SFX" | Embed in `speak()` | Simple, direct; no extra setup | Limited to sequential playback |
+| Complex: Multiple clips, pauses | `VoiceQueue` | Full control; pause timing; parallel channels | More boilerplate |
+| Tight timing: Minimize TTS→clip gap | `prepareClip` + `speak` + `startPreparedClip` | Lowest latency via pre-scheduling | Manual management; complex |
+
+Example: Tutorial steps with sound effects
+
+~~~swift
+let io = RealVoiceIO()
+let ding = Bundle.main.url(forResource: "ding", withExtension: "caf")!.absoluteString
+let bell = Bundle.main.url(forResource: "bell", withExtension: "caf")!.absoluteString
+
+await io.speak("Step one. <sfx:\(ding)> Now step two. <sfx:\(bell)> Complete!")
+~~~
+
+---
+
 ## VoiceQueue: sequencing speech + SFX + pauses
 
 ~~~swift
@@ -258,7 +296,7 @@ let resolver: VoiceQueue.SFXResolver = { name in
     }
 }
 
-let text = "Hello [sfx:nameClip] may I call you Alex?"
+let text = "Hello <sfx:nameClip> may I call you Alex?"
 let q = VoiceQueue(primary: RealVoiceIO())
 q.enqueueParsingSFX(text: text, resolver: resolver, defaultVoiceID: nil)
 await q.play()

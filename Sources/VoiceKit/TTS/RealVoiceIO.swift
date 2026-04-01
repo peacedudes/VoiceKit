@@ -79,12 +79,8 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO, TempoMeasura
 
     // MARK: - Test/STT shim state
 
-    // Very lightweight transcript store used by tests
-    private static var _latestTranscriptStore = [ObjectIdentifier: String]()
-    public var latestTranscript: String {
-        get { RealVoiceIO._latestTranscriptStore[ObjectIdentifier(self)] ?? "" }
-        set { RealVoiceIO._latestTranscriptStore[ObjectIdentifier(self)] = newValue }
-    }
+    /// Latest transcript from live STT or CI stub. Readable by tests and callbacks.
+    public var latestTranscript: String = ""
 
     // Recognition context captured for listen shim + live STT.
     // Internal so STT extension can read it.
@@ -133,19 +129,16 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO, TempoMeasura
     override public init() {
         self.config = VoiceIOConfig()
         super.init()
-        // Opt-in default logger via env flag
-        let env = ProcessInfo.processInfo.environment
-        if let logEnv = env["VOICEKIT_LOG"]?.lowercased(),
-           logEnv == "1" || logEnv == "true" || logEnv == "yes" {
-            self.logger = { level, msg in
-                print("[VoiceKit][\(level)] \(msg)")
-            }
-        }
+        setupLoggerIfNeeded()
     }
 
     public init(config: VoiceIOConfig) {
         self.config = config
         super.init()
+        setupLoggerIfNeeded()
+    }
+
+    private func setupLoggerIfNeeded() {
         let env = ProcessInfo.processInfo.environment
         if let logEnv = env["VOICEKIT_LOG"]?.lowercased(),
            logEnv == "1" || logEnv == "true" || logEnv == "yes" {

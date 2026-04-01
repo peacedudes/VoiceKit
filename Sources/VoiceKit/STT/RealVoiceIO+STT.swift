@@ -101,7 +101,8 @@ extension RealVoiceIO {
     ///
     /// The activityTracker is updated from the realtime audio queue based on
     /// buffer energy and later consulted by the inactivity timer to decide
-    /// when the user has gone quiet.
+    /// when the user has gone quiet. Updates are rate-limited to ~50ms intervals
+    /// to avoid task proliferation (each buffer = ~20-30ms at standard rates).
     nonisolated internal static func installRecognitionTap(
         engine: AVAudioEngine,
         request: SFSpeechAudioBufferRecognitionRequest,
@@ -110,6 +111,7 @@ extension RealVoiceIO {
     ) throws {
         let inputNode = engine.inputNode
         let format = inputNode.inputFormat(forBus: 0)
+        var lastActivityUpdateTime: TimeInterval = 0
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
             let frames = Int(buffer.frameLength)
             guard frames > 0 else { return }
@@ -124,13 +126,18 @@ extension RealVoiceIO {
             // Approximate loudness in dB for this buffer and feed it into the
             // activity tracker so it can adapt to ambient noise and mark
             // "loud enough" buffers as speech activity.
+            // Rate-limit updates to ~50ms intervals to prevent task explosion
+            // (at 44.1kHz with 1024-sample buffers, we see ~43 buffers/sec).
             if let ch = buffer.floatChannelData?.pointee {
                 var ms: Float = 0
                 vDSP_measqv(ch, 1, &ms, vDSP_Length(buffer.frameLength))
                 let db: Float = ms <= 0 ? -160 : 10 * log10f(ms)
                 let now = ProcessInfo.processInfo.systemUptime
-                Task.detached {
-                    await activityTracker.observe(db: db, at: now)
+                if now - lastActivityUpdateTime >= 0.05 {
+                    lastActivityUpdateTime = now
+                    Task.detached {
+                        await activityTracker.observe(db: db, at: now)
+                    }
                 }
             }
         }
@@ -213,20 +220,6 @@ extension RealVoiceIO {
 
         if Task.isCancelled { throw CancellationError() }
         return result
-    }
-
-    /// Reset all listen state before starting a new listen operation.
-    private func resetListenState() {
-        latestTranscript = ""
-        onTranscriptChanged?("")
-        onLevelChanged?(0)
-        hasFinishedRecognition = false
-        firstSpeechStart = nil
-        lastSpeechEnd = nil
-        listenOverallTask?.cancel()
-        listenOverallTask = nil
-        listenInactivityTask?.cancel()
-        listenInactivityTask = nil
     }
 
     // MARK: - Recognition helpers
@@ -334,76 +327,4 @@ extension RealVoiceIO {
         }
     }
 
-    // MARK: - Listen completion & timers (live path)
-    private func startInactivityTimer(seconds: TimeInterval) {
-        guard seconds > 0 else {
-            listenInactivityTask?.cancel()
-            listenInactivityTask = nil
-            return
-        }
-        listenInactivityTask?.cancel()
-        listenInactivityTask = Task { [weak self] in
-            let anchor = ProcessInfo.processInfo.systemUptime
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 250_000_000)
-                guard let self else { return }
-                let now = ProcessInfo.processInfo.systemUptime
-                let last = await self.sttActivityTracker.lastLoud()
-                let reference = last ?? anchor
-                if now - reference >= seconds {
-                    await MainActor.run {
-                        self.log(.info, "listen(stt) complete via inactivity timeout \(seconds)s")
-                        self.completeCurrentListen()
-                    }
-                    return
-                }
-            }
-        }
-    }
-
-    private func startOverallTimer(seconds: TimeInterval) {
-        listenOverallTask?.cancel()
-        listenOverallTask = Task { [weak self] in
-            guard !Task.isCancelled else { return }
-            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-            await MainActor.run {
-                self?.log(.info, "listen(stt) complete via overall timeout \(seconds)s")
-                self?.completeCurrentListen()
-            }
-        }
-    }
-
-    private func completeCurrentListen() {
-        guard !hasFinishedRecognition else { return }
-        hasFinishedRecognition = true
-        listenOverallTask?.cancel(); listenOverallTask = nil
-        listenInactivityTask?.cancel(); listenInactivityTask = nil
-        audioEngine?.stop()
-        audioEngine?.inputNode.removeTap(onBus: 0)
-        recognitionRequest?.endAudio()
-        recognitionTask?.cancel()
-        let transcript = latestTranscript
-        let recordingURL = processRecordingFile()
-        currentListenShouldRecord = false
-        rawRecordingURL = nil
-        let res = VoiceResult(transcript: transcript, recordingURL: recordingURL)
-        listenCont?.resume(returning: res)
-        listenCont = nil
-    }
-
-    private func processRecordingFile() -> URL? {
-        guard currentListenShouldRecord, let raw = rawRecordingURL else { return nil }
-        let trimmed = trimAudioSmart(
-            inputURL: raw,
-            sttStart: firstSpeechStart,
-            sttEnd: lastSpeechEnd,
-            prePad: config.trimPrePad,
-            postPad: config.trimPostPad
-        )
-        let result = trimmed ?? raw
-        if let trimmed, trimmed != raw {
-            try? FileManager.default.removeItem(at: raw)  // Clean up raw if trimming succeeded
-        }
-        return result
-    }
 }

@@ -152,7 +152,7 @@ internal final class VoiceQueueTests: XCTestCase {
             return nil
         }
 
-        queue.enqueueParsingSFX(text: "Hello [sfx:ding] world", resolver: resolver, defaultVoiceID: "vX")
+        queue.enqueueParsingSFX(text: "Hello <sfx:ding> world", resolver: resolver, defaultVoiceID: "vX")
         await queue.play()
 
         // Should be: prepare(ding) -> speak("Hello ") -> startPrepared -> speak(" world")
@@ -174,7 +174,7 @@ internal final class VoiceQueueTests: XCTestCase {
             return nil
         }
 
-        queue.enqueueParsingSFX(text: "Hello [sfx:  a/b:c.d-e] world", resolver: resolver, defaultVoiceID: "vY")
+        queue.enqueueParsingSFX(text: "Hello <sfx:  a/b:c.d-e> world", resolver: resolver, defaultVoiceID: "vY")
         await queue.play()
 
         // Should be: prepare(fx) -> speak("Hello ") -> startPrepared -> speak(" world")

@@ -166,8 +166,70 @@ if let url = result.recordingURL {
 
 Notes:
 
-- 'prepareClip'/'startPreparedClip' exist to minimize the gap when chaining "speak → clip" by pre‑rolling the clip; whether you need both vs just 'playClip' depends on your app’s audio path. Measure if you care about single‑frame smoothness.
-- Internally, clip waiters are resumed exactly once; multiple 'stopAll()'/'hardReset()' calls are safe.
+- ‘prepareClip’/’startPreparedClip’ exist to minimize the gap when chaining "speak → clip" by pre‑rolling the clip; whether you need both vs just ‘playClip’ depends on your app’s audio path. Measure if you care about single‑frame smoothness.
+- Internally, clip waiters are resumed exactly once; multiple ‘stopAll()’/’hardReset()’ calls are safe.
+
+---
+
+## speak() with embedded SFX tokens
+
+### Simple "phrase + SFX" via inline tokens
+
+‘speak()’ can parse and play embedded SFX tokens in the text itself:
+
+~~~swift
+let io = RealVoiceIO()
+let dingURL = Bundle.main.url(forResource: "ding", withExtension: "caf")!
+
+// Syntax: <sfx:URL> where URL is a full file path or URL
+await io.speak("Hello <sfx:\(dingURL.absoluteString)> world")
+~~~
+
+### Parsing rules
+
+- **Token format**: `<sfx:URL>` where URL is anything until the closing `>`
+- **Text segments**: Separated by tokens; each segment is synthesized in order
+- **SFX clips**: Played sequentially with 0dB gain between TTS segments
+- **Voice profile**: Applied uniformly to all text segments
+
+### When to use
+
+**Good fit:**
+- Simple patterns: "phrase + effect"
+- Tutorial steps: "Step 1. [ding] Step 2. [bell] Done!"
+- Status announcements: "Processing <sfx:spinner> Complete <sfx:success>"
+
+**Not a good fit:**
+- Complex choreography (many clips, precise pauses)
+- Parallel playback (multiple channels)
+- Very tight timing requirements (lowest latency)
+
+For those cases, use `VoiceQueue` (below) or `prepareClip`/`startPreparedClip` (above).
+
+### Example: Tutorial with embedded SFX
+
+~~~swift
+@MainActor
+final class TutorialVM: ObservableObject {
+    let io = RealVoiceIO()
+
+    func runTutorial() async {
+        try? await io.ensurePermissions()
+        try? await io.configureSessionIfNeeded()
+
+        // Construct URLs
+        let dingPath = Bundle.main.url(forResource: "ding", withExtension: "caf")?.absoluteString ?? ""
+        let bellPath = Bundle.main.url(forResource: "bell", withExtension: "caf")?.absoluteString ?? ""
+
+        // Speak with embedded SFX
+        await io.speak(
+            "Welcome to the tutorial. <sfx:\(dingPath)> " +
+            "This is step one. <sfx:\(bellPath)> " +
+            "You’re all done."
+        )
+    }
+}
+~~~
 
 ---
 
@@ -209,13 +271,13 @@ await q.play()
 ### Embedded SFX in text
 
 - VoiceQueue can parse inline SFX tokens in text.
-- Syntax: '[sfx:NAME]'
+- Syntax: '<sfx:NAME>'
 - Resolver: '(String) -> URL?' maps 'NAME' → audio file URL.
 
 Example:
 
 ~~~swift
-let text = "Hello [sfx:ding] world."
+let text = "Hello <sfx:ding> world."
 q.enqueueParsingSFX(
     text: text,
     resolver: { name in
@@ -460,7 +522,7 @@ public protocol VoiceIO: AnyObject {
     func configureSessionIfNeeded() async throws
 
     // Core I/O
-    func speak(_ text: String) async
+    func speak(_ text: String) async  // Uses default voice profile
     func listen(timeout: TimeInterval,
                 inactivity: TimeInterval,
                 record: Bool) async throws -> VoiceResult
@@ -490,6 +552,35 @@ public protocol TTSConfigurable: AnyObject {
     func speak(_ text: String, using voiceID: String?) async
 }
 ~~~
+
+### speak() methods (RealVoiceIO)
+
+Both overloads support embedded SFX tokens in the text:
+
+~~~swift
+// Use default voice profile
+public func speak(_ text: String) async
+
+// Use specific voice profile by ID
+public func speak(_ text: String, using voiceID: String?) async
+
+// Measure actual synthesis duration
+public func speakAndMeasure(_ text: String, using voiceID: String?) async -> TimeInterval
+~~~
+
+**Processing**:
+1. Text is split into sentences at boundaries: `.`, `!`, `?`
+2. SFX tokens (`<sfx:URL>`) are parsed and extracted
+3. Text segments and SFX clips alternate: text spoken, then clip played, then next text, etc.
+4. Each text segment uses the specified voice profile
+5. SFX clips play with 0dB gain
+
+**Example**:
+```swift
+let ding = "file:///path/to/ding.caf"
+await io.speak("Hello <sfx:\(ding)> world. How are you?")
+// → [speak "Hello ", play ding.caf, speak " world.", speak " How are you?"]
+```
 
 ### Models (shared)
 

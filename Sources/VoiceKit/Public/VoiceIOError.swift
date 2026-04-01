@@ -10,7 +10,7 @@
 import Foundation
 
 /// Canonical errors surfaced by RealVoiceIO public API.
-public enum VoiceIOError: Error, Equatable, Sendable {
+public enum VoiceIOError: Error, Equatable {
     /// The device microphone is not available or input route is missing.
     case micUnavailable
     /// The system SFSpeechRecognizer is not available for the requested locale/device.
@@ -21,6 +21,23 @@ public enum VoiceIOError: Error, Equatable, Sendable {
     case timedOut
     /// The operation was cancelled by the caller or task.
     case cancelled
-    /// An underlying error occurred. Inspect the message for hints.
-    case underlying(String)
+    /// An underlying error occurred. Carries the original error for diagnostics.
+    case underlying(Error)
+
+    // Custom Equatable conformance because Error doesn't conform to Equatable
+    public static func == (lhs: VoiceIOError, rhs: VoiceIOError) -> Bool {
+        switch (lhs, rhs) {
+        case (.micUnavailable, .micUnavailable): return true
+        case (.recognizerUnavailable, .recognizerUnavailable): return true
+        case (.audioFormatInvalid, .audioFormatInvalid): return true
+        case (.timedOut, .timedOut): return true
+        case (.cancelled, .cancelled): return true
+        case (.underlying(let lhsErr), .underlying(let rhsErr)):
+            // Compare by error description and type
+            return String(describing: lhsErr) == String(describing: rhsErr) &&
+                   String(describing: type(of: lhsErr)) == String(describing: type(of: rhsErr))
+        default:
+            return false
+        }
+    }
 }
