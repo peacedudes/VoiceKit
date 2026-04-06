@@ -101,9 +101,7 @@ public struct VoiceChooserView: View {
         .padding(.horizontal, 20)
         .onChange(of: selectedIDString) { _, newID in
             selectedID = newID.isEmpty ? nil : newID
-            selectedIDBinding = selectedID
             loadWorkingProfile()
-            commitChanges()
             previewSpeak(samplePhrase())
         }
     }
