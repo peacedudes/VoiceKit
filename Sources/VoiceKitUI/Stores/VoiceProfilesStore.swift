@@ -143,8 +143,11 @@ public final class VoiceProfilesStore: ObservableObject {
         return profile
     }
 
-    /// Store or update a voice profile.
-    public func setProfile(_ profile: TTSVoiceProfile) { profilesByID[profile.id] = profile }
+    /// Store or update a voice profile and persist the change.
+    public func setProfile(_ profile: TTSVoiceProfile) {
+        profilesByID[profile.id] = profile
+        save()
+    }
 
     /// Check if a voice id is marked active.
     public func isActive(_ id: String) -> Bool { activeVoiceIDs.contains(id) }

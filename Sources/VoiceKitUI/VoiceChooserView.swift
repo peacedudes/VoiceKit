@@ -102,6 +102,7 @@ public struct VoiceChooserView: View {
         .onChange(of: selectedIDString) { _, newID in
             selectedID = newID.isEmpty ? nil : newID
             loadWorkingProfile()
+            commitChanges()
             previewSpeak(samplePhrase())
         }
     }
