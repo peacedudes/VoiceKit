@@ -72,8 +72,8 @@ Docs
 - Docs/VoiceKitGuide.md (how to use RealVoiceIO, VoiceQueue, VoiceChorus, VoiceKitUI)
 - Docs/ProgrammersGuide.md (quick start, sequencing, logging, boosted clips, config)
 - Docs/Concurrency.md (actor safety and practical patterns)
-- Docs/ROADMAP.md (structure, samples, scope decisions)
-- CHANGELOG.md
+- ROADMAP.md (where the project is going; scope decisions)
+- Docs/CHANGELOG.md
 
 Logging (opt-in)
 - Set VOICEKIT_LOG=1 (or true/yes) in your scheme or environment to enable a default print logger in RealVoiceIO.
