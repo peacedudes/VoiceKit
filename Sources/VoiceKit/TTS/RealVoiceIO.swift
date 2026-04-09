@@ -52,7 +52,7 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO, TempoMeasura
     internal var synthesizer: AVSpeechSynthesizer?
 
     // Continuations keyed by utterance
-    internal var speakContinuations: [ObjectIdentifier: CheckedContinuation<Void, Error>] = [:]
+    internal var speakContinuations: [ObjectIdentifier: CheckedContinuation<Void, Never>] = [:]
 
     // Per-utterance timing (for duration measurement/calibration)
     internal var ttsStartTimes: [ObjectIdentifier: TimeInterval] = [:]

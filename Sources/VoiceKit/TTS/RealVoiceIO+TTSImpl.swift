@@ -67,15 +67,20 @@ extension RealVoiceIO {
         applyProfile(to: utterance, voiceID: voiceID ?? defaultProfile?.id)
 
         let key = ObjectIdentifier(utterance)
-        do {
-            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-                speakContinuations[key] = cont
-                synthesizer.speak(utterance)
+        await withTaskCancellationHandler(
+            operation: {
+                await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                    speakContinuations[key] = cont
+                    synthesizer.speak(utterance)
+                }
+            },
+            onCancel: {
+                Task { @MainActor [weak self] in
+                    guard let self, let synth = self.synthesizer, synth.isSpeaking else { return }
+                    synth.stopSpeaking(at: .immediate)
+                }
             }
-        } catch {
-            ttsStopPulse()
-            log(.error, "speak(error): \(error.localizedDescription)")
-        }
+        )
     }
 
     public func speak(_ text: String) async {
@@ -128,10 +133,12 @@ extension RealVoiceIO {
         log(.info, "speak(text:\(text.prefix(48))\(text.count > 48 ? "..." : ""), voiceID:\(voiceID ?? "nil"))")
         let parts = parseTextForSFXWithURLs(text)
         for part in parts {
+            if Task.isCancelled { return }
             switch part {
             case .text(let segment) where !segment.isEmpty:
                 let sentences = splitSentences(segment)
                 for sentence in sentences {
+                    if Task.isCancelled { return }
                     await speakSentence(sentence, using: voiceID)
                 }
             case .sfx(let url):
