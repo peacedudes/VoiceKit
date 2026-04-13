@@ -274,7 +274,7 @@ extension RealVoiceIO {
     nonisolated public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
                                               didStart utterance: AVSpeechUtterance) {
         let key = ObjectIdentifier(utterance)
-        Task { @MainActor in
+        Task(priority: .userInteractive) { @MainActor in
             self.log(.info, "tts didStart")
             self.onSpeakingChanged?(true)
             self.ttsStartPulse()
@@ -288,7 +288,7 @@ extension RealVoiceIO {
                                               didFinish utterance: AVSpeechUtterance) {
         // Capture ObjectIdentifier in nonisolated context; don't send utterance across
         let key = ObjectIdentifier(utterance)
-        Task { @MainActor in
+        Task(priority: .userInteractive) { @MainActor in
             if let cont = self.speakContinuations.removeValue(forKey: key) {
                 cont.resume()
             }
@@ -311,7 +311,7 @@ extension RealVoiceIO {
     nonisolated public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
                                               didCancel utterance: AVSpeechUtterance) {
         let key = ObjectIdentifier(utterance)
-        Task { @MainActor in
+        Task(priority: .userInteractive) { @MainActor in
             if let cont = self.speakContinuations.removeValue(forKey: key) {
                 cont.resume()
             }
