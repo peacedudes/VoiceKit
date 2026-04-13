@@ -44,6 +44,7 @@ internal final class VoiceChorusTests: XCTestCase {
         func speak(_ text: String) async {
             spoken.append((text, defaultProfile?.id))
         }
+        func pause(_ seconds: TimeInterval) async {}
         func listen(timeout: TimeInterval, inactivity: TimeInterval, record: Bool) async throws -> VoiceResult {
             return VoiceResult(transcript: "", recordingURL: nil)
         }

@@ -70,6 +70,10 @@ public final class ScriptedVoiceIO: VoiceIO {
         return VoiceResult(transcript: transcript, recordingURL: nil)
     }
 
+    public func pause(_ seconds: TimeInterval) async {
+        try? await Task.sleep(for: .seconds(seconds))
+    }
+
     public func prepareClip(url: URL, gainDB: Float) async throws { }
     public func startPreparedClip() async throws { }
     public func playClip(url: URL, gainDB: Float) async throws { }

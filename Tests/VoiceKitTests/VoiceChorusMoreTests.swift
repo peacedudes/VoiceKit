@@ -53,6 +53,7 @@ internal final class VoiceChorusMoreTests: XCTestCase {
                 }
             }
         }
+        func pause(_ seconds: TimeInterval) async {}
         func listen(timeout: TimeInterval, inactivity: TimeInterval, record: Bool) async throws -> VoiceResult {
             return VoiceResult(transcript: "", recordingURL: nil)
         }

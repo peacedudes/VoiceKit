@@ -87,6 +87,11 @@ extension RealVoiceIO {
         await speak(text, using: defaultProfile?.id)
     }
 
+    /// Pause for the given duration. Respects task cancellation.
+    public func pause(_ seconds: TimeInterval) async {
+        try? await Task.sleep(for: .seconds(seconds))
+    }
+
     /// Speak and return measured wall-clock duration. Splits text into sentences
     /// and sums total time from first didStart to last didFinish.
     /// In CI mode, we avoid AVSpeech and return a tiny synthetic duration.
@@ -144,6 +149,8 @@ extension RealVoiceIO {
             case .sfx(let url):
                 // Safe to ignore: SFX playback failures don't halt speak sequencing; speaker continues
                 try? await playClip(url: url, gainDB: 0)
+            case .silence(let seconds):
+                try? await Task.sleep(for: .seconds(seconds))
             case .text: // empty text segment; skip
                 break
             }
@@ -214,29 +221,40 @@ extension RealVoiceIO {
     internal enum SFXPart {
         case text(String)
         case sfx(URL)
+        case silence(TimeInterval)
     }
 
-    /// Parse text for <sfx:URL> tokens and return alternating text/SFX parts.
-    /// Example: "Hello <sfx:http://example.com/ding.caf> world" → [.text("Hello "), .sfx(...), .text(" world")]
+    /// Parse text for `<sfx:URL>` and `<silence:N>` tokens, returning alternating parts.
+    /// Examples:
+    ///   "Hello <sfx:http://example.com/ding.caf> world" → [.text("Hello "), .sfx(...), .text(" world")]
+    ///   "Ready? <silence:1.5> Go!"                      → [.text("Ready? "), .silence(1.5), .text(" Go!")]
     internal func parseTextForSFXWithURLs(_ text: String) -> [SFXPart] {
-        // Pattern: <sfx: URL> - URL is anything until the closing >
-        let pattern = #"<sfx:\s*([^>]+)>"#
-        // Safe to ignore: regex compile failure is extremely unlikely; fallback to unparsed text (SFX tokens won't be recognized)
+        // Matches <sfx:…> and <silence:N> tokens; captures type (group 1) and value (group 2).
+        let pattern = #"<(sfx|silence):\s*([^>]+)>"#
+        // Safe to ignore: regex compile failure is extremely unlikely; fallback to unparsed text (tokens won't be recognized)
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return [.text(text)] }
 
         var parts: [SFXPart] = []
         var cursor = text.startIndex
 
         for match in regex.matches(in: text, range: NSRange(text.startIndex..<text.endIndex, in: text)) {
-            guard let range = Range(match.range, in: text) else { continue }
+            guard let range = Range(match.range, in: text),
+                  let typeRange = Range(match.range(at: 1), in: text),
+                  let valueRange = Range(match.range(at: 2), in: text) else { continue }
+
             let before = String(text[cursor..<range.lowerBound])
             if !before.isEmpty { parts.append(.text(before)) }
 
-            if let urlRange = Range(match.range(at: 1), in: text) {
-                let urlString = String(text[urlRange]).trimmingCharacters(in: .whitespaces)
-                if let url = URL(string: urlString) {
-                    parts.append(.sfx(url))
-                }
+            let tokenType = String(text[typeRange])
+            let value = String(text[valueRange]).trimmingCharacters(in: .whitespaces)
+
+            switch tokenType {
+            case "sfx":
+                if let url = URL(string: value) { parts.append(.sfx(url)) }
+            case "silence":
+                if let seconds = TimeInterval(value), seconds > 0 { parts.append(.silence(seconds)) }
+            default:
+                break
             }
 
             cursor = range.upperBound

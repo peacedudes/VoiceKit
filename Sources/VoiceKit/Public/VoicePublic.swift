@@ -71,6 +71,10 @@ public protocol VoiceIO: AnyObject {
     /// Does not block; speaking happens asynchronously.
     func speak(_ text: String) async
 
+    /// Pause for the given duration. Respects task cancellation.
+    /// Equivalent to embedding `<silence:N>` inline in a speak() call.
+    func pause(_ seconds: TimeInterval) async
+
     /// Listen for speech input using live STT.
     ///
     /// - Parameters:

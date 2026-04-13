@@ -32,6 +32,9 @@ internal final class VoiceQueueTests: XCTestCase {
             log.append("speak:\(text)")
             try? await Task.sleep(nanoseconds: 40_000_000)
         }
+        func pause(_ seconds: TimeInterval) async {
+            log.append("pause:\(seconds)")
+        }
 
         // TTSConfigurable
         func availableVoices() -> [TTSVoiceInfo] { [] }
