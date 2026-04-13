@@ -19,6 +19,7 @@ Nothing.
 - `extendListen(by:)` spawns an unstructured `Task {}` to hop to `sttActivityTracker` — minor; worth revisiting if the method sees more use.
 
 ## Recently completed
+- ✅ Fix: QoS priority inversion in AVSpeechSynthesizer delegate callbacks — `Task { @MainActor in }` defaulted to Default QoS and could block the User-interactive main actor waiting for continuations; all three delegate methods now use `Task(priority: .userInteractive) { @MainActor in }`
 - ✅ Core: `pause(_ seconds:)` method + `<silence:N>` inline token in `speak()`
 - ✅ Fix: cooperative task cancellation in `speakSentence` and `speak()`
 - ✅ VoiceChooserView: commits only on Choose button (not on picker change)
