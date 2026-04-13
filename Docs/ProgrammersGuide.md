@@ -171,24 +171,39 @@ Notes:
 
 ---
 
-## speak() with embedded SFX tokens
+## speak() with embedded tokens
 
-### Simple "phrase + SFX" via inline tokens
+### Inline SFX and silence tokens
 
-‘speak()’ can parse and play embedded SFX tokens in the text itself:
+‘speak()’ parses inline tokens in the text — no extra API calls needed:
 
 ~~~swift
 let io = RealVoiceIO()
 let dingURL = Bundle.main.url(forResource: "ding", withExtension: "caf")!
 
-// Syntax: <sfx:URL> where URL is a full file path or URL
+// Play a clip inline
 await io.speak("Hello <sfx:\(dingURL.absoluteString)> world")
+
+// Pause inline
+await io.speak("Ready? <silence:1.5> Go!")
+~~~
+
+Tokens:
+- `<sfx:URL>` — plays a clip at 0dB between surrounding text.
+- `<silence:N>` — pauses for N seconds (respects task cancellation).
+
+You can also pause explicitly between speak calls:
+
+~~~swift
+await io.speak("Step one.")
+await io.pause(1.5)
+await io.speak("Step two.")
 ~~~
 
 ### Parsing rules
 
 - **Sentence splitting**: Text is automatically split at `.`, `!`, `?` boundaries
-- **Token format**: `<sfx:URL>` where URL is anything until the closing `>`
+- **Token format**: `<sfx:URL>` or `<silence:N>` — value is anything until the closing `>`
 - **Synthesis order**: Each sentence segment is synthesized sequentially
 - **SFX playback**: Tokens are played between segments with 0dB gain
 - **Voice profile**: Applied uniformly to all text segments
@@ -201,8 +216,8 @@ Example parsing: `"Hello world. <sfx:ding> How are you?"`
 ### When to use
 
 **Good fit:**
-- Simple patterns: "phrase + effect"
-- Tutorial steps: "Step 1. [ding] Step 2. [bell] Done!"
+- Simple patterns: "phrase + effect" or "phrase + pause"
+- Tutorial steps: "Step 1. [ding] [pause] Step 2. [bell] Done!"
 - Status announcements: "Processing <sfx:spinner> Complete <sfx:success>"
 
 **Not a good fit:**
@@ -212,7 +227,7 @@ Example parsing: `"Hello world. <sfx:ding> How are you?"`
 
 For those cases, use `VoiceQueue` (below) or `prepareClip`/`startPreparedClip` (above).
 
-### Example: Tutorial with embedded SFX
+### Example: Tutorial with embedded tokens
 
 ~~~swift
 @MainActor
@@ -223,13 +238,11 @@ final class TutorialVM: ObservableObject {
         try? await io.ensurePermissions()
         try? await io.configureSessionIfNeeded()
 
-        // Construct URLs
         let dingPath = Bundle.main.url(forResource: "ding", withExtension: "caf")?.absoluteString ?? ""
         let bellPath = Bundle.main.url(forResource: "bell", withExtension: "caf")?.absoluteString ?? ""
 
-        // Speak with embedded SFX
         await io.speak(
-            "Welcome to the tutorial. <sfx:\(dingPath)> " +
+            "Welcome to the tutorial. <sfx:\(dingPath)> <silence:0.5>" +
             "This is step one. <sfx:\(bellPath)> " +
             "You’re all done."
         )
@@ -567,7 +580,8 @@ public protocol VoiceIO: AnyObject {
     func configureSessionIfNeeded() async throws
 
     // Core I/O
-    func speak(_ text: String) async  // Uses default voice profile
+    func speak(_ text: String) async  // Uses default voice profile; supports <sfx:URL> and <silence:N> tokens
+    func pause(_ seconds: TimeInterval) async  // Explicit pause; respects task cancellation
     func listen(timeout: TimeInterval,
                 inactivity: TimeInterval,
                 record: Bool) async throws -> VoiceResult
@@ -615,16 +629,16 @@ public func speakAndMeasure(_ text: String, using voiceID: String?) async -> Tim
 
 **Processing**:
 1. Text is split into sentences at boundaries: `.`, `!`, `?`
-2. SFX tokens (`<sfx:URL>`) are parsed and extracted
-3. Text segments and SFX clips alternate: text spoken, then clip played, then next text, etc.
+2. Inline tokens (`<sfx:URL>`, `<silence:N>`) are parsed and extracted
+3. Text segments, SFX clips, and silences alternate sequentially
 4. Each text segment uses the specified voice profile
-5. SFX clips play with 0dB gain
+5. SFX clips play with 0dB gain; silence tokens pause using `Task.sleep`
 
 **Example**:
 ```swift
 let ding = "file:///path/to/ding.caf"
-await io.speak("Hello <sfx:\(ding)> world. How are you?")
-// → [speak "Hello ", play ding.caf, speak " world.", speak " How are you?"]
+await io.speak("Hello <sfx:\(ding)> <silence:0.5> world. How are you?")
+// → [speak "Hello ", play ding.caf, pause 0.5s, speak " world.", speak " How are you?"]
 ```
 
 ### Models (shared)
@@ -689,4 +703,4 @@ Notes:
   - It posts into 'STTActivityTracker' and the STT request.
 - Avoid capturing '@MainActor self' inside any callbacks that are executed on realtime audio threads.
 
-For deeper implementation details and simulator quirks, see 'handoff.md' in the VoiceKit repo.
+For deeper implementation details and simulator quirks, see 'Docs/Concurrency.md'.

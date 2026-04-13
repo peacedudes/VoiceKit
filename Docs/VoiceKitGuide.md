@@ -230,9 +230,9 @@ Internally:
 
 ---
 
-## Embedded SFX in speak()
+## Embedded tokens in speak()
 
-For simple "phrase + SFX" patterns, you can embed SFX tokens directly in text passed to 'speak()':
+For simple "phrase + SFX + pause" patterns, you can embed tokens directly in text passed to 'speak()':
 
 ~~~swift
 let io = RealVoiceIO()
@@ -240,30 +240,44 @@ let dingURL = Bundle.main.url(forResource: "ding", withExtension: "caf")!
 
 // Speak "Hello", play ding.caf, then speak "world"
 await io.speak("Hello <sfx:\(dingURL.absoluteString)> world")
+
+// Speak "Ready?", pause 1.5 s, then speak "Go!"
+await io.speak("Ready? <silence:1.5> Go!")
 ~~~
 
+Tokens:
+- `<sfx:URL>` — plays a clip at 0dB between surrounding text.
+- `<silence:N>` — pauses for N seconds (respects task cancellation).
+
 Behavior:
-- Text is automatically split at sentence boundaries (`.`, `!`, `?`) and by SFX tokens.
+- Text is automatically split at sentence boundaries (`.`, `!`, `?`) and by inline tokens.
 - Each sentence segment is synthesized sequentially using the specified voice profile.
-- SFX tokens are played between segments with 0dB gain.
 - Example: `"Hello world. <sfx:ding> How are you?"` → speaks "Hello world.", plays ding, then speaks "How are you?"
+
+You can also pause explicitly without embedding a token:
+
+~~~swift
+await io.speak("Step one.")
+await io.pause(1.5)
+await io.speak("Step two.")
+~~~
 
 Comparison with other approaches:
 
 | Use Case | Method | Pros | Cons |
 |----------|--------|------|------|
-| Simple: "phrase + SFX" | Embed in `speak()` | Simple, direct; no extra setup | Limited to sequential playback |
+| Simple: "phrase + SFX + pause" | Embed in `speak()` | Simple, direct; no extra setup | Limited to sequential playback |
 | Complex: Multiple clips, pauses | `VoiceQueue` | Full control; pause timing; parallel channels | More boilerplate |
 | Tight timing: Minimize TTS→clip gap | `prepareClip` + `speak` + `startPreparedClip` | Lowest latency via pre-scheduling | Manual management; complex |
 
-Example: Tutorial steps with sound effects
+Example: Tutorial steps with sound effects and pacing
 
 ~~~swift
 let io = RealVoiceIO()
 let ding = Bundle.main.url(forResource: "ding", withExtension: "caf")!.absoluteString
 let bell = Bundle.main.url(forResource: "bell", withExtension: "caf")!.absoluteString
 
-await io.speak("Step one. <sfx:\(ding)> Now step two. <sfx:\(bell)> Complete!")
+await io.speak("Step one. <sfx:\(ding)> <silence:0.5> Now step two. <sfx:\(bell)> Complete!")
 ~~~
 
 ---
@@ -367,7 +381,7 @@ final class FakeTTS: TTSConfigurable, VoiceListProvider {
 Concurrency basics
 - 'RealVoiceIO', 'ScriptedVoiceIO', and 'SystemVoicesCache' are '@MainActor'.
   - Call them from the main actor (SwiftUI view models, etc.).
-- Callbacks ('onTranscriptChanged', 'onLevelChanged', 'onTTSSpeakingChanged', 'onTTSPulse', 'onStatusMessageChanged') are invoked on '@MainActor'.
+- Callbacks ('onTranscriptChanged', 'onLevelChanged', 'onSpeakingChanged', 'onPulseChanged', 'onStatusMessageChanged') are invoked on '@MainActor'.
 - The audio input tap used by live STT is a **nonisolated** closure running on a realtime audio queue:
   - It forwards buffers into the STT request and 'STTActivityTracker'.
   - It does **not** touch '@MainActor' state directly.
@@ -402,7 +416,7 @@ When 'IsCI.running == true' (e.g. when 'VOICEKIT_FORCE_CI=true' in your test sch
   - Otherwise, returns whatever 'latestTranscript' is set to (default: empty string).
   - No AVAudioEngine or SFSpeechRecognizer work is performed.
 - TTS "fast path":
-  - 'speak' toggles 'onTTSSpeakingChanged' and 'onTTSPulse' in a minimal synthetic way, without instantiating 'AVSpeechSynthesizer'.
+  - 'speak' toggles 'onSpeakingChanged' and 'onPulseChanged' in a minimal synthetic way, without instantiating 'AVSpeechSynthesizer'.
 
 This keeps CI runs deterministic and free from hardware/permission flakiness, while real apps on devices/simulators use the full pipelines described above.
 

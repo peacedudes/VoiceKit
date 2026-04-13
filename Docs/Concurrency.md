@@ -21,7 +21,7 @@ Quick do/don’t
 
 UI callbacks
 - VoiceKit invokes UI callbacks on @MainActor:
-  onTranscriptChanged, onLevelChanged, onTTSSpeakingChanged, onTTSPulse, onStatusMessageChanged.
+  onTranscriptChanged, onLevelChanged, onSpeakingChanged, onPulseChanged, onStatusMessageChanged.
 - You can bind them directly to SwiftUI state without extra hops.
 
 Patterns
@@ -50,10 +50,10 @@ func awaitSpeechAuthorization() async -> SFSpeechRecognizerAuthorizationStatus {
 final class SpeechDelegateProxy: NSObject, AVSpeechSynthesizerDelegate {
     weak var owner: RealVoiceIO?
     func speechSynthesizer(_ s: AVSpeechSynthesizer, didStart u: AVSpeechUtterance) {
-        Task { @MainActor in owner?.onTTSSpeakingChanged?(true) }
+        Task { @MainActor in owner?.onSpeakingChanged?(true) }
     }
     func speechSynthesizer(_ s: AVSpeechSynthesizer, didFinish u: AVSpeechUtterance) {
-        Task { @MainActor in owner?.onTTSSpeakingChanged?(false) }
+        Task { @MainActor in owner?.onSpeakingChanged?(false) }
     }
 }
 ~~~
@@ -65,7 +65,7 @@ final class DemoVM: ObservableObject {
     let io = RealVoiceIO()
     @Published var isSpeaking = false
     init() {
-        io.onTTSSpeakingChanged = { [weak self] speaking in self?.isSpeaking = speaking }
+        io.onSpeakingChanged = { [weak self] speaking in self?.isSpeaking = speaking }
     }
 }
 ~~~
