@@ -19,7 +19,7 @@ Requirements
 
 Install (Swift Package Manager)
 - Local during development: Add Local Package...; choose the VoiceKit folder; link VoiceKit (and VoiceKitUI if needed).
-- Remote: Add from your Git URL; rule "Up to Next Major" from your tag (for example, v0.1.3).
+- Remote: Add from your Git URL; rule "Up to Next Major" from your tag (for example, v0.2.0).
 - No special embedding step is required; SwiftPM and Xcode handle linking automatically.
 
 Quick start

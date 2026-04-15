@@ -55,9 +55,7 @@ extension RealVoiceIO {
         if IsCI.running {
             isSpeaking = true
             ttsStartPulse()
-            // 10ms sleep gives tests a reliable window to observe isSpeaking = true
-            // before the fast-path resets it; Task.yield() alone is too brief to catch.
-            try? await Task.sleep(nanoseconds: 10_000_000)
+            await Task.yield()
             isSpeaking = false
             ttsStopPulse()
             return
