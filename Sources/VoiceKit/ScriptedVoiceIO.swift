@@ -19,7 +19,7 @@ public final class ScriptedVoiceIO: VoiceIO {
     public var transcript: String = ""
     public var audioLevel: CGFloat = 0
     public var pulse: CGFloat = 0
-    public var statusMessage: String? = nil
+    public var statusMessage: String?
 
     private var queue: [String]
     private var epoch: Int = 0

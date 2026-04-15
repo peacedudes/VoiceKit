@@ -14,17 +14,19 @@ import Foundation
 @preconcurrency import AVFoundation
 import CoreGraphics
 @preconcurrency import Speech
+import Observation
 
+@Observable
 @MainActor
 public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO, TempoMeasurable {
 
-    // MARK: - Public callbacks
-    public var onListeningChanged: ((Bool) -> Void)?
-    public var onTranscriptChanged: ((String) -> Void)?
-    public var onLevelChanged: ((CGFloat) -> Void)?
-    public var onSpeakingChanged: ((Bool) -> Void)?
-    public var onPulseChanged: ((CGFloat) -> Void)?
-    public var onStatusMessageChanged: ((String?) -> Void)?
+    // MARK: - Observable state (VoiceIO protocol conformance)
+    public var isSpeaking: Bool = false
+    public var isListening: Bool = false
+    public var transcript: String = ""
+    public var audioLevel: CGFloat = 0
+    public var pulse: CGFloat = 0
+    public var statusMessage: String?
 
     // MARK: - Debug logging (opt-in)
     public enum LogLevel: Sendable {
@@ -58,9 +60,8 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO, TempoMeasura
     internal var ttsStartTimes: [ObjectIdentifier: TimeInterval] = [:]
     internal var measureContinuations: [ObjectIdentifier: CheckedContinuation<TimeInterval, Never>] = [:]
 
-    // Simple pulse animation state
+    // Pulse animation phase accumulator (feeds into `pulse` via sine wave)
     internal var ttsPhase: CGFloat = 0
-    internal var ttsGlow: CGFloat = 0
 
     // MARK: - Environment helpers
 
@@ -78,9 +79,6 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO, TempoMeasura
     }
 
     // MARK: - Test/STT shim state
-
-    /// Latest transcript from live STT or CI stub. Readable by tests and callbacks.
-    public var latestTranscript: String = ""
 
     // Recognition context captured for listen shim + live STT.
     // Internal so STT extension can read it.
@@ -172,8 +170,8 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO, TempoMeasura
 
     public func listen(timeout: TimeInterval, inactivity: TimeInterval, record: Bool) async throws -> VoiceResult {
         log(.info, "listen(start) timeout=\(timeout), inactivity=\(inactivity), record=\(record)")
-        onListeningChanged?(true)
-        defer { onListeningChanged?(false) }
+        isListening = true
+        defer { isListening = false }
 
         // CI/headless path: keep the stub behavior so tests remain deterministic
         // and never require real hardware or permissions.
@@ -185,15 +183,14 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO, TempoMeasura
 
             // If context expects a number, synthesize a final "42"
             if recognitionContext.expectNumber {
-                let transcript = "42"
-                log(.info, "listen(result/ci) synthesized numeric: \(transcript)")
-                latestTranscript = transcript
-                onTranscriptChanged?(transcript)
-                return VoiceResult(transcript: transcript, recordingURL: nil)
+                let ciTranscript = "42"
+                log(.info, "listen(result/ci) synthesized numeric: \(ciTranscript)")
+                transcript = ciTranscript
+                return VoiceResult(transcript: ciTranscript, recordingURL: nil)
             }
 
             // Otherwise, return whatever has been set externally (default empty)
-            let stub = VoiceResult(transcript: latestTranscript, recordingURL: nil)
+            let stub = VoiceResult(transcript: transcript, recordingURL: nil)
             log(.info, "listen(result/ci) transcript='\(stub.transcript)' record=\(record)")
             return stub
         }
@@ -264,7 +261,7 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO, TempoMeasura
         currentListenShouldRecord = false
         firstSpeechStart = nil
         lastSpeechEnd = nil
-        latestTranscript = ""
+        transcript = ""
 
         // Clear TTS bookkeeping.
         speakContinuations.removeAll()

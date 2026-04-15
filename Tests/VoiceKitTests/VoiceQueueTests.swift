@@ -15,12 +15,12 @@ internal final class VoiceQueueTests: XCTestCase {
     // A tiny fake engine to validate sequencing without AV/Speech.
     @MainActor
     final class FakeIO: VoiceIO, TTSConfigurable {
-        var onListeningChanged: ((Bool) -> Void)?
-        var onTranscriptChanged: ((String) -> Void)?
-        var onLevelChanged: ((CGFloat) -> Void)?
-        var onSpeakingChanged: ((Bool) -> Void)?
-        var onPulseChanged: ((CGFloat) -> Void)?
-        var onStatusMessageChanged: ((String?) -> Void)?
+        var isSpeaking: Bool = false
+        var isListening: Bool = false
+        var transcript: String = ""
+        var audioLevel: CGFloat = 0
+        var pulse: CGFloat = 0
+        var statusMessage: String?
 
         var log: [String] = []
         var stopped = false

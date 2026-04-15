@@ -30,12 +30,9 @@ internal final class RealVoiceIOListenCITests: XCTestCase {
         let io = RealVoiceIO(config: .init())
         io.setRecognitionContext(.init(expectation: .number))
 
-        var observedTranscripts: [String] = []
-        io.onTranscriptChanged = { observedTranscripts.append($0) }
-
         let result = try await io.listen(timeout: 1.0, inactivity: 0.4, record: false)
         XCTAssertEqual(result.transcript, "42")
-        XCTAssertTrue(observedTranscripts.contains("42"))
+        XCTAssertEqual(io.transcript, "42")
     }
 
     func testListenInactivityTimerFinishes() async throws {
@@ -51,21 +48,16 @@ internal final class RealVoiceIOListenCITests: XCTestCase {
         let io = RealVoiceIO(config: .init())
 
         // First listen call
-        var transcripts1: [String] = []
-        io.onTranscriptChanged = { transcripts1.append($0) }
         io.setRecognitionContext(.init(expectation: .freeform))
         _ = try await io.listen(timeout: 1.0, inactivity: 0.2, record: false)
 
         // Second listen call immediately after without explicit reset
         // This tests that listen() properly clears previous state
-        var transcripts2: [String] = []
-        io.onTranscriptChanged = { transcripts2.append($0) }
         io.setRecognitionContext(.init(expectation: .number))
         let result2 = try await io.listen(timeout: 1.0, inactivity: 0.2, record: false)
 
-        // Each listen should have its own callback invocations
         // Second listen should return numeric context result
         XCTAssertEqual(result2.transcript, "42", "Second listen with .number context should return '42'")
-        XCTAssertTrue(transcripts2.contains("42"), "Second listen should emit '42' via callback")
+        XCTAssertEqual(io.transcript, "42", "transcript property should reflect second listen result")
     }
 }

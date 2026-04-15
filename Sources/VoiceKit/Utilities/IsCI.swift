@@ -17,7 +17,7 @@ import Foundation
 ///
 /// When `IsCI.running == true`, VoiceKit enters deterministic test mode:
 /// - `ensurePermissions()` and `PermissionBridge` succeed immediately (no system dialogs)
-/// - `listen()` returns stub data (context-dependent: `.number` → "42", otherwise the current `latestTranscript`)
+/// - `listen()` returns stub data (context-dependent: `.number` → "42", otherwise the current `transcript`)
 /// - `speak()` uses a minimal synthetic path (no AVSpeechSynthesizer instantiation)
 /// - No audio hardware is accessed; runs are fully deterministic
 ///

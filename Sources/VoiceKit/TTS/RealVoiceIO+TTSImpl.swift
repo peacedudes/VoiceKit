@@ -53,10 +53,12 @@ extension RealVoiceIO {
     /// and speaks sequentially, preserving punctuation and voice profile across all.
     private func speakSentence(_ sentence: String, using voiceID: String?) async {
         if IsCI.running {
-            onSpeakingChanged?(true)
+            isSpeaking = true
             ttsStartPulse()
-            await Task.yield()
-            onSpeakingChanged?(false)
+            // 10ms sleep gives tests a reliable window to observe isSpeaking = true
+            // before the fast-path resets it; Task.yield() alone is too brief to catch.
+            try? await Task.sleep(nanoseconds: 10_000_000)
+            isSpeaking = false
             ttsStopPulse()
             return
         }
@@ -274,9 +276,9 @@ extension RealVoiceIO {
     nonisolated public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
                                               didStart utterance: AVSpeechUtterance) {
         let key = ObjectIdentifier(utterance)
-        Task(priority: .userInteractive) { @MainActor in
+        Task(priority: .high) { @MainActor in
             self.log(.info, "tts didStart")
-            self.onSpeakingChanged?(true)
+            self.isSpeaking = true
             self.ttsStartPulse()
             // Record start time for this utterance (used by speakAndMeasure)
             let now = ProcessInfo.processInfo.systemUptime
@@ -288,7 +290,7 @@ extension RealVoiceIO {
                                               didFinish utterance: AVSpeechUtterance) {
         // Capture ObjectIdentifier in nonisolated context; don't send utterance across
         let key = ObjectIdentifier(utterance)
-        Task(priority: .userInteractive) { @MainActor in
+        Task(priority: .high) { @MainActor in
             if let cont = self.speakContinuations.removeValue(forKey: key) {
                 cont.resume()
             }
@@ -303,7 +305,7 @@ extension RealVoiceIO {
                 mCont.resume(returning: 0.0)
             }
             self.log(.info, "tts didFinish")
-            self.onSpeakingChanged?(false)
+            self.isSpeaking = false
             self.ttsStopPulse()
         }
     }
@@ -311,7 +313,7 @@ extension RealVoiceIO {
     nonisolated public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
                                               didCancel utterance: AVSpeechUtterance) {
         let key = ObjectIdentifier(utterance)
-        Task(priority: .userInteractive) { @MainActor in
+        Task(priority: .high) { @MainActor in
             if let cont = self.speakContinuations.removeValue(forKey: key) {
                 cont.resume()
             }
@@ -325,7 +327,7 @@ extension RealVoiceIO {
                 // no-op
             }
             self.log(.warn, "tts didCancel")
-            self.onSpeakingChanged?(false)
+            self.isSpeaking = false
             self.ttsStopPulse()
         }
     }
@@ -336,8 +338,7 @@ extension RealVoiceIO {
         Task { @MainActor in
             self.ttsPhase += 0.2
             let glow = max(0, sin(self.ttsPhase))
-            self.ttsGlow = CGFloat(glow)
-            self.onPulseChanged?(self.ttsGlow)
+            self.pulse = CGFloat(glow)
         }
     }
 }

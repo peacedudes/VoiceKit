@@ -24,13 +24,13 @@ internal final class VoiceChorusTests: XCTestCase {
     // A simple fake engine that conforms to TTSConfigurable & VoiceIO and records calls.
     final class FakeEngine: TTSConfigurable, VoiceIO {
 
-        // VoiceIO callbacks
-        var onListeningChanged: ((Bool) -> Void)?
-        var onTranscriptChanged: ((String) -> Void)?
-        var onLevelChanged: ((CGFloat) -> Void)?
-        var onSpeakingChanged: ((Bool) -> Void)?
-        var onPulseChanged: ((CGFloat) -> Void)?
-        var onStatusMessageChanged: ((String?) -> Void)?
+        // VoiceIO observable state
+        var isSpeaking: Bool = false
+        var isListening: Bool = false
+        var transcript: String = ""
+        var audioLevel: CGFloat = 0
+        var pulse: CGFloat = 0
+        var statusMessage: String?
 
         // Tracking
         private(set) var spoken: [(text: String, voiceID: String?)] = []

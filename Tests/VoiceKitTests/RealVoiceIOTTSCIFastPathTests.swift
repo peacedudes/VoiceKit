@@ -20,28 +20,21 @@ internal final class RealVoiceIOTTSCIFastPathTests: TestSupport.QoSNeutralizingT
         super.tearDown()
     }
 
-    func testSpeakFastPathTogglesCallbacks() async throws {
+    func testSpeakFastPathTogglesIsSpeaking() async throws {
         let io = RealVoiceIO()
-
-        var toggles: [Bool] = []
-        let exp = XCTestExpectation(description: "speaking toggled false")
-
-        io.onSpeakingChanged = { speaking in
-            toggles.append(speaking)
-            if speaking == false {
-                exp.fulfill()
-            }
-        }
-
-        // Minimal profile setup
         let alex = TTSVoiceProfile(id: "com.apple.speech.synthesis.voice.Alex", rate: 0.6, pitch: 1.0, volume: 1.0)
         io.setDefaultVoiceProfile(alex)
 
-        await io.speak("Hello, CI.")
+        XCTAssertFalse(io.isSpeaking)
 
-        await fulfillment(of: [exp], timeout: 1.0)
-        XCTAssertEqual(toggles.first, true, "Should toggle true first")
-        XCTAssertEqual(toggles.last, false, "Should toggle false at end")
+        // Run speak concurrently so we can observe isSpeaking during the call.
+        let speakTask = Task { @MainActor in await io.speak("Hello, CI.") }
+        // The CI fast-path sleeps 10ms after setting isSpeaking = true; sample at 5ms.
+        try await Task.sleep(nanoseconds: 5_000_000)
+        XCTAssertTrue(io.isSpeaking, "isSpeaking should be true during speak()")
+
+        await speakTask.value
+        XCTAssertFalse(io.isSpeaking, "isSpeaking should be false after speak()")
     }
 
     // MARK: - Silence token parsing

@@ -39,8 +39,7 @@ internal final class RealVoiceIOSTTTests: XCTestCase {
 
     func testFinishRecognitionIsIdempotent() {
         let io = RealVoiceIO()
-        io.latestTranscript = "hi"
-        io.onListeningChanged = { _ in }
+        io.transcript = "hi"
         io.finishRecognition()
         io.finishRecognition()
         XCTAssertTrue(true)

@@ -182,7 +182,6 @@ extension RealVoiceIO {
 
         engine.prepare()
         try engine.start()
-        onListeningChanged?(true)
 
         // Tiny startup delay to avoid treating engine warm-up as inactivity.
         if timeout > 0 {
@@ -242,8 +241,7 @@ extension RealVoiceIO {
                 }
 
                 if !trimmed.isEmpty {
-                    self.latestTranscript = text
-                    self.onTranscriptChanged?(text)
+                    self.transcript = text
                     self.startInactivityTimer(seconds: inactivity)
                 }
 

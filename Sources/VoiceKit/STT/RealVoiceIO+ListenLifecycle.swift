@@ -21,9 +21,8 @@ extension RealVoiceIO {
 
     /// Reset all listen state before starting a new listen operation.
     internal func resetListenState() {
-        latestTranscript = ""
-        onTranscriptChanged?("")
-        onLevelChanged?(0)
+        transcript = ""
+        audioLevel = 0
         hasFinishedRecognition = false
         firstSpeechStart = nil
         lastSpeechEnd = nil
@@ -93,11 +92,11 @@ extension RealVoiceIO {
         audioEngine?.inputNode.removeTap(onBus: 0)
         recognitionRequest?.endAudio()
         recognitionTask?.cancel()
-        let transcript = latestTranscript
+        let finalTranscript = transcript
         let recordingURL = processRecordingFile()
         currentListenShouldRecord = false
         rawRecordingURL = nil
-        let res = VoiceResult(transcript: transcript, recordingURL: recordingURL)
+        let res = VoiceResult(transcript: finalTranscript, recordingURL: recordingURL)
         listenCont?.resume(returning: res)
         listenCont = nil
     }
