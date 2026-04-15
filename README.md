@@ -26,11 +26,12 @@ Quick start
 ~~~swift
 import VoiceKit
 
+@Observable
 @MainActor
-final class DemoVM: ObservableObject {
+final class DemoVM {
   let voice = RealVoiceIO()
 
-  @Published var transcript: String = ""
+  var transcript: String = ""
 
   func run() {
     Task {
@@ -59,7 +60,7 @@ import VoiceKitUI
 import SwiftUI
 
 struct SettingsView: View {
-  @StateObject private var store = VoiceProfilesStore()
+  @State private var store = VoiceProfilesStore()
   let voice = RealVoiceIO()
 
   var body: some View {
