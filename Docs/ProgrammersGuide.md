@@ -32,8 +32,9 @@ Requirements
 ~~~swift
 import VoiceKit
 
+@Observable
 @MainActor
-final class DemoVM: ObservableObject {
+final class DemoVM {
     let voice = RealVoiceIO()
 
     func run() {
@@ -230,8 +231,9 @@ For those cases, use `VoiceQueue` (below) or `prepareClip`/`startPreparedClip` (
 ### Example: Tutorial with embedded tokens
 
 ~~~swift
+@Observable
 @MainActor
-final class TutorialVM: ObservableObject {
+final class TutorialVM {
     let io = RealVoiceIO()
 
     func runTutorial() async {
@@ -458,7 +460,7 @@ VoiceKit automatically detects CI environments via the `IsCI` utility. When `IsC
 - ‘ensurePermissions()’ succeeds immediately (no system dialogs)
 - ‘listen()’ returns deterministic stub results:
   - If ‘RecognitionContext.expectation == .number’, returns transcript "42"
-  - Otherwise, returns the current ‘latestTranscript’ (default: empty string)
+  - Otherwise, returns the current ‘transcript’ property value (default: empty string)
   - No audio hardware is accessed
 - ‘speak()’ uses a minimal synthetic path (no ‘AVSpeechSynthesizer’ instantiation)
 - All operations are fully deterministic and fast
@@ -567,13 +569,13 @@ alias test='(swift build && SWIFTPM_TEST_LOG_FORMAT=xcode swift test) 2>&1 | tee
 ~~~swift
 @MainActor
 public protocol VoiceIO: AnyObject {
-    // UI callbacks
-    var onListeningChanged: ((Bool) -> Void)? { get set }
-    var onTranscriptChanged: ((String) -> Void)? { get set }
-    var onLevelChanged: ((CGFloat) -> Void)? { get set }
-    var onSpeakingChanged: ((Bool) -> Void)? { get set }
-    var onPulseChanged: ((CGFloat) -> Void)? { get set }
-    var onStatusMessageChanged: ((String?) -> Void)? { get set }
+    // Observable state (fine-grained tracking via @Observable)
+    var isSpeaking: Bool { get }
+    var isListening: Bool { get }
+    var transcript: String { get }
+    var audioLevel: CGFloat { get }
+    var pulse: CGFloat { get }
+    var statusMessage: String? { get }
 
     // Session / permissions
     func ensurePermissions() async throws

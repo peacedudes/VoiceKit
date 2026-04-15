@@ -57,12 +57,14 @@ Modules
 
 ~~~swift
 import VoiceKit
+import Observation
 
+@Observable
 @MainActor
-final class DemoViewModel: ObservableObject {
+final class DemoViewModel {
     let voice = RealVoiceIO()
 
-    @Published var transcript: String = ""
+    var transcript: String = ""
 
     func run() {
         Task {
@@ -160,7 +162,7 @@ When 'IsCI.running == false' (your app on device or simulator), 'RealVoiceIO.lis
    - Optionally writes them to a '.caf' file when 'record == true'.
    - Computes buffer loudness in dB and feeds an 'STTActivityTracker' actor.
 5. Starts recognition:
-   - Updates 'latestTranscript' and 'onTranscriptChanged' as results arrive.
+   - Updates the `transcript` observable property as results arrive.
    - Tracks first/last speech times ('firstSpeechStart' / 'lastSpeechEnd') from STT segments.
    - When 'result.isFinal', finishes the listen.
 6. Enforces timeouts:
@@ -331,7 +333,7 @@ import VoiceKit
 import VoiceKitUI
 
 struct SettingsView: View {
-    @StateObject private var store = VoiceProfilesStore()
+    @State private var store = VoiceProfilesStore()
     private let io = RealVoiceIO()
 
     var body: some View {
@@ -381,7 +383,7 @@ final class FakeTTS: TTSConfigurable, VoiceListProvider {
 Concurrency basics
 - 'RealVoiceIO', 'ScriptedVoiceIO', and 'SystemVoicesCache' are '@MainActor'.
   - Call them from the main actor (SwiftUI view models, etc.).
-- Callbacks ('onTranscriptChanged', 'onLevelChanged', 'onSpeakingChanged', 'onPulseChanged', 'onStatusMessageChanged') are invoked on '@MainActor'.
+- Observable state properties ('isSpeaking', 'isListening', 'transcript', 'audioLevel', 'pulse', 'statusMessage') are updated on '@MainActor'. SwiftUI tracks them automatically via the `@Observable` macro.
 - The audio input tap used by live STT is a **nonisolated** closure running on a realtime audio queue:
   - It forwards buffers into the STT request and 'STTActivityTracker'.
   - It does **not** touch '@MainActor' state directly.
@@ -413,10 +415,10 @@ When 'IsCI.running == true' (e.g. when 'VOICEKIT_FORCE_CI=true' in your test sch
 - 'ensurePermissions()' and 'PermissionBridge' return success immediately.
 - 'listen(timeout:inactivity:record:)':
   - If 'RecognitionContext.expectation == .number', returns a stub 'VoiceResult' with transcript '"42"' (and 'recordingURL == nil').
-  - Otherwise, returns whatever 'latestTranscript' is set to (default: empty string).
+  - Otherwise, returns the current 'transcript' property value (default: empty string).
   - No AVAudioEngine or SFSpeechRecognizer work is performed.
 - TTS "fast path":
-  - 'speak' toggles 'onSpeakingChanged' and 'onPulseChanged' in a minimal synthetic way, without instantiating 'AVSpeechSynthesizer'.
+  - 'speak' toggles the 'isSpeaking' and 'pulse' observable properties in a minimal synthetic way, without instantiating 'AVSpeechSynthesizer'.
 
 This keeps CI runs deterministic and free from hardware/permission flakiness, while real apps on devices/simulators use the full pipelines described above.
 
