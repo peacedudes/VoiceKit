@@ -9,15 +9,17 @@
 
 import Foundation
 import CoreGraphics
+import Observation
 
+@Observable
 @MainActor
 public final class ScriptedVoiceIO: VoiceIO {
-    public var onListeningChanged: ((Bool) -> Void)?
-    public var onTranscriptChanged: ((String) -> Void)?
-    public var onLevelChanged: ((CGFloat) -> Void)?
-    public var onSpeakingChanged: ((Bool) -> Void)?
-    public var onPulseChanged: ((CGFloat) -> Void)?
-    public var onStatusMessageChanged: ((String?) -> Void)?
+    public var isSpeaking: Bool = false
+    public var isListening: Bool = false
+    public var transcript: String = ""
+    public var audioLevel: CGFloat = 0
+    public var pulse: CGFloat = 0
+    public var statusMessage: String? = nil
 
     private var queue: [String]
     private var epoch: Int = 0
@@ -39,35 +41,35 @@ public final class ScriptedVoiceIO: VoiceIO {
     public func configureSessionIfNeeded() async throws { }
 
     public func speak(_ text: String) async {
-        onSpeakingChanged?(true)
-        onPulseChanged?(0.35)
+        isSpeaking = true
+        pulse = 0.35
         let steps = 6
         for stepIndex in 0..<steps {
             let phase = Double(stepIndex) / Double(steps - 1)
             let level = 0.28 + 0.24 * sin(phase * .pi)
-            onPulseChanged?(CGFloat(level))
+            pulse = CGFloat(level)
             try? await Task.sleep(nanoseconds: 50_000_000)
         }
-        onPulseChanged?(0.0)
-        onSpeakingChanged?(false)
+        pulse = 0.0
+        isSpeaking = false
     }
 
     public func listen(timeout: TimeInterval, inactivity: TimeInterval, record: Bool) async throws -> VoiceResult {
         let myEpoch = epoch
-        onListeningChanged?(true)
-        onLevelChanged?(0.2)
+        isListening = true
+        audioLevel = 0.2
         try? await Task.sleep(nanoseconds: 120_000_000)
         if myEpoch != epoch {
-            onLevelChanged?(0.0)
-            onListeningChanged?(false)
+            audioLevel = 0.0
+            isListening = false
             return VoiceResult(transcript: "", recordingURL: nil)
         }
-        let transcript = queue.isEmpty ? "" : queue.removeFirst()
-        onTranscriptChanged?(transcript)
+        let result = queue.isEmpty ? "" : queue.removeFirst()
+        transcript = result
         try? await Task.sleep(nanoseconds: 40_000_000)
-        onLevelChanged?(0.0)
-        onListeningChanged?(false)
-        return VoiceResult(transcript: transcript, recordingURL: nil)
+        audioLevel = 0.0
+        isListening = false
+        return VoiceResult(transcript: result, recordingURL: nil)
     }
 
     public func pause(_ seconds: TimeInterval) async {
@@ -80,16 +82,16 @@ public final class ScriptedVoiceIO: VoiceIO {
 
     public func stopAll() {
         epoch &+= 1
-        onListeningChanged?(false)
+        isListening = false
     }
 
     public func hardReset() {
         epoch &+= 1
-        onListeningChanged?(false)
-        onTranscriptChanged?("")
-        onLevelChanged?(0)
-        onPulseChanged?(0)
-        onSpeakingChanged?(false)
-        onStatusMessageChanged?(nil)
+        isListening = false
+        transcript = ""
+        audioLevel = 0
+        pulse = 0
+        isSpeaking = false
+        statusMessage = nil
     }
 }

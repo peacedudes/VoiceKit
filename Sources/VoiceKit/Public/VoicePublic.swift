@@ -37,26 +37,25 @@ public struct VoiceResult: Sendable {
 /// All methods are @MainActor-isolated and must be called from the main thread.
 @MainActor
 public protocol VoiceIO: AnyObject {
-    /// Called when listening state changes (true when listening starts, false when it finishes).
-    var onListeningChanged: ((Bool) -> Void)? { get set }
+    /// True while TTS synthesis is actively producing audio.
+    var isSpeaking: Bool { get }
 
-    /// Called when transcript text changes during STT.
-    var onTranscriptChanged: ((String) -> Void)? { get set }
+    /// True while a listen() call is in progress (from start through completion/cancellation).
+    var isListening: Bool { get }
 
-    /// Called with normalized audio level [0, 1] during listening.
-    /// Currently unused in production (reserved for future UI level meters).
-    var onLevelChanged: ((CGFloat) -> Void)? { get set }
+    /// The most recent STT transcript produced during or after a listen() call.
+    /// Empty string when no transcript is available.
+    var transcript: String { get }
 
-    /// Called when TTS speaking state changes (true when speaking starts, false when it finishes).
-    var onSpeakingChanged: ((Bool) -> Void)? { get set }
+    /// Normalized audio input level in [0, 1] during a listen(). Zero when not listening.
+    var audioLevel: CGFloat { get }
 
-    /// Called with a pulsing animation value [0, 1] (sine wave) during TTS synthesis.
-    /// Useful for visual feedback like glowing indicators or breathing animations.
-    var onPulseChanged: ((CGFloat) -> Void)? { get set }
+    /// Sine-wave pulse value in [0, 1] driven by TTS word boundaries. Zero when not speaking.
+    /// Useful for visual breathing animations synchronized to speech.
+    var pulse: CGFloat { get }
 
-    /// Called with optional status messages for debugging or user feedback.
-    /// Value is nil when status is cleared.
-    var onStatusMessageChanged: ((String?) -> Void)? { get set }
+    /// Optional status message for debugging or user feedback. Nil when cleared.
+    var statusMessage: String? { get }
 
     /// Ensure microphone and speech recognition permissions are granted.
     /// Throws `VoiceIOError.micUnavailable` or `.recognizerUnavailable` on failure.
