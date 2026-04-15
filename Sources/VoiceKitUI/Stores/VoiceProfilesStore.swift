@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Foundation
+import Observation
 import VoiceKit
 
 public struct VoiceProfilesFile: Codable {
@@ -70,25 +71,24 @@ public struct VoiceProfilesFile: Codable {
 /// Persisted voice configuration state.
 /// Stores voice profiles, tuning, and UI state (default voice, active/hidden lists).
 /// All state is automatically persisted to a JSON file in the app support directory.
+@Observable
 @MainActor
-public final class VoiceProfilesStore: ObservableObject {
+public final class VoiceProfilesStore {
     /// ID of the currently selected default voice (used when speak() is called without a voice id).
-    @Published public var defaultVoiceID: String?
+    public var defaultVoiceID: String?
 
     /// Global TTS tuning (rate/pitch/volume variation and scaling).
-    @Published public var tuning: Tuning = .init()
+    public var tuning: Tuning = .init()
 
     /// All stored voice profiles, keyed by voice id.
     /// Apps typically populate this with system voices or custom voice configurations.
-    @Published public var profilesByID: [String: TTSVoiceProfile] = [:]
+    public var profilesByID: [String: TTSVoiceProfile] = [:]
 
     /// Set of voice ids marked as "active" (for multi-voice synthesis, e.g., VoiceChorus).
-    /// Note: Use reassignment (not direct mutation) to ensure @Published triggers updates.
-    @Published public var activeVoiceIDs: Set<String> = []
+    public var activeVoiceIDs: Set<String> = []
 
     /// Set of voice ids marked as "hidden" (filtered out from most UI lists).
-    /// Note: Use reassignment (not direct mutation) to ensure @Published triggers updates.
-    @Published public var hiddenVoiceIDs: Set<String> = []
+    public var hiddenVoiceIDs: Set<String> = []
 
     private let fileURL: URL
 
@@ -153,7 +153,6 @@ public final class VoiceProfilesStore: ObservableObject {
     public func isActive(_ id: String) -> Bool { activeVoiceIDs.contains(id) }
 
     /// Toggle the active status of a voice id and persist the change.
-    /// Note: Mutations use reassignment pattern to ensure @Published triggers updates.
     public func toggleActive(_ id: String) {
         var updated = activeVoiceIDs
         if updated.contains(id) { updated.remove(id) } else { updated.insert(id) }
@@ -165,7 +164,6 @@ public final class VoiceProfilesStore: ObservableObject {
     public func isHidden(_ id: String) -> Bool { hiddenVoiceIDs.contains(id) }
 
     /// Set the hidden status of a voice id and persist the change.
-    /// Note: Mutations use reassignment pattern to ensure @Published triggers updates.
     public func setHidden(_ id: String, _ hidden: Bool) {
         var updated = hiddenVoiceIDs
         if hidden { updated.insert(id) } else { updated.remove(id) }

@@ -12,6 +12,7 @@
 import SwiftUI
 import AVFoundation
 import Foundation
+import Observation
 import VoiceKit
 
 /// ViewModel for voice selection and tuning UI (e.g., VoiceChooserView).
@@ -25,8 +26,9 @@ import VoiceKit
 /// The ViewModel accepts a TTSConfigurable for voice synthesis and a
 /// VoiceProfilesStore for state persistence. It's suitable for both app UI
 /// and automated UI tests (by passing a mock TTS or ScriptedVoiceIO).
+@Observable
 @MainActor
-public final class VoiceChooserViewModel: ObservableObject {
+public final class VoiceChooserViewModel {
     // MARK: - Language and filtering
 
     /// Language filtering modes for voice lists.
@@ -39,22 +41,22 @@ public final class VoiceChooserViewModel: ObservableObject {
     // Inputs
     private let tts: TTSConfigurable
     private let allowSystemVoices: Bool
-    @ObservedObject public private(set) var store: VoiceProfilesStore
+    public private(set) var store: VoiceProfilesStore
 
-    // Published state
+    // Observable state
     /// Full list of available voices (unfiltered).
-    @Published public private(set) var voices: [TTSVoiceInfo] = []
-    @Published public var languageFilter: LanguageFilter = .current
-    @Published public var showHidden: Bool = false
+    public private(set) var voices: [TTSVoiceInfo] = []
+    public var languageFilter: LanguageFilter = .current
+    public var showHidden: Bool = false
 
     /// Language options derived from `voices` (base code + display name).
-    @Published public private(set) var languageOptions: [(code: String, name: String)] = []
+    public private(set) var languageOptions: [(code: String, name: String)] = []
     /// Enhanced-quality system voice identifiers (optional; empty on CI / under XCTest).
-    @Published public private(set) var enhancedVoiceIDs: Set<String> = []
+    public private(set) var enhancedVoiceIDs: Set<String> = []
     /// Loading flag for UI (e.g., while enumerating or refreshing voices).
-    @Published public private(set) var isLoading: Bool = false
+    public private(set) var isLoading: Bool = false
     /// Last measured preview duration in seconds, if available.
-    @Published public private(set) var lastPreviewSeconds: Double?
+    public private(set) var lastPreviewSeconds: Double?
 
     // Preview task
     private var previewTask: Task<Void, Never>?

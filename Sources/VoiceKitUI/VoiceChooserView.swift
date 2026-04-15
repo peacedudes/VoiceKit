@@ -15,7 +15,7 @@ import VoiceKit
 
 @MainActor
 public struct VoiceChooserView: View {
-    @StateObject private var viewModel: VoiceChooserViewModel
+    @State private var viewModel: VoiceChooserViewModel
     private var onChoose: (() -> Void)?
     private var onCancel: (() -> Void)?
     @Binding private var selectedIDBinding: String?
@@ -38,7 +38,7 @@ public struct VoiceChooserView: View {
                 selectedID: Binding<String?>? = nil,
                 onChoose: (() -> Void)? = nil,
                 onCancel: (() -> Void)? = nil) {
-        _viewModel = StateObject(wrappedValue: VoiceChooserViewModel(tts: tts, store: store, allowSystemVoices: true))
+        _viewModel = State(initialValue: VoiceChooserViewModel(tts: tts, store: store, allowSystemVoices: true))
         self.onChoose = onChoose
         self.onCancel = onCancel
         self._selectedIDBinding = selectedID ?? .constant(nil)

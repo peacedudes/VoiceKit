@@ -188,7 +188,7 @@ internal struct ChorusLabView: View {
     /// Index of the voice being edited in selectedProfiles (nil if adding a new voice).
     @State private var editingIndex: Int?
     /// Unique token for each tuner session. Changing this forces VoiceChooserView to
-    /// recreate its @StateObject with the current tunerEngine, preventing stale profiles.
+    /// recreate its @State viewModel with the current tunerEngine, preventing stale profiles.
     @State private var tunerSessionID = UUID()
     // MARK: - Feedback
     /// True when "Copied to Clipboard" feedback is visible.
@@ -452,7 +452,7 @@ internal struct ChorusLabView: View {
                         showTuner = false
                     }
                 )
-                // Force VoiceChooserView to recreate its @StateObject with the current
+                // Force VoiceChooserView to recreate its @State viewModel with the current
                 // tunerEngine each session. Without this, SwiftUI reuses the old viewModel
                 // (and its stale engine reference) when the sheet is re-presented.
                 .id(tunerSessionID)
