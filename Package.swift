@@ -20,47 +20,30 @@ let package = Package(
         .library(name: "VoiceKit", targets: ["VoiceKit"]),
         .library(name: "VoiceKitUI", targets: ["VoiceKitUI"])
     ],
-    dependencies: [
-        .package(url: "https://github.com/realm/SwiftLint", from: "0.54.0")
-    ],
+    dependencies: [],
     targets: [
         .target(
             name: "TestSupport",
-            path: "Sources/TestSupport",
-            plugins: [
-                .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLint")
-            ]
+            path: "Sources/TestSupport"
         ),
         .target(
             name: "VoiceKit",
-            path: "Sources/VoiceKit",
-            plugins: [
-                .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLint")
-            ]
+            path: "Sources/VoiceKit"
         ),
         .target(
             name: "VoiceKitUI",
             dependencies: ["VoiceKit"],
-            path: "Sources/VoiceKitUI",
-            plugins: [
-                .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLint")
-            ]
+            path: "Sources/VoiceKitUI"
         ),
         .testTarget(
             name: "VoiceKitTests",
             dependencies: ["VoiceKit", "TestSupport"],
-            path: "Tests/VoiceKitTests",
-            plugins: [
-                .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLint")
-            ]
+            path: "Tests/VoiceKitTests"
         ),
         .testTarget(
             name: "VoiceKitUITests",
             dependencies: ["VoiceKitUI", "VoiceKit", "TestSupport"],
-            path: "Tests/VoiceKitUITests",
-            plugins: [
-                .plugin(name: "SwiftLintBuildToolPlugin", package: "SwiftLint")
-            ]
+            path: "Tests/VoiceKitUITests"
         ),
     ],
     swiftLanguageModes: [

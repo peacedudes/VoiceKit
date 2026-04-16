@@ -19,18 +19,18 @@ internal final class VoiceChorusMoreTests: XCTestCase {
     // Minimal fake engine for chorus tests
     @MainActor
     final class FakeChorusEngine: TTSConfigurable, VoiceIO {
-        // VoiceIO callbacks (unused here)
-        var onListeningChanged: ((Bool) -> Void)?
-        var onTranscriptChanged: ((String) -> Void)?
-        var onLevelChanged: ((CGFloat) -> Void)?
-        var onTTSSpeakingChanged: ((Bool) -> Void)?
-        var onTTSPulse: ((CGFloat) -> Void)?
-        var onStatusMessageChanged: ((String?) -> Void)?
+        // VoiceIO observable state
+        var isSpeaking: Bool = false
+        var isListening: Bool = false
+        var transcript: String = ""
+        var audioLevel: CGFloat = 0
+        var pulse: CGFloat = 0
+        var statusMessage: String?
 
         // Tracking
         private(set) var profiles: [String: TTSVoiceProfile] = [:]
         private(set) var defaultProfile: TTSVoiceProfile?
-        private(set) var master: Tuning = .init()
+        private(set) var tuning: Tuning = .init()
         private(set) var speaks: [(text: String, voiceID: String?)] = []
         private(set) var stopAllCalls = 0
 
@@ -53,6 +53,7 @@ internal final class VoiceChorusMoreTests: XCTestCase {
                 }
             }
         }
+        func pause(_ seconds: TimeInterval) async {}
         func listen(timeout: TimeInterval, inactivity: TimeInterval, record: Bool) async throws -> VoiceResult {
             return VoiceResult(transcript: "", recordingURL: nil)
         }
@@ -68,8 +69,8 @@ internal final class VoiceChorusMoreTests: XCTestCase {
         func setDefaultVoiceProfile(_ profile: TTSVoiceProfile) { defaultProfile = profile; profiles[profile.id] = profile }
         func getDefaultVoiceProfile() -> TTSVoiceProfile? { defaultProfile }
         // Current protocol requirements:
-        func setTuning(_ tuning: Tuning) { self.master = tuning }
-        func getTuning() -> Tuning { master }
+        func setTuning(_ tuning: Tuning) { self.tuning = tuning }
+        func getTuning() -> Tuning { tuning }
         func speak(_ text: String, using voiceID: String?) async {
             speaks.append((text, voiceID))
             if delaySeconds > 0 {

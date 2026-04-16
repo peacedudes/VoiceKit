@@ -10,14 +10,30 @@
 import SwiftUI
 import VoiceKitUI
 
+/// Single-voice row for the chorus list, showing name, rate, pitch, volume, and measured duration.
+///
+/// Displays:
+/// - **Left**: Voice display name (e.g., "Alex", "Victoria").
+/// - **Middle**: Compact rate/pitch/volume readout (S 0.55 · P 1.1 · Vol 0.9).
+/// - **Right**: Last measured duration, highlighted during calibration.
+/// - **Far right**: Disclosure chevron.
+///
+/// The row is marked as a button for accessibility. Tap opens the tuner; swipe reveals sync/delete actions.
 @MainActor
 public struct ChorusLabSelectedVoiceRow: View {
+    /// Display name of the voice (e.g., "Alex", "Victoria").
     let name: String
+    /// Speaking rate (normalized in [0, 1]).
     let rate: Double
+    /// Pitch multiplier (typically 0.5 - 2.0).
     let pitch: Float
+    /// Relative amplitude (0 - 1).
     let volume: Float
+    /// Most recent measured duration for this voice in seconds (nil if not yet measured).
     let duration: TimeInterval?
+    /// Whether this voice is currently being calibrated (highlights the duration cell in green).
     let isCalibrating: Bool
+    /// Width of the duration cell (injected to control layout).
     var timingCellWidth: CGFloat = 42
 
     public var body: some View {
@@ -57,11 +73,17 @@ public struct ChorusLabSelectedVoiceRow: View {
     }
 }
 
-// MARK: - Small helper cells
+// MARK: - Helper cells
+
+/// Compact display of voice profile settings: rate, pitch, volume (3-letter abbreviated format).
+/// Example: "S 0.55 · P 1.1 · Vol 0.9" (Speed, Pitch, Volume).
 @MainActor
 private struct DetailsCell: View {
+    /// Speaking rate to display.
     let rate: Double
+    /// Pitch multiplier to display.
     let pitch: Float
+    /// Volume amplitude to display.
     let volume: Float
     var body: some View {
         Text(["S \(rate.display())",
@@ -78,10 +100,16 @@ private struct DetailsCell: View {
     }
 }
 
+/// Display of measured duration with optional highlight (for calibration feedback).
+/// Shows duration in seconds (e.g., "2.45s"), or empty string if not yet measured.
+/// When isHighlighted=true, background turns green to indicate active calibration.
 @MainActor
 private struct DurationCell: View {
+    /// Measured duration in seconds (nil if not yet recorded).
     let duration: TimeInterval?
+    /// Whether to highlight this cell (green background during calibration).
     let isHighlighted: Bool
+    /// Fixed width for the cell (prevents layout shift as values change).
     let width: CGFloat
     var body: some View {
         let text = duration.map { $0.display(suffix: "s") } ?? ""

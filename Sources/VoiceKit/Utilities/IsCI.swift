@@ -10,8 +10,23 @@
 import Foundation
 
 /// Utility to detect CI environments for tests and live seams behavior.
-/// By default, detects common CI via the `CI` environment variable.
-/// You can override by setting `VOICEKIT_FORCE_CI=true` or `=false`.
+///
+/// `IsCI.running` is `true` when:
+/// 1. `VOICEKIT_FORCE_CI` environment variable is set to "1", "true", or "yes" (highest priority)
+/// 2. `CI` environment variable is set to "1", "true", or "yes" (set by GitHub Actions, GitLab CI, and other CI platforms)
+///
+/// When `IsCI.running == true`, VoiceKit enters deterministic test mode:
+/// - `ensurePermissions()` and `PermissionBridge` succeed immediately (no system dialogs)
+/// - `listen()` returns stub data (context-dependent: `.number` → "42", otherwise the current `transcript`)
+/// - `speak()` uses a minimal synthetic path (no AVSpeechSynthesizer instantiation)
+/// - No audio hardware is accessed; runs are fully deterministic
+///
+/// When `IsCI.running == false` (device, simulator, or forced off):
+/// - Real AVAudioEngine, SFSpeechRecognizer, and AVSpeechSynthesizer are used
+/// - Permissions are requested via system dialogs
+/// - Audio I/O is live
+///
+/// Override with: `VOICEKIT_FORCE_CI=true` or `VOICEKIT_FORCE_CI=false` to force a specific mode regardless of CI environment.
 public enum IsCI {
     public static var running: Bool {
         let env = ProcessInfo.processInfo.environment

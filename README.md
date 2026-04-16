@@ -19,18 +19,19 @@ Requirements
 
 Install (Swift Package Manager)
 - Local during development: Add Local Package...; choose the VoiceKit folder; link VoiceKit (and VoiceKitUI if needed).
-- Remote: Add from your Git URL; rule "Up to Next Major" from your tag (for example, v0.1.3).
+- Remote: Add from your Git URL; rule "Up to Next Major" from your tag (for example, v0.2.0).
 - No special embedding step is required; SwiftPM and Xcode handle linking automatically.
 
 Quick start
 ~~~swift
 import VoiceKit
 
+@Observable
 @MainActor
-final class DemoVM: ObservableObject {
+final class DemoVM {
   let voice = RealVoiceIO()
 
-  @Published var transcript: String = ""
+  var transcript: String = ""
 
   func run() {
     Task {
@@ -59,7 +60,7 @@ import VoiceKitUI
 import SwiftUI
 
 struct SettingsView: View {
-  @StateObject private var store = VoiceProfilesStore()
+  @State private var store = VoiceProfilesStore()
   let voice = RealVoiceIO()
 
   var body: some View {
@@ -72,8 +73,8 @@ Docs
 - Docs/VoiceKitGuide.md (how to use RealVoiceIO, VoiceQueue, VoiceChorus, VoiceKitUI)
 - Docs/ProgrammersGuide.md (quick start, sequencing, logging, boosted clips, config)
 - Docs/Concurrency.md (actor safety and practical patterns)
-- Docs/ROADMAP.md (structure, samples, scope decisions)
-- CHANGELOG.md
+- ROADMAP.md (where the project is going; scope decisions)
+- Docs/CHANGELOG.md
 
 Logging (opt-in)
 - Set VOICEKIT_LOG=1 (or true/yes) in your scheme or environment to enable a default print logger in RealVoiceIO.

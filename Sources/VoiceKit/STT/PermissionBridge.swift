@@ -13,12 +13,17 @@ import Foundation
 
 internal enum PermissionBridge {
 
-    nonisolated internal static func awaitSpeechAuth() async -> SFSpeechRecognizerAuthorizationStatus {
+    nonisolated internal static func awaitSpeechAuth()
+        async -> SFSpeechRecognizerAuthorizationStatus {
         // In CI, avoid system prompts that can hang headless runners.
         if IsCI.running { return .authorized }
-        return await withCheckedContinuation { (continuation: CheckedContinuation<SFSpeechRecognizerAuthorizationStatus, Never>) in
+        return await withCheckedContinuation { cont in
+            let typedCont = cont as CheckedContinuation<
+                SFSpeechRecognizerAuthorizationStatus,
+                Never
+            >
             SFSpeechRecognizer.requestAuthorization { status in
-                continuation.resume(returning: status)
+                typedCont.resume(returning: status)
             }
         }
     }

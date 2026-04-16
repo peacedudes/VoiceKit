@@ -24,13 +24,13 @@ internal final class VoiceChorusTests: XCTestCase {
     // A simple fake engine that conforms to TTSConfigurable & VoiceIO and records calls.
     final class FakeEngine: TTSConfigurable, VoiceIO {
 
-        // VoiceIO callbacks
-        var onListeningChanged: ((Bool) -> Void)?
-        var onTranscriptChanged: ((String) -> Void)?
-        var onLevelChanged: ((CGFloat) -> Void)?
-        var onTTSSpeakingChanged: ((Bool) -> Void)?
-        var onTTSPulse: ((CGFloat) -> Void)?
-        var onStatusMessageChanged: ((String?) -> Void)?
+        // VoiceIO observable state
+        var isSpeaking: Bool = false
+        var isListening: Bool = false
+        var transcript: String = ""
+        var audioLevel: CGFloat = 0
+        var pulse: CGFloat = 0
+        var statusMessage: String?
 
         // Tracking
         private(set) var spoken: [(text: String, voiceID: String?)] = []
@@ -44,6 +44,7 @@ internal final class VoiceChorusTests: XCTestCase {
         func speak(_ text: String) async {
             spoken.append((text, defaultProfile?.id))
         }
+        func pause(_ seconds: TimeInterval) async {}
         func listen(timeout: TimeInterval, inactivity: TimeInterval, record: Bool) async throws -> VoiceResult {
             return VoiceResult(transcript: "", recordingURL: nil)
         }

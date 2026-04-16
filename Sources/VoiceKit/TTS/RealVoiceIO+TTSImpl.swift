@@ -27,37 +27,105 @@ extension RealVoiceIO {
         }
     }
 
+    /// Split text at sentence boundaries (. ! ?) while keeping punctuation.
+    /// Returns an array of sentences, each with its terminal punctuation.
+    internal func splitSentences(_ text: String) -> [String] {
+        var sentences: [String] = []
+        var current = ""
+        for char in text {
+            current.append(char)
+            if ".!?".contains(char) {
+                let trimmed = current.trimmingCharacters(in: .whitespaces)
+                if !trimmed.isEmpty {
+                    sentences.append(trimmed)
+                }
+                current = ""
+            }
+        }
+        let trimmed = current.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty {
+            sentences.append(trimmed)
+        }
+        return sentences
+    }
+
+    /// Speak a single sentence (internal, no normalization). Splits text into sentences
+    /// and speaks sequentially, preserving punctuation and voice profile across all.
+    private func speakSentence(_ sentence: String, using voiceID: String?) async {
+        if IsCI.running {
+            isSpeaking = true
+            ttsStartPulse()
+            await Task.yield()
+            isSpeaking = false
+            ttsStopPulse()
+            return
+        }
+
+        ensureSynth()
+        guard let synthesizer else { return }
+        let utterance = AVSpeechUtterance(string: sentence)
+        applyProfile(to: utterance, voiceID: voiceID ?? defaultProfile?.id)
+
+        let key = ObjectIdentifier(utterance)
+        await withTaskCancellationHandler(
+            operation: {
+                await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                    speakContinuations[key] = cont
+                    synthesizer.speak(utterance)
+                }
+            },
+            onCancel: {
+                Task { @MainActor [weak self] in
+                    guard let self, let synth = self.synthesizer, synth.isSpeaking else { return }
+                    synth.stopSpeaking(at: .immediate)
+                }
+            }
+        )
+    }
+
     public func speak(_ text: String) async {
         await speak(text, using: defaultProfile?.id)
     }
 
-    /// Speak and return measured wall-clock duration from didStart to didFinish for this utterance.
+    /// Pause for the given duration. Respects task cancellation.
+    public func pause(_ seconds: TimeInterval) async {
+        try? await Task.sleep(for: .seconds(seconds))
+    }
+
+    /// Speak and return measured wall-clock duration. Splits text into sentences
+    /// and sums total time from first didStart to last didFinish.
     /// In CI mode, we avoid AVSpeech and return a tiny synthetic duration.
     public func speakAndMeasure(_ text: String, using voiceID: String?) async -> TimeInterval {
-        // CI fast-path: avoid AVSpeech on headless runners.
         if IsCI.running {
             await speak(text, using: voiceID)
             return 0.0
         }
 
+        let sentences = splitSentences(text)
+        var totalTime: TimeInterval = 0.0
+        for sentence in sentences {
+            let duration = await speakAndMeasureSentence(sentence, using: voiceID)
+            totalTime += duration
+        }
+        return totalTime
+    }
+
+    /// Speak a single sentence and measure its duration.
+    private func speakAndMeasureSentence(_ sentence: String, using voiceID: String?) async -> TimeInterval {
         ensureSynth()
         guard let synthesizer else { return 0.0 }
-        let utterance = AVSpeechUtterance(string: text)
+        let utterance = AVSpeechUtterance(string: sentence)
         applyProfile(to: utterance, voiceID: voiceID ?? defaultProfile?.id)
 
         let key = ObjectIdentifier(utterance)
         return await withTaskCancellationHandler(
             operation: {
                 await withCheckedContinuation { (cont: CheckedContinuation<TimeInterval, Never>) in
-                    // Store continuation; didFinish / didCancel will compute and resume.
                     measureContinuations[key] = cont
                     synthesizer.speak(utterance)
                 }
             },
             onCancel: {
-                // Interrupt any in-flight utterance immediately. This will
-                // trigger speechSynthesizer(_:didCancel:), which in turn
-                // resumes the continuation (returning 0.0s by design).
                 Task { @MainActor [weak self] in
                     guard let self, let synth = self.synthesizer, synth.isSpeaking else { return }
                     synth.stopSpeaking(at: .immediate)
@@ -67,32 +135,25 @@ extension RealVoiceIO {
     }
 
     public func speak(_ text: String, using voiceID: String?) async {
-        // CI fast-path: avoid AVSpeech on headless runners where delegate callbacks can stall.
-        if IsCI.running {
-            log(.info, "speak(ci-fast-path, voiceID:\(voiceID ?? "nil"))")
-            onTTSSpeakingChanged?(true)
-            ttsStartPulse()
-            await Task.yield()
-            onTTSSpeakingChanged?(false)
-            ttsStopPulse()
-            return
-        }
-
-        ensureSynth()
         log(.info, "speak(text:\(text.prefix(48))\(text.count > 48 ? "..." : ""), voiceID:\(voiceID ?? "nil"))")
-        guard let synthesizer else { return }
-        let utterance = AVSpeechUtterance(string: text)
-        applyProfile(to: utterance, voiceID: voiceID ?? defaultProfile?.id)
-
-        let key = ObjectIdentifier(utterance)
-        do {
-            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-                speakContinuations[key] = cont
-                synthesizer.speak(utterance)
+        let parts = parseTextForSFXWithURLs(text)
+        for part in parts {
+            if Task.isCancelled { return }
+            switch part {
+            case .text(let segment) where !segment.isEmpty:
+                let sentences = splitSentences(segment)
+                for sentence in sentences {
+                    if Task.isCancelled { return }
+                    await speakSentence(sentence, using: voiceID)
+                }
+            case .sfx(let url):
+                // Safe to ignore: SFX playback failures don't halt speak sequencing; speaker continues
+                try? await playClip(url: url, gainDB: 0)
+            case .silence(let seconds):
+                try? await Task.sleep(for: .seconds(seconds))
+            case .text: // empty text segment; skip
+                break
             }
-        } catch {
-            ttsStopPulse()
-            log(.error, "speak(error): \(error.localizedDescription)")
         }
     }
 
@@ -122,7 +183,8 @@ extension RealVoiceIO {
 
         // Pitch and volume with gentle randomization and clamping to valid ranges.
         let basePitch = (defaultProfile?.pitch ?? 1.0)
-        utterance.pitchMultiplier = (basePitch + .random(in: -control.pitchVariation...control.pitchVariation)).clamped(to: 0.5...2.0)
+        let pitchDelta = Float.random(in: -control.pitchVariation...control.pitchVariation)
+        utterance.pitchMultiplier = (basePitch + pitchDelta).clamped(to: 0.5...2.0)
         utterance.volume = (defaultProfile?.volume ?? 1.0).clamped(to: 0.0...1.0)
 
         if let id = voiceID, let profile = profilesByID[id] {
@@ -141,14 +203,68 @@ extension RealVoiceIO {
 
         // Unconditional trace for debugging (visible in Xcode Previews too).
         let vname = utterance.voice?.name ?? "system-default"
-        let trace = "applyProfile[\(source)] id=\(voiceID ?? "nil") name=\(vname) norm=\(String(format: "%.3f", usedNormRate)) avRate=\(String(format: "%.3f", utterance.rate)) pitch=\(String(format: "%.3f", utterance.pitchMultiplier)) vol=\(String(format: "%.2f", utterance.volume))"
+        let normStr = String(format: "%.3f", usedNormRate)
+        let rateStr = String(format: "%.3f", utterance.rate)
+        let pitchStr = String(format: "%.3f", utterance.pitchMultiplier)
+        let volStr = String(format: "%.2f", utterance.volume)
+        let voiceIDStr = voiceID ?? "nil"
+        let trace = "applyProfile[\(source)] id=\(voiceIDStr) name=\(vname) " +
+            "norm=\(normStr) avRate=\(rateStr) pitch=\(pitchStr) vol=\(volStr)"
         log(.info, trace)
-        // Also print so Xcode Previews shows it even if the logger is muted
-        print("[VoiceKit]", trace)
     }
 
     internal func ttsStartPulse() {}
     internal func ttsStopPulse() {}
+
+    // MARK: - SFX Parsing
+
+    internal enum SFXPart {
+        case text(String)
+        case sfx(URL)
+        case silence(TimeInterval)
+    }
+
+    /// Parse text for `<sfx:URL>` and `<silence:N>` tokens, returning alternating parts.
+    /// Examples:
+    ///   "Hello <sfx:http://example.com/ding.caf> world" → [.text("Hello "), .sfx(...), .text(" world")]
+    ///   "Ready? <silence:1.5> Go!"                      → [.text("Ready? "), .silence(1.5), .text(" Go!")]
+    internal func parseTextForSFXWithURLs(_ text: String) -> [SFXPart] {
+        // Matches <sfx:…> and <silence:N> tokens; captures type (group 1) and value (group 2).
+        let pattern = #"<(sfx|silence):\s*([^>]+)>"#
+        // Safe to ignore: regex compile failure is extremely unlikely; fallback to unparsed text (tokens won't be recognized)
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [.text(text)] }
+
+        var parts: [SFXPart] = []
+        var cursor = text.startIndex
+
+        for match in regex.matches(in: text, range: NSRange(text.startIndex..<text.endIndex, in: text)) {
+            guard let range = Range(match.range, in: text),
+                  let typeRange = Range(match.range(at: 1), in: text),
+                  let valueRange = Range(match.range(at: 2), in: text) else { continue }
+
+            let before = String(text[cursor..<range.lowerBound])
+            if !before.isEmpty { parts.append(.text(before)) }
+
+            let tokenType = String(text[typeRange])
+            let value = String(text[valueRange]).trimmingCharacters(in: .whitespaces)
+
+            switch tokenType {
+            case "sfx":
+                if let url = URL(string: value) { parts.append(.sfx(url)) }
+            case "silence":
+                if let seconds = TimeInterval(value), seconds > 0 { parts.append(.silence(seconds)) }
+            default:
+                break
+            }
+
+            cursor = range.upperBound
+        }
+
+        let tail = String(text[cursor..<text.endIndex])
+        if !tail.isEmpty { parts.append(.text(tail)) }
+        if parts.isEmpty { parts = [.text(text)] }
+        return parts
+    }
 }
 
 // MARK: - AVSpeechSynthesizerDelegate (nonisolated entry points; hop to main)
@@ -158,9 +274,9 @@ extension RealVoiceIO {
     nonisolated public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
                                               didStart utterance: AVSpeechUtterance) {
         let key = ObjectIdentifier(utterance)
-        Task { @MainActor in
+        Task(priority: .high) { @MainActor in
             self.log(.info, "tts didStart")
-            self.onTTSSpeakingChanged?(true)
+            self.isSpeaking = true
             self.ttsStartPulse()
             // Record start time for this utterance (used by speakAndMeasure)
             let now = ProcessInfo.processInfo.systemUptime
@@ -172,7 +288,7 @@ extension RealVoiceIO {
                                               didFinish utterance: AVSpeechUtterance) {
         // Capture ObjectIdentifier in nonisolated context; don't send utterance across
         let key = ObjectIdentifier(utterance)
-        Task { @MainActor in
+        Task(priority: .high) { @MainActor in
             if let cont = self.speakContinuations.removeValue(forKey: key) {
                 cont.resume()
             }
@@ -187,7 +303,7 @@ extension RealVoiceIO {
                 mCont.resume(returning: 0.0)
             }
             self.log(.info, "tts didFinish")
-            self.onTTSSpeakingChanged?(false)
+            self.isSpeaking = false
             self.ttsStopPulse()
         }
     }
@@ -195,7 +311,7 @@ extension RealVoiceIO {
     nonisolated public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
                                               didCancel utterance: AVSpeechUtterance) {
         let key = ObjectIdentifier(utterance)
-        Task { @MainActor in
+        Task(priority: .high) { @MainActor in
             if let cont = self.speakContinuations.removeValue(forKey: key) {
                 cont.resume()
             }
@@ -209,7 +325,7 @@ extension RealVoiceIO {
                 // no-op
             }
             self.log(.warn, "tts didCancel")
-            self.onTTSSpeakingChanged?(false)
+            self.isSpeaking = false
             self.ttsStopPulse()
         }
     }
@@ -220,8 +336,7 @@ extension RealVoiceIO {
         Task { @MainActor in
             self.ttsPhase += 0.2
             let glow = max(0, sin(self.ttsPhase))
-            self.ttsGlow = CGFloat(glow)
-            self.onTTSPulse?(self.ttsGlow)
+            self.pulse = CGFloat(glow)
         }
     }
 }

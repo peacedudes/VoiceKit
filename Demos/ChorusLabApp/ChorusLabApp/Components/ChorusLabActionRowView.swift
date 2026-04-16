@@ -7,13 +7,24 @@
 
 import SwiftUI
 
+/// Control row for chorus playback and rate synchronization.
+///
+/// Displays a prominent Play/Stop button on the left and a Synchronize button on the right.
+/// During calibration, replaces the Sync button with a progress spinner.
+/// Handles accessibility labels and state-driven button coloring (blue for play, red for stop).
 @MainActor
 public struct ChorusLabActionRowView: View {
+    /// Whether the chorus is currently playing. Controls button label and color.
     @Binding var isPlaying: Bool
+    /// Whether rate calibration is in progress. Controls button label and progress spinner visibility.
     @Binding var isCalibrating: Bool
+    /// Whether there are voices in the chorus. Disables buttons if false.
     var hasSelection: Bool
+    /// Callback when the user taps Play (only called when not playing or calibrating).
     var onPlay: () -> Void
+    /// Callback when the user taps Stop (only called when playing or calibrating).
     var onStop: () -> Void
+    /// Callback when the user taps Synchronize (only called when idle and voices are selected).
     var onSync: () -> Void
 
     public var body: some View {

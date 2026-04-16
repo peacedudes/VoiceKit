@@ -15,115 +15,40 @@ import VoiceKit
 
 @MainActor
 public struct VoiceChooserView: View {
-    @StateObject private var viewModel: VoiceChooserViewModel
-
-    // Optional chooser wiring
+    @State private var viewModel: VoiceChooserViewModel
     private var onChoose: (() -> Void)?
     private var onCancel: (() -> Void)?
     @Binding private var selectedIDBinding: String?
-
     @State private var selectedID: String?
     @State private var workingProfile: TTSVoiceProfile?
-    @State private var selectedIDString: String = ""
-
-    // Debounced auto-preview when sliders change.
+    @State private var selectedIDString = ""
     @State private var sliderPreviewTask: Task<Void, Never>?
+    @State private var showFullLanguagePicker = false
 
-    // Language filtering UI (view-model owns the data)
-    @State private var showFullLanguagePicker: Bool = false
-
-    // Map ViewModel.LanguageFilter <-> String tags for the compact picker.
-    // Reserved tags: "_current" and "_all"; otherwise use base language codes like "en", "es".
     private var languageSelectionBinding: Binding<String> {
         Binding(
-            get: { tag(for: viewModel.languageFilter) },
-            set: { viewModel.languageFilter = filter(forTag: $0) }
+            get: { languageFilterTag(viewModel.languageFilter) },
+            set: { viewModel.languageFilter = languageFilter(fromTag: $0) }
         )
-    }
-
-    private func tag(for filter: VoiceChooserViewModel.LanguageFilter) -> String {
-        switch filter {
-        case .current: return "_current"
-        case .all: return "_all"
-        case .specific(let code): return code.lowercased()
-        }
-    }
-
-    private func filter(forTag tag: String) -> VoiceChooserViewModel.LanguageFilter {
-        switch tag {
-        case "_current": return .current
-        case "_all": return .all
-        default: return .specific(tag.lowercased())
-        }
     }
 
     // MARK: - Initializers
 
-    // Standard use
-    public init(tts: TTSConfigurable, store: VoiceProfilesStore) {
-        _viewModel = StateObject(
-            wrappedValue: VoiceChooserViewModel(
-                tts: tts,
-                store: store,
-                allowSystemVoices: true
-            )
-        )
-        self.onChoose = nil
-        self.onCancel = nil
-        self._selectedIDBinding = .constant(nil)
-    }
-
-    // Chooser mode
-    public init(tts: TTSConfigurable,
-                store: VoiceProfilesStore,
-                selectedID: Binding<String?>,
+    public init(tts: TTSConfigurable, store: VoiceProfilesStore,
+                selectedID: Binding<String?>? = nil,
                 onChoose: (() -> Void)? = nil,
                 onCancel: (() -> Void)? = nil) {
-        _viewModel = StateObject(
-            wrappedValue: VoiceChooserViewModel(
-                tts: tts,
-                store: store,
-                allowSystemVoices: true
-            )
-        )
+        _viewModel = State(initialValue: VoiceChooserViewModel(tts: tts, store: store, allowSystemVoices: true))
         self.onChoose = onChoose
         self.onCancel = onCancel
-        self._selectedIDBinding = selectedID
+        self._selectedIDBinding = selectedID ?? .constant(nil)
     }
 
-    // Convenience: ephemeral store (no persistence). Keeps API simple for apps that don't need a store.
-    public init(tts: TTSConfigurable) {
-        let store = VoiceProfilesStore()
-        _viewModel = StateObject(
-            wrappedValue: VoiceChooserViewModel(
-                tts: tts,
-                store: store,
-                allowSystemVoices: true
-            )
-        )
-        self.onChoose = nil
-        self.onCancel = nil
-        self._selectedIDBinding = .constant(nil)
-    }
-
-    // Convenience chooser: ephemeral store + binding for selection.
-    public init(
-        tts: TTSConfigurable,
-        selectedID: Binding<String?>,
-        onChoose: (() -> Void)? = nil,
-        onCancel: (() -> Void)? = nil
-    ) {
-        let store = VoiceProfilesStore()
-        _viewModel = StateObject(
-            wrappedValue: VoiceChooserViewModel(
-                tts: tts,
-                store: store,
-                allowSystemVoices: true
-            )
-        )
-        self.onChoose = onChoose
-        self.onCancel = onCancel
-        self._selectedIDBinding = selectedID
+    public init(tts: TTSConfigurable,
+                selectedID: Binding<String?>? = nil,
+                onChoose: (() -> Void)? = nil,
+                onCancel: (() -> Void)? = nil) {
+        self.init(tts: tts, store: VoiceProfilesStore(), selectedID: selectedID, onChoose: onChoose, onCancel: onCancel)
     }
 
     // MARK: - Body
@@ -131,7 +56,6 @@ public struct VoiceChooserView: View {
     public var body: some View {
         NavigationStack {
             VStack(spacing: 10) {
-                // Compact language control: starts as "English voices" and expands one-way to full picker.
                 VoiceLanguagePicker(
                     showFullLanguagePicker: $showFullLanguagePicker,
                     selection: languageSelectionBinding,
@@ -146,114 +70,12 @@ public struct VoiceChooserView: View {
                     }
                 )
 
-                // Voice picker (wheel on iOS, default on macOS/tvOS)
-                Picker("Voice", selection: $selectedIDString) {
-                    ForEach(viewModel.filteredVoices, id: \.id) { info in
-                        // Mark enhanced voices with a star to disambiguate variants.
-                        let name = viewModel.enhancedVoiceIDs.contains(info.id) ? "\(info.name)*" : info.name
-                        Text("\(name) · \(info.language)").tag(info.id)
-                    }
-                }
-                .pickerStyle(pickerStyle)
-                .frame(maxHeight: pickerMaxHeight)
-                .padding(.horizontal, 20)
-                .onChange(of: selectedIDString) { _, newID in
-                    selectedID = newID.isEmpty ? nil : newID
-                    // Reflect selection to external binding if provided
-                    selectedIDBinding = selectedID
-                    loadWorkingProfile()
-                    // Apply current tuning and speak to differentiate variants immediately.
-                    commitChanges()
-                    previewSpeak(samplePhrase())
-                }
+                voicePickerSection
+                sampleButtonSection
+                loadingIndicator
 
-                // Centered Sample between pickers and sliders
-                HStack {
-                    Spacer()
-                    Button {
-                        commitChanges()
-                        previewSpeak(samplePhrase())
-                    } label: {
-                        Label("Sample", systemImage: "play.fill")
-                    }
-                    // Live preview duration badge
-                    if let secs = viewModel.lastPreviewSeconds {
-                        Text(secs.display(suffix: "s"))
-                            .font(.footnote)
-                            .monospacedDigit()
-                            .foregroundStyle(.primary)
-                            .padding(.leading, 8)
-                    }
-                    Spacer()
-                }
-
-                // Lightweight indicator that voices are still loading
-                if viewModel.isLoading && viewModel.voices.isEmpty {
-                    ProgressView()
-                        .controlSize(.small)
-                        .padding(.top, -8)
-                }
-
-                // Single set of sliders for the selected voice
                 if let profile = workingProfile {
-                    VStack(spacing: 14) {
-                        // Unified tuning controls (Speed, Pitch, Volume) using shared component
-                        VoiceTuningControls(
-                            rate: Binding<Float>(
-                                get: { Float(workingProfile?.rate ?? profile.rate) },
-                                set: { newVal in
-                                    workingProfile?.rate = Double(newVal.clamped(to: 0.0...1.0))
-                                    scheduleSliderPreview()
-                                }
-                            ),
-                            pitch: Binding<Float>(
-                                get: { Float(workingProfile?.pitch ?? profile.pitch) },
-                                set: { newVal in
-                                    workingProfile?.pitch = newVal.clamped(to: 0.5...2.0)
-                                    scheduleSliderPreview()
-                                }
-                            ),
-                            volume: Binding<Float>(
-                                get: { Float(workingProfile?.volume ?? profile.volume) },
-                                set: { newVal in
-                                    workingProfile?.volume = newVal.clamped(to: 0.0...1.0)
-                                    scheduleSliderPreview()
-                                }
-                            ),
-                            config: VoiceTuningConfig(
-                                showVolume: true,
-                                rateRange: 0.0...1.0,
-                                pitchRange: 0.5...2.0,
-                                volumeRange: 0.0...1.0,
-                                rateStep: 0.01,
-                                pitchStep: 0.01,
-                                volumeStep: 0.01
-                            ),
-                            labels: .default
-                        )
-
-                        // Chooser actions (only when callbacks are provided)
-                        if onChoose != nil || onCancel != nil {
-                            HStack(spacing: 12) {
-                                if let onCancel {
-                                    Button(role: .cancel) { onCancel() }
-                                    label: { Text("Cancel") }
-                                }
-                                Spacer()
-                                if let onChoose {
-                                    Button {
-                                        // Ensure external binding is updated
-                                        selectedIDBinding = selectedID
-                                        commitChanges()
-                                        onChoose()
-                                    } label: { Text("Choose") }
-                                        .buttonStyle(.borderedProminent)
-                                }
-                            }
-                            .padding(.top, 2)
-                        }
-                    }
-                    .padding(.horizontal, 20)
+                    tuningSection(profile: profile)
                 } else {
                     Text("Select a voice to tune").foregroundStyle(.secondary)
                 }
@@ -267,10 +89,148 @@ public struct VoiceChooserView: View {
         }
     }
 
-    // MARK: - Selection / profile wiring
+    private var voicePickerSection: some View {
+        Picker("Voice", selection: $selectedIDString) {
+            ForEach(viewModel.filteredVoices, id: \.id) { info in
+                let name = viewModel.enhancedVoiceIDs.contains(info.id) ? "\(info.name)*" : info.name
+                Text("\(name) · \(info.language)").tag(info.id)
+            }
+        }
+        .pickerStyle(pickerStyle)
+        .frame(maxHeight: pickerMaxHeight)
+        .padding(.horizontal, 20)
+        .onChange(of: selectedIDString) { _, newID in
+            selectedID = newID.isEmpty ? nil : newID
+            loadWorkingProfile()
+            commitChanges()
+            previewSpeak(samplePhrase())
+        }
+    }
+
+    private var sampleButtonSection: some View {
+        HStack {
+            Spacer()
+            Button {
+                commitChanges()
+                previewSpeak(samplePhrase())
+            } label: {
+                Label("Sample", systemImage: "play.fill")
+            }
+            if let secs = viewModel.lastPreviewSeconds {
+                Text(secs.display(suffix: "s"))
+                    .font(.footnote)
+                    .monospacedDigit()
+                    .foregroundStyle(.primary)
+                    .padding(.leading, 8)
+            }
+            Spacer()
+        }
+    }
+
+    private var loadingIndicator: some View {
+        Group {
+            if viewModel.isLoading && viewModel.voices.isEmpty {
+                ProgressView()
+                    .controlSize(.small)
+                    .padding(.top, -8)
+            }
+        }
+    }
+
+    private func tuningSection(profile: TTSVoiceProfile) -> some View {
+        VStack(spacing: 14) {
+            VoiceTuningControls(
+                rate: Binding<Float>(
+                    get: { Float(workingProfile?.rate ?? profile.rate) },
+                    set: { newVal in
+                        workingProfile?.rate = Double(newVal.clamped(to: 0.0...1.0))
+                        scheduleSliderPreview()
+                    }
+                ),
+                pitch: Binding<Float>(
+                    get: { Float(workingProfile?.pitch ?? profile.pitch) },
+                    set: { newVal in
+                        workingProfile?.pitch = newVal.clamped(to: 0.5...2.0)
+                        scheduleSliderPreview()
+                    }
+                ),
+                volume: Binding<Float>(
+                    get: { Float(workingProfile?.volume ?? profile.volume) },
+                    set: { newVal in
+                        workingProfile?.volume = newVal.clamped(to: 0.0...1.0)
+                        scheduleSliderPreview()
+                    }
+                ),
+                config: VoiceTuningConfig(
+                    showVolume: true,
+                    rateRange: 0.0...1.0,
+                    pitchRange: 0.5...2.0,
+                    volumeRange: 0.0...1.0,
+                    rateStep: 0.01,
+                    pitchStep: 0.01,
+                    volumeStep: 0.01
+                ),
+                labels: .default
+            )
+
+            if onChoose != nil || onCancel != nil {
+                chooserActions
+            }
+        }
+        .padding(.horizontal, 20)
+    }
+
+    private var chooserActions: some View {
+        HStack(spacing: 12) {
+            if let onCancel {
+                Button(role: .cancel) { onCancel() }
+                label: { Text("Cancel") }
+            }
+            Spacer()
+            if let onChoose {
+                Button {
+                    selectedIDBinding = selectedID
+                    commitChanges()
+                    onChoose()
+                } label: { Text("Choose") }
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(.top, 2)
+    }
+
+    // MARK: - Picker style helpers
+
+#if os(iOS)
+    private var pickerStyle: some PickerStyle { WheelPickerStyle() }
+    private var pickerMaxHeight: CGFloat? { 180 }
+#else
+    private var pickerStyle: some PickerStyle { DefaultPickerStyle() }
+    private var pickerMaxHeight: CGFloat? { nil }
+#endif
+}
+
+// MARK: - Helper methods (extracted to reduce struct body length)
+
+extension VoiceChooserView {
+    fileprivate func languageFilterTag(_ filter: VoiceChooserViewModel.LanguageFilter) -> String {
+        switch filter {
+        case .current: return "_current"
+        case .all: return "_all"
+        case .specific(let code): return code.lowercased()
+        }
+    }
+
+    fileprivate func languageFilter(fromTag tag: String) -> VoiceChooserViewModel.LanguageFilter {
+        switch tag {
+        case "_current": return .current
+        case "_all": return .all
+        default: return .specific(tag.lowercased())
+        }
+    }
 
     /// Seed the initial selection from the external binding or store defaults.
-    private func seedSelectionFromInitialState() {
+    fileprivate func seedSelectionFromInitialState() {
         // 1) External binding, if valid
         if selectedID == nil,
            let bound = selectedIDBinding,
@@ -294,72 +254,51 @@ public struct VoiceChooserView: View {
         loadWorkingProfile()
     }
 
-    private func loadWorkingProfile() {
+    fileprivate func loadWorkingProfile() {
         guard let id = selectedID,
               let info = viewModel.voices.first(where: { $0.id == id }) else {
             workingProfile = nil
             return
         }
-        // Start with any stored profile...
         var profile = viewModel.store.profile(for: info)
-        // ...prefer a profile that is already in the store’s profilesByID
         if let seeded = viewModel.store.profilesByID[id] {
             profile = seeded
         }
-        // ...and finally prefer a profile already applied on the TTS engine
         if let engineProfile = viewModel.profileFromTTS(id: id) {
             profile = engineProfile
         }
         workingProfile = profile
     }
 
-    private func commitChanges() {
+    fileprivate func commitChanges() {
         guard let profile = workingProfile else { return }
         viewModel.updateProfile(profile)
         viewModel.applyToTTS()
     }
 
-    /// Schedule a short, debounced preview after slider changes.
-    /// Keeps interaction responsive while avoiding hammering TTS.
-    private func scheduleSliderPreview() {
-        // Ensure we have a selected voice and working profile first.
+    fileprivate func scheduleSliderPreview() {
         guard selectedID != nil, workingProfile != nil else { return }
-
-        // Cancel any in-flight preview debounce.
         sliderPreviewTask?.cancel()
 
         sliderPreviewTask = Task { @MainActor in
-            // Small delay so we only fire after the user pauses briefly.
-            try? await Task.sleep(nanoseconds: 180_000_000) // ~0.18s
+            try? await Task.sleep(nanoseconds: 180_000_000)
             if Task.isCancelled { return }
             commitChanges()
             previewSpeak(samplePhrase())
         }
     }
 
-    // MARK: - Speaking
-
-    private func samplePhrase() -> String {
+    fileprivate func samplePhrase() -> String {
         if let profile = workingProfile {
             return viewModel.samplePhrase(for: profile)
         }
         return "The quick brown fox jumps over the lazy dog."
     }
 
-    private func previewSpeak(_ text: String) {
+    fileprivate func previewSpeak(_ text: String) {
         guard let id = selectedID else { return }
         viewModel.playPreview(phrase: text, voiceID: id)
     }
-
-    // MARK: - Picker style helpers
-
-#if os(iOS)
-    private var pickerStyle: some PickerStyle { WheelPickerStyle() }
-    private var pickerMaxHeight: CGFloat? { 180 }
-#else
-    private var pickerStyle: some PickerStyle { DefaultPickerStyle() }
-    private var pickerMaxHeight: CGFloat? { nil }
-#endif
 }
 
 // MARK: - Preview

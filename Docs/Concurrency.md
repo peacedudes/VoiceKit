@@ -19,10 +19,10 @@ Quick do/don’t
   - Capture @MainActor self on audio or background threads.
   - Assume AV delegates are on main-always hop explicitly.
 
-UI callbacks
-- VoiceKit invokes UI callbacks on @MainActor:
-  onTranscriptChanged, onLevelChanged, onTTSSpeakingChanged, onTTSPulse, onStatusMessageChanged.
-- You can bind them directly to SwiftUI state without extra hops.
+Observable state
+- VoiceKit exposes observable properties on @MainActor:
+  `isSpeaking`, `isListening`, `transcript`, `audioLevel`, `pulse`, `statusMessage`.
+- SwiftUI tracks these automatically via the `@Observable` macro — no manual binding needed.
 
 Patterns
 - UI → Core on main:
@@ -47,25 +47,27 @@ func awaitSpeechAuthorization() async -> SFSpeechRecognizerAuthorizationStatus {
 
 - AVSpeech delegate → MainActor:
 ~~~swift
-final class SpeechDelegateProxy: NSObject, AVSpeechSynthesizerDelegate {
-    weak var owner: RealVoiceIO?
-    func speechSynthesizer(_ s: AVSpeechSynthesizer, didStart u: AVSpeechUtterance) {
-        Task { @MainActor in owner?.onTTSSpeakingChanged?(true) }
+// Delegate methods are nonisolated; hop to @MainActor before mutating observable state.
+nonisolated func speechSynthesizer(_ s: AVSpeechSynthesizer, didStart u: AVSpeechUtterance) {
+    Task(priority: .high) { @MainActor in
+        self.isSpeaking = true  // @Observable property — SwiftUI tracks automatically
     }
-    func speechSynthesizer(_ s: AVSpeechSynthesizer, didFinish u: AVSpeechUtterance) {
-        Task { @MainActor in owner?.onTTSSpeakingChanged?(false) }
+}
+nonisolated func speechSynthesizer(_ s: AVSpeechSynthesizer, didFinish u: AVSpeechUtterance) {
+    Task(priority: .high) { @MainActor in
+        self.isSpeaking = false
     }
 }
 ~~~
 
-- Binding UI safely:
+- Observing VoiceIO state in a SwiftUI view:
 ~~~swift
-@MainActor
-final class DemoVM: ObservableObject {
-    let io = RealVoiceIO()
-    @Published var isSpeaking = false
-    init() {
-        io.onTTSSpeakingChanged = { [weak self] speaking in self?.isSpeaking = speaking }
+// RealVoiceIO is @Observable — just hold it as @State and read properties directly.
+struct ContentView: View {
+    @State private var io = RealVoiceIO()
+
+    var body: some View {
+        Text(io.isSpeaking ? "Speaking…" : "Idle")
     }
 }
 ~~~
@@ -153,6 +155,6 @@ See also
 Checklist
 - [ ] Call public VoiceKit APIs on main (or via MainActor.run).
 - [ ] Don’t capture @MainActor self on audio/background threads.
-- [ ] AV delegates hop to @MainActor before mutating UI state.
+- [ ] AV delegates hop to @MainActor before mutating observable state.
 - [ ] System voice enumeration gated in CI; optionally prewarmed on main in app.
 - [ ] Tests prefer ScriptedVoiceIO or a FakeTTS; avoid device voice/locale assumptions.

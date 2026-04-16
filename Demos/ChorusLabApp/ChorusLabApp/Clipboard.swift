@@ -31,9 +31,9 @@ enum Clipboard {
         #if canImport(UIKit)
         UIPasteboard.general.string = text
         #elseif canImport(AppKit)
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        pb.setString(text, forType: .string)
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
         #else
         _ = text // unsupported platform: intentional no‑op
         #endif

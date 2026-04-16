@@ -15,12 +15,12 @@ internal final class VoiceQueueTests: XCTestCase {
     // A tiny fake engine to validate sequencing without AV/Speech.
     @MainActor
     final class FakeIO: VoiceIO, TTSConfigurable {
-        var onListeningChanged: ((Bool) -> Void)?
-        var onTranscriptChanged: ((String) -> Void)?
-        var onLevelChanged: ((CGFloat) -> Void)?
-        var onTTSSpeakingChanged: ((Bool) -> Void)?
-        var onTTSPulse: ((CGFloat) -> Void)?
-        var onStatusMessageChanged: ((String?) -> Void)?
+        var isSpeaking: Bool = false
+        var isListening: Bool = false
+        var transcript: String = ""
+        var audioLevel: CGFloat = 0
+        var pulse: CGFloat = 0
+        var statusMessage: String?
 
         var log: [String] = []
         var stopped = false
@@ -31,6 +31,9 @@ internal final class VoiceQueueTests: XCTestCase {
         func speak(_ text: String) async {
             log.append("speak:\(text)")
             try? await Task.sleep(nanoseconds: 40_000_000)
+        }
+        func pause(_ seconds: TimeInterval) async {
+            log.append("pause:\(seconds)")
         }
 
         // TTSConfigurable
@@ -152,7 +155,7 @@ internal final class VoiceQueueTests: XCTestCase {
             return nil
         }
 
-        queue.enqueueParsingSFX(text: "Hello [sfx:ding] world", resolver: resolver, defaultVoiceID: "vX")
+        queue.enqueueParsingSFX(text: "Hello <sfx:ding> world", resolver: resolver, defaultVoiceID: "vX")
         await queue.play()
 
         // Should be: prepare(ding) -> speak("Hello ") -> startPrepared -> speak(" world")
@@ -174,7 +177,7 @@ internal final class VoiceQueueTests: XCTestCase {
             return nil
         }
 
-        queue.enqueueParsingSFX(text: "Hello [sfx:  a/b:c.d-e] world", resolver: resolver, defaultVoiceID: "vY")
+        queue.enqueueParsingSFX(text: "Hello <sfx:  a/b:c.d-e> world", resolver: resolver, defaultVoiceID: "vY")
         await queue.play()
 
         // Should be: prepare(fx) -> speak("Hello ") -> startPrepared -> speak(" world")
@@ -183,6 +186,56 @@ internal final class VoiceQueueTests: XCTestCase {
             "speak:Hello :vY",
             "startPrepared",
             "speak: world:vY"
+        ])
+    }
+
+    func testEmbeddedSFXParsingSkipsWhenResolverReturnsNil() async {
+        let io = FakeIO()
+        let queue = VoiceQueue(primary: io)
+        let resolver: VoiceQueue.SFXResolver = { _ in nil }  // All SFX resolve to nil
+
+        queue.enqueueParsingSFX(text: "Hello <sfx:missing> world", resolver: resolver, defaultVoiceID: "vZ")
+        await queue.play()
+
+        // Missing SFX (resolver returns nil) should be skipped; only text spoken
+        XCTAssertEqual(io.log, [
+            "speak:Hello :vZ",
+            "speak: world:vZ"
+        ])
+    }
+
+    func testMalformedSFXTokensAreIgnored() async {
+        let io = FakeIO()
+        let queue = VoiceQueue(primary: io)
+
+        // Incomplete tokens like <sfx: (no closing >) should not match regex
+        queue.enqueueParsingSFX(text: "Hello <sfx: world", resolver: { _ in nil }, defaultVoiceID: "v1")
+        await queue.play()
+
+        // Entire text should be spoken as-is since token doesn't match
+        XCTAssertEqual(io.log, [
+            "speak:Hello <sfx: world:v1"
+        ])
+    }
+
+    func testPartiallyMalformedTokens() async {
+        let io = FakeIO()
+        let queue = VoiceQueue(primary: io)
+
+        // Pattern "<sfx:.*?>" matches greedily until the closing >, so
+        // "<sfx: middle <sfx:incomplete>" gets parsed as a name (which won't resolve)
+        queue.enqueueParsingSFX(
+            text: "Start <sfx: middle <sfx:incomplete> end",
+            resolver: { _ in nil },  // All names resolve to nil
+            defaultVoiceID: "v1"
+        )
+        await queue.play()
+
+        // The regex matches "<sfx: middle <sfx:incomplete>" as a token with name " middle <sfx:incomplete"
+        // Since resolver returns nil, the token is skipped; only "Start " and " end" are spoken
+        XCTAssertEqual(io.log, [
+            "speak:Start :v1",
+            "speak: end:v1"
         ])
     }
 }

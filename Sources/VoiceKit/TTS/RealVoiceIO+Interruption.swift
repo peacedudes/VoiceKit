@@ -76,8 +76,16 @@ extension RealVoiceIO {
     }
 
     public func stopObservingInterruptions() {
-        NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: AVAudioSession.sharedInstance())
-        NotificationCenter.default.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: AVAudioSession.sharedInstance())
+        NotificationCenter.default.removeObserver(
+            self,
+            name: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance()
+        )
+        NotificationCenter.default.removeObserver(
+            self,
+            name: AVAudioSession.routeChangeNotification,
+            object: AVAudioSession.sharedInstance()
+        )
     }
 
     nonisolated private static func extractInterruption(_ userInfo: [AnyHashable: Any]) -> (type: UInt?, option: UInt?) {
@@ -103,7 +111,9 @@ extension RealVoiceIO {
             synthesizer?.stopSpeaking(at: .immediate)
 
         case .ended:
-            let shouldResume = optionRaw.map { AVAudioSession.InterruptionOptions(rawValue: $0).contains(.shouldResume) } ?? false
+            let shouldResume = optionRaw.map {
+                AVAudioSession.InterruptionOptions(rawValue: $0).contains(.shouldResume)
+            } ?? false
             if wasInterrupted {
                 wasInterrupted = false
                 if shouldResume {
@@ -125,11 +135,11 @@ extension RealVoiceIO {
         if reason == .oldDeviceUnavailable {
             if clipPlayer?.isPlaying == true {
                 clipPlayer?.stop()
-                boostedProvider.reset()
+                clipCompletedState = false
                 let waiters = clipWaiters
                 clipWaiters.removeAll()
                 for waiter in waiters {
-                    waiter.resume(throwing: SimpleError("Route changed"))
+                    waiter.resume(throwing: VoiceIOError.micUnavailable)
                 }
             }
         }

@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased — v0.2]
+- Core
+  - **`@Observable` migration**: removed the six `onXxx` closure callbacks from the `VoiceIO` protocol and both implementations (`RealVoiceIO`, `ScriptedVoiceIO`). Replaced with stored observable properties: `isSpeaking`, `isListening`, `transcript`, `audioLevel`, `pulse`, `statusMessage`. SwiftUI views observe these with fine-grained tracking rather than manual binding.
+  - `pause(_ seconds: TimeInterval) async` added to the `VoiceIO` protocol.
+  - `<silence:N>` inline token in `speak()` text (e.g. `"Ready? <silence:1.5> Go!"`). Respects task cancellation.
+  - Cooperative task cancellation in `speakSentence` and `speak()`.
+  - Fix: TTS delegate hops now use `Task(priority: .high)` — replaces deprecated `.userInteractive`.
+- UI
+  - `VoiceProfilesStore` and `VoiceChooserViewModel` migrated to `@Observable`; `VoiceChooserView` updated to `@State`.
+  - `VoiceChooserView` commits only on the Choose button, not on picker change.
+- Docs
+  - All guides updated for `@Observable` API; callback patterns removed.
+
 ## [0.1.3] - 2025-12-05
 - Core
   - RealVoiceIO: live STT pipeline wired to `listen(timeout:inactivity:record:)`:

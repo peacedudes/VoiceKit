@@ -57,12 +57,14 @@ Modules
 
 ~~~swift
 import VoiceKit
+import Observation
 
+@Observable
 @MainActor
-final class DemoViewModel: ObservableObject {
+final class DemoViewModel {
     let voice = RealVoiceIO()
 
-    @Published var transcript: String = ""
+    var transcript: String = ""
 
     func run() {
         Task {
@@ -160,7 +162,7 @@ When 'IsCI.running == false' (your app on device or simulator), 'RealVoiceIO.lis
    - Optionally writes them to a '.caf' file when 'record == true'.
    - Computes buffer loudness in dB and feeds an 'STTActivityTracker' actor.
 5. Starts recognition:
-   - Updates 'latestTranscript' and 'onTranscriptChanged' as results arrive.
+   - Updates the `transcript` observable property as results arrive.
    - Tracks first/last speech times ('firstSpeechStart' / 'lastSpeechEnd') from STT segments.
    - When 'result.isFinal', finishes the listen.
 6. Enforces timeouts:
@@ -230,6 +232,58 @@ Internally:
 
 ---
 
+## Embedded tokens in speak()
+
+For simple "phrase + SFX + pause" patterns, you can embed tokens directly in text passed to 'speak()':
+
+~~~swift
+let io = RealVoiceIO()
+let dingURL = Bundle.main.url(forResource: "ding", withExtension: "caf")!
+
+// Speak "Hello", play ding.caf, then speak "world"
+await io.speak("Hello <sfx:\(dingURL.absoluteString)> world")
+
+// Speak "Ready?", pause 1.5 s, then speak "Go!"
+await io.speak("Ready? <silence:1.5> Go!")
+~~~
+
+Tokens:
+- `<sfx:URL>` — plays a clip at 0dB between surrounding text.
+- `<silence:N>` — pauses for N seconds (respects task cancellation).
+
+Behavior:
+- Text is automatically split at sentence boundaries (`.`, `!`, `?`) and by inline tokens.
+- Each sentence segment is synthesized sequentially using the specified voice profile.
+- Example: `"Hello world. <sfx:ding> How are you?"` → speaks "Hello world.", plays ding, then speaks "How are you?"
+
+You can also pause explicitly without embedding a token:
+
+~~~swift
+await io.speak("Step one.")
+await io.pause(1.5)
+await io.speak("Step two.")
+~~~
+
+Comparison with other approaches:
+
+| Use Case | Method | Pros | Cons |
+|----------|--------|------|------|
+| Simple: "phrase + SFX + pause" | Embed in `speak()` | Simple, direct; no extra setup | Limited to sequential playback |
+| Complex: Multiple clips, pauses | `VoiceQueue` | Full control; pause timing; parallel channels | More boilerplate |
+| Tight timing: Minimize TTS→clip gap | `prepareClip` + `speak` + `startPreparedClip` | Lowest latency via pre-scheduling | Manual management; complex |
+
+Example: Tutorial steps with sound effects and pacing
+
+~~~swift
+let io = RealVoiceIO()
+let ding = Bundle.main.url(forResource: "ding", withExtension: "caf")!.absoluteString
+let bell = Bundle.main.url(forResource: "bell", withExtension: "caf")!.absoluteString
+
+await io.speak("Step one. <sfx:\(ding)> <silence:0.5> Now step two. <sfx:\(bell)> Complete!")
+~~~
+
+---
+
 ## VoiceQueue: sequencing speech + SFX + pauses
 
 ~~~swift
@@ -258,7 +312,7 @@ let resolver: VoiceQueue.SFXResolver = { name in
     }
 }
 
-let text = "Hello [sfx:nameClip] may I call you Alex?"
+let text = "Hello <sfx:nameClip> may I call you Alex?"
 let q = VoiceQueue(primary: RealVoiceIO())
 q.enqueueParsingSFX(text: text, resolver: resolver, defaultVoiceID: nil)
 await q.play()
@@ -279,7 +333,7 @@ import VoiceKit
 import VoiceKitUI
 
 struct SettingsView: View {
-    @StateObject private var store = VoiceProfilesStore()
+    @State private var store = VoiceProfilesStore()
     private let io = RealVoiceIO()
 
     var body: some View {
@@ -329,7 +383,7 @@ final class FakeTTS: TTSConfigurable, VoiceListProvider {
 Concurrency basics
 - 'RealVoiceIO', 'ScriptedVoiceIO', and 'SystemVoicesCache' are '@MainActor'.
   - Call them from the main actor (SwiftUI view models, etc.).
-- Callbacks ('onTranscriptChanged', 'onLevelChanged', 'onTTSSpeakingChanged', 'onTTSPulse', 'onStatusMessageChanged') are invoked on '@MainActor'.
+- Observable state properties ('isSpeaking', 'isListening', 'transcript', 'audioLevel', 'pulse', 'statusMessage') are updated on '@MainActor'. SwiftUI tracks them automatically via the `@Observable` macro.
 - The audio input tap used by live STT is a **nonisolated** closure running on a realtime audio queue:
   - It forwards buffers into the STT request and 'STTActivityTracker'.
   - It does **not** touch '@MainActor' state directly.
@@ -361,10 +415,10 @@ When 'IsCI.running == true' (e.g. when 'VOICEKIT_FORCE_CI=true' in your test sch
 - 'ensurePermissions()' and 'PermissionBridge' return success immediately.
 - 'listen(timeout:inactivity:record:)':
   - If 'RecognitionContext.expectation == .number', returns a stub 'VoiceResult' with transcript '"42"' (and 'recordingURL == nil').
-  - Otherwise, returns whatever 'latestTranscript' is set to (default: empty string).
+  - Otherwise, returns the current 'transcript' property value (default: empty string).
   - No AVAudioEngine or SFSpeechRecognizer work is performed.
 - TTS "fast path":
-  - 'speak' toggles 'onTTSSpeakingChanged' and 'onTTSPulse' in a minimal synthetic way, without instantiating 'AVSpeechSynthesizer'.
+  - 'speak' toggles the 'isSpeaking' and 'pulse' observable properties in a minimal synthetic way, without instantiating 'AVSpeechSynthesizer'.
 
 This keeps CI runs deterministic and free from hardware/permission flakiness, while real apps on devices/simulators use the full pipelines described above.
 

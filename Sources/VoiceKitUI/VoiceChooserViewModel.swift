@@ -12,37 +12,51 @@
 import SwiftUI
 import AVFoundation
 import Foundation
+import Observation
 import VoiceKit
 
+/// ViewModel for voice selection and tuning UI (e.g., VoiceChooserView).
+///
+/// Manages:
+/// - Loading available voices (from a provider or system cache)
+/// - Filtering voices by language and hidden status
+/// - Synchronizing voice profiles and tuning between UI and persistent store
+/// - Playing preview audio with timing measurement
+///
+/// The ViewModel accepts a TTSConfigurable for voice synthesis and a
+/// VoiceProfilesStore for state persistence. It's suitable for both app UI
+/// and automated UI tests (by passing a mock TTS or ScriptedVoiceIO).
+@Observable
 @MainActor
-public final class VoiceChooserViewModel: ObservableObject {
+public final class VoiceChooserViewModel {
     // MARK: - Language and filtering
 
+    /// Language filtering modes for voice lists.
     public enum LanguageFilter: Equatable {
-        case current
-        case all
-        case specific(String) // base code like "en"
+        case current  // Filter to current system locale language
+        case all      // Show all voices regardless of language
+        case specific(String)  // Filter to a specific language code (e.g., "en", "fr")
     }
 
     // Inputs
     private let tts: TTSConfigurable
     private let allowSystemVoices: Bool
-    @ObservedObject public private(set) var store: VoiceProfilesStore
+    public private(set) var store: VoiceProfilesStore
 
-    // Published state
+    // Observable state
     /// Full list of available voices (unfiltered).
-    @Published public private(set) var voices: [TTSVoiceInfo] = []
-    @Published public var languageFilter: LanguageFilter = .current
-    @Published public var showHidden: Bool = false
+    public private(set) var voices: [TTSVoiceInfo] = []
+    public var languageFilter: LanguageFilter = .current
+    public var showHidden: Bool = false
 
     /// Language options derived from `voices` (base code + display name).
-    @Published public private(set) var languageOptions: [(code: String, name: String)] = []
+    public private(set) var languageOptions: [(code: String, name: String)] = []
     /// Enhanced-quality system voice identifiers (optional; empty on CI / under XCTest).
-    @Published public private(set) var enhancedVoiceIDs: Set<String> = []
+    public private(set) var enhancedVoiceIDs: Set<String> = []
     /// Loading flag for UI (e.g., while enumerating or refreshing voices).
-    @Published public private(set) var isLoading: Bool = false
+    public private(set) var isLoading: Bool = false
     /// Last measured preview duration in seconds, if available.
-    @Published public private(set) var lastPreviewSeconds: Double?
+    public private(set) var lastPreviewSeconds: Double?
 
     // Preview task
     private var previewTask: Task<Void, Never>?
@@ -54,6 +68,28 @@ public final class VoiceChooserViewModel: ObservableObject {
         self.tts = tts
         self.store = store
         self.allowSystemVoices = allowSystemVoices
+    }
+
+    /// Voices filtered by language and hidden status. Computed on each access.
+    /// Note: While this computes on every access rather than caching, the computation
+    /// is fast (filtered list size is small) and SwiftUI only calls this during view
+    /// updates anyway. Caching would require careful synchronization with store changes.
+    public var filteredVoices: [TTSVoiceInfo] {
+        let byLanguage: [TTSVoiceInfo] = {
+            switch languageFilter {
+            case .all:
+                return voices
+            case .current:
+                let base = currentLanguageCode()
+                return voices.filter { baseLanguageCode($0.language).lowercased() == base }
+            case .specific(let code):
+                let base = code.lowercased()
+                return voices.filter { baseLanguageCode($0.language).lowercased() == base }
+            }
+        }()
+        if showHidden { return byLanguage }
+        let hidden = Set(store.hiddenVoiceIDs)
+        return byLanguage.filter { !hidden.contains($0.id) }
     }
 
     // MARK: - Voice loading
@@ -100,41 +136,28 @@ public final class VoiceChooserViewModel: ObservableObject {
         }
     }
 
-    // Filtered view
-    public var filteredVoices: [TTSVoiceInfo] {
-        let byLanguage: [TTSVoiceInfo] = {
-            switch languageFilter {
-            case .all:
-                return voices
-            case .current:
-                let base = currentLanguageCode()
-                return voices.filter { baseLanguageCode($0.language).lowercased() == base }
-            case .specific(let code):
-                let base = code.lowercased()
-                return voices.filter { baseLanguageCode($0.language).lowercased() == base }
-            }
-        }()
-        if showHidden { return byLanguage }
-        let hidden = Set(store.hiddenVoiceIDs)
-        return byLanguage.filter { !hidden.contains($0.id) }
-    }
-
     // MARK: - Store and TTS sync
 
+    /// Store a voice profile update (persisted to disk).
     public func updateProfile(_ profile: TTSVoiceProfile) {
         store.setProfile(profile)
     }
 
+    /// Set the default voice and persist the change.
     public func setDefaultVoice(id: String) {
         store.defaultVoiceID = id
     }
 
-    // Transitional convenience: prefer 'tuning' from UI code.
-    // Proxies to store.master until full rename.
+    /// Update global tuning (persisted to disk).
+    /// - Parameters:
+    ///   - tuning: The new tuning values (rate/pitch/volume variation and scaling).
+    ///   - previewKind: Unused parameter; retained for API compatibility.
     public func updateTuning(_ tuning: Tuning, previewKind: String? = nil) {
         store.tuning = tuning
     }
 
+    /// Apply all stored profiles and tuning to the TTS engine.
+    /// Call this after updating profiles or tuning to make changes take effect.
     public func applyToTTS() {
         tts.setTuning(store.tuning)
         for profile in store.profilesByID.values {
@@ -161,6 +184,8 @@ public final class VoiceChooserViewModel: ObservableObject {
 
     // MARK: - Samples and previews
 
+    /// Generate a sample phrase showcasing the voice.
+    /// Default phrase: "My name is [voice name]." Optional suffix can be appended.
     public func samplePhrase(for profile: TTSVoiceProfile, suffix: String? = nil) -> String {
         let name = systemDisplayName(for: profile.id) ?? "Voice"
         var phrase = "My name is \(name)."
@@ -168,6 +193,12 @@ public final class VoiceChooserViewModel: ObservableObject {
         return phrase
     }
 
+    /// Play a preview of text using the specified voice, measuring the duration.
+    /// Automatically stops any existing preview before starting a new one.
+    /// Updates lastPreviewSeconds with the measured duration once complete.
+    /// - Parameters:
+    ///   - phrase: The text to speak.
+    ///   - voiceID: The voice profile id to use.
     public func playPreview(phrase: String, voiceID: String) {
         stopPreview()
         isPreviewing = true
@@ -183,6 +214,7 @@ public final class VoiceChooserViewModel: ObservableObject {
         }
     }
 
+    /// Stop any ongoing preview playback and cancel the preview task.
     public func stopPreview() {
         previewTask?.cancel()
         previewTask = nil

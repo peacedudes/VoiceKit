@@ -8,7 +8,7 @@
 //  A tiny orchestration layer for kid‑friendly sequencing of voice + SFX.
 //  - Linear queues per channel; channels run in parallel.
 //  - Smart SFX near-zero gap: pre-schedules the next clip before speak().
-//  - Embedded SFX parsing: "Hello [sfx:ding] world" with resolver(name)->URL.
+//  - Embedded SFX parsing: "Hello <sfx:ding> world" with resolver(name)->URL.
 //  - Cancel-all stops everything immediately.
 //
 //  Notes:
@@ -76,8 +76,8 @@ public final class VoiceQueue {
         enqueue(.pause(seconds: seconds), on: channel); return self
     }
 
-    // Parse "[sfx:name]" tokens and enqueue segments accordingly.
-    // Example: "Hello [sfx:ding] world"
+    // Parse "<sfx:name>" tokens and enqueue segments accordingly.
+    // Example: "Hello <sfx:ding> world"
     @discardableResult
     public func enqueueParsingSFX(text: String, resolver: SFXResolver, defaultVoiceID: String? = nil, on channel: ChannelID = 0) -> Self {
         let parts = Self.parseTextForSFX(text)
@@ -157,6 +157,7 @@ public final class VoiceQueue {
             case .speak(let text, let voiceID):
                 // Pre-schedule SFX if next is a clip for near-zero gap.
                 if case .sfx(let url, let gain)? = nextItem {
+                    // Safe to ignore: prepareClip failures are non-fatal; clip playback proceeds without pre-scheduling
                     try? await channel.io.prepareClip(url: url, gainDB: gain)
                 }
 
@@ -168,14 +169,17 @@ public final class VoiceQueue {
 
                 if case .sfx = nextItem {
                     // Await clip completion; RealVoiceIO auto-starts; others may need start call.
+                    // Safe to ignore: if start fails, sequencing continues (audio may have glitch but recovery is graceful)
                     try? await channel.io.startPreparedClip()
                     itemIndex += 1 // consume the next .sfx
                 }
 
             case .sfx(let url, let gain):
+                // Safe to ignore: SFX playback failures don't halt sequencing; queue moves to next item
                 try? await channel.io.playClip(url: url, gainDB: gain)
 
             case .pause(let seconds):
+                // Safe to ignore: Task.sleep cancellation is normal; just move to next item
                 try? await Task.sleep(nanoseconds: UInt64(max(0, seconds) * 1_000_000_000))
             }
 
@@ -195,8 +199,9 @@ public final class VoiceQueue {
     }
 
     internal static func parseTextForSFX(_ text: String) -> [Part] {
-        // Pattern: [sfx: NAME] - NAME is any non-] text, leading whitespace allowed
-        let pattern = #"\[sfx:\s*([^\]]+)\]"#
+        // Pattern: <sfx: NAME> - NAME is any non-> text, leading whitespace allowed
+        let pattern = #"<sfx:\s*([^>]+)>"#
+        // Safe to ignore: regex compile failure is extremely unlikely; fallback to unparsed text (SFX tokens won't be recognized)
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return [.text(text)] }
 
         var parts: [Part] = []

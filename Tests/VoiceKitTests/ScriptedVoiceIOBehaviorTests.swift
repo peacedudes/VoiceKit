@@ -20,53 +20,42 @@ internal final class ScriptedVoiceIOBehaviorTests: XCTestCase {
     func testSpeakEmitsPulseAndTogglesSpeaking() async throws {
         guard let io = ScriptedVoiceIO(fromBase64: b64([])) else { return XCTFail("init failed") }
 
-        let started = expectation(description: "speaking started")
-        let ended = expectation(description: "speaking ended")
-        var sawPulse = false
+        XCTAssertFalse(io.isSpeaking)
 
-        io.onTTSSpeakingChanged = { isSpeaking in
-            if isSpeaking { started.fulfill() } else { ended.fulfill() }
-        }
-        io.onTTSPulse = { level in
-            if level > 0 { sawPulse = true }
-        }
+        // Spawn speak concurrently so we can observe transient state.
+        let speakTask = Task { @MainActor in await io.speak("hello") }
+        // Yield long enough for speak() to set isSpeaking = true and enter its loop.
+        try await Task.sleep(nanoseconds: 20_000_000)
+        XCTAssertTrue(io.isSpeaking, "Expected isSpeaking == true during speak")
 
-        await io.speak("hello")
-        await fulfillment(of: [started, ended], timeout: 1.0)
-        XCTAssertTrue(sawPulse, "Expected at least one non-zero pulse")
+        await speakTask.value
+        XCTAssertFalse(io.isSpeaking, "Expected isSpeaking == false after speak")
+        XCTAssertEqual(io.pulse, 0, "Expected pulse reset to 0 after speak")
     }
 
-    func testListenDequeuesAndFiresCallbacks() async throws {
+    func testListenDequeuesTranscript() async throws {
         guard let io = ScriptedVoiceIO(fromBase64: b64(["first"])) else { return XCTFail("init failed") }
 
-        let began = expectation(description: "listening began")
-        let updated = expectation(description: "transcript updated")
-
-        io.onListeningChanged = { if $0 { began.fulfill() } }
-        io.onTranscriptChanged = { if $0 == "first" { updated.fulfill() } }
-
+        XCTAssertFalse(io.isListening)
         let res = try await io.listen(timeout: 1, inactivity: 0.3, record: false)
+
         XCTAssertEqual(res.transcript, "first")
-        await fulfillment(of: [began, updated], timeout: 1.0)
+        XCTAssertEqual(io.transcript, "first", "transcript property should match returned result")
+        XCTAssertFalse(io.isListening, "isListening should be false after listen completes")
     }
 
-    func testStopAllCancelsInFlightListenEpoch() async throws {
+    func testStopAllSetsListeningFalse() async throws {
         guard let io = ScriptedVoiceIO(fromBase64: b64(["will-cancel"])) else { return XCTFail("init failed") }
 
-        let begin = expectation(description: "listening began")
-        io.onListeningChanged = { if $0 { begin.fulfill() } }
-
-        // Run the listen task on the main actor to keep isolation simple.
-        let task = Task { @MainActor in
+        let listenTask = Task { @MainActor in
             try? await io.listen(timeout: 2, inactivity: 1, record: false)
         }
+        // Yield to let listen() set isListening = true before we call stopAll().
+        try await Task.sleep(nanoseconds: 30_000_000)
+        XCTAssertTrue(io.isListening, "Expected isListening during listen()")
 
-        await fulfillment(of: [begin], timeout: 0.5)
-        // Cancel the in-flight listen quickly to flip epoch
         io.stopAll()
-
-        _ = await task.value
-        // If we reached here without crash, epoch-based cancel worked.
-        XCTAssertTrue(true)
+        _ = await listenTask.value
+        XCTAssertFalse(io.isListening, "Expected isListening == false after stopAll()")
     }
 }

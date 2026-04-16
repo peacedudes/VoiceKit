@@ -11,15 +11,27 @@
 import SwiftUI
 import VoiceKitUI
 
+/// Control row for setting and monitoring the target duration for chorus calibration.
+///
+/// Displays:
+/// - **Left**: Label and target duration with ± stepper to adjust.
+/// - **Right**: Last measured actual duration (with progress spinner if currently playing).
+///
+/// All layout parameters (range, step, minWidth) are injected to avoid dependency on ChorusLabView.Metrics.
 @MainActor
 public struct ChorusLabTargetTimeRow: View {
+    /// The desired total chorus duration in seconds. Binding allows stepper to mutate it.
     @Binding var targetSeconds: Double
+    /// Whether the chorus is currently playing. Controls visibility of progress spinner.
     var isPlaying: Bool
+    /// The most recently measured chorus duration (updated after playback or calibration).
     var lastChorusSeconds: Double?
 
-    // Inject small layout/tuning knobs so this view has no dependency on ChorusLabView.Metrics.
+    /// Valid range for target time adjustment via stepper (e.g., 1.0...20.0).
     var targetRange: ClosedRange<Double>
+    /// Stepper increment amount (e.g., 0.25 seconds per tap).
     var targetStep: Double
+    /// Minimum width for the "actual time" display area (ensures room for the measurement value).
     var actualMinWidth: CGFloat
 
     public var body: some View {

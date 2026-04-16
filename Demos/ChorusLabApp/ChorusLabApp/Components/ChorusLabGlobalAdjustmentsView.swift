@@ -10,17 +10,30 @@
 import SwiftUI
 import VoiceKitUI
 
+/// Sliders for global chorus-wide rate and pitch adjustments.
+///
+/// Provides two controls:
+/// - **Rate scale** (speed multiplier): 0.05× to 2.0× the baseline speaking pace.
+/// - **Pitch offset**: ±0.9 semitone adjustment applied to all voices.
+///
+/// Wraps VoiceTuningControls and adapts its interface (hides volume, projects Double bindings to Float).
+/// Calls the onChange callback whenever a slider changes, triggering ChorusMath.applyAdjustments.
 @MainActor
 public struct ChorusLabGlobalAdjustmentsView: View {
+    /// Global rate multiplier binding (1.0 = baseline, >1 = faster, <1 = slower).
     @Binding var rateScale: Double
+    /// Global pitch offset binding (added to all voices' pitch multipliers).
     @Binding var pitchOffset: Double
+    /// Valid range for rate scale slider (e.g., 0.05...2.0).
     var speedRange: ClosedRange<Double>
+    /// Valid range for pitch offset slider (e.g., -0.9...0.9).
     var pitchOffsetRange: ClosedRange<Double>
+    /// Slider increment granularity (e.g., 0.01).
     var sliderStep: Double
+    /// Callback invoked whenever a slider changes (triggers view re-derivation).
     var onChange: () -> Void
 
-    // Public memberwise initializer; declaring this in-struct suppresses the synthesized init
-    // and avoids redeclaration/ambiguity with a same-signature extension initializer.
+    /// Explicit initializer to suppress synthesized memberwise init and avoid ambiguity.
     public init(rateScale: Binding<Double>,
                 pitchOffset: Binding<Double>,
                 speedRange: ClosedRange<Double>,

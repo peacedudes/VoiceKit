@@ -14,17 +14,19 @@ import Foundation
 @preconcurrency import AVFoundation
 import CoreGraphics
 @preconcurrency import Speech
+import Observation
 
+@Observable
 @MainActor
-public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
+public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO, TempoMeasurable {
 
-    // MARK: - Public callbacks
-    public var onListeningChanged: ((Bool) -> Void)?
-    public var onTranscriptChanged: ((String) -> Void)?
-    public var onLevelChanged: ((CGFloat) -> Void)?
-    public var onTTSSpeakingChanged: ((Bool) -> Void)?
-    public var onTTSPulse: ((CGFloat) -> Void)?
-    public var onStatusMessageChanged: ((String?) -> Void)?
+    // MARK: - Observable state (VoiceIO protocol conformance)
+    public var isSpeaking: Bool = false
+    public var isListening: Bool = false
+    public var transcript: String = ""
+    public var audioLevel: CGFloat = 0
+    public var pulse: CGFloat = 0
+    public var statusMessage: String?
 
     // MARK: - Debug logging (opt-in)
     public enum LogLevel: Sendable {
@@ -52,15 +54,14 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
     internal var synthesizer: AVSpeechSynthesizer?
 
     // Continuations keyed by utterance
-    internal var speakContinuations: [ObjectIdentifier: CheckedContinuation<Void, Error>] = [:]
+    internal var speakContinuations: [ObjectIdentifier: CheckedContinuation<Void, Never>] = [:]
 
     // Per-utterance timing (for duration measurement/calibration)
     internal var ttsStartTimes: [ObjectIdentifier: TimeInterval] = [:]
     internal var measureContinuations: [ObjectIdentifier: CheckedContinuation<TimeInterval, Never>] = [:]
 
-    // Simple pulse animation state
+    // Pulse animation phase accumulator (feeds into `pulse` via sine wave)
     internal var ttsPhase: CGFloat = 0
-    internal var ttsGlow: CGFloat = 0
 
     // MARK: - Environment helpers
 
@@ -78,13 +79,6 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
     }
 
     // MARK: - Test/STT shim state
-
-    // Very lightweight transcript store used by tests
-    private static var _latestTranscriptStore = [ObjectIdentifier: String]()
-    public var latestTranscript: String {
-        get { RealVoiceIO._latestTranscriptStore[ObjectIdentifier(self)] ?? "" }
-        set { RealVoiceIO._latestTranscriptStore[ObjectIdentifier(self)] = newValue }
-    }
 
     // Recognition context captured for listen shim + live STT.
     // Internal so STT extension can read it.
@@ -114,24 +108,35 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
     // Continuation for the current live listen (non-CI path)
     internal var listenCont: CheckedContinuation<VoiceResult, Error>?
 
+    // MARK: - Boosted clip playback state
+
+    /// Pending continuations waiting for clip completion.
+    internal var clipWaitersState: [CheckedContinuation<Void, Error>] = []
+
+    /// AVAudioPlayer for short-clip (boosted) playback.
+    internal var avClipPlayerState: AVAudioPlayer?
+
+    /// AVAudioPlayerNode (retained for test compatibility; not actively used).
+    internal var clipPlayerNodeState: AVAudioPlayerNode?
+
+    /// Flag tracking whether this clip session has completed.
+    internal var clipCompletedState = false
+
     // MARK: - Init
 
     override public init() {
         self.config = VoiceIOConfig()
         super.init()
-        // Opt-in default logger via env flag
-        let env = ProcessInfo.processInfo.environment
-        if let logEnv = env["VOICEKIT_LOG"]?.lowercased(),
-           logEnv == "1" || logEnv == "true" || logEnv == "yes" {
-            self.logger = { level, msg in
-                print("[VoiceKit][\(level)] \(msg)")
-            }
-        }
+        setupLoggerIfNeeded()
     }
 
     public init(config: VoiceIOConfig) {
         self.config = config
         super.init()
+        setupLoggerIfNeeded()
+    }
+
+    private func setupLoggerIfNeeded() {
         let env = ProcessInfo.processInfo.environment
         if let logEnv = env["VOICEKIT_LOG"]?.lowercased(),
            logEnv == "1" || logEnv == "true" || logEnv == "yes" {
@@ -139,10 +144,6 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
                 print("[VoiceKit][\(level)] \(msg)")
             }
         }
-    }
-
-    public static func makeLive(config: VoiceIOConfig = VoiceIOConfig()) -> RealVoiceIO {
-        RealVoiceIO(config: config)
     }
 
     // MARK: - TTSConfigurable
@@ -169,8 +170,8 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
 
     public func listen(timeout: TimeInterval, inactivity: TimeInterval, record: Bool) async throws -> VoiceResult {
         log(.info, "listen(start) timeout=\(timeout), inactivity=\(inactivity), record=\(record)")
-        onListeningChanged?(true)
-        defer { onListeningChanged?(false) }
+        isListening = true
+        defer { isListening = false }
 
         // CI/headless path: keep the stub behavior so tests remain deterministic
         // and never require real hardware or permissions.
@@ -182,15 +183,14 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
 
             // If context expects a number, synthesize a final "42"
             if recognitionContext.expectNumber {
-                let transcript = "42"
-                log(.info, "listen(result/ci) synthesized numeric: \(transcript)")
-                latestTranscript = transcript
-                onTranscriptChanged?(transcript)
-                return VoiceResult(transcript: transcript, recordingURL: nil)
+                let ciTranscript = "42"
+                log(.info, "listen(result/ci) synthesized numeric: \(ciTranscript)")
+                transcript = ciTranscript
+                return VoiceResult(transcript: ciTranscript, recordingURL: nil)
             }
 
             // Otherwise, return whatever has been set externally (default empty)
-            let stub = VoiceResult(transcript: latestTranscript, recordingURL: nil)
+            let stub = VoiceResult(transcript: transcript, recordingURL: nil)
             log(.info, "listen(result/ci) transcript='\(stub.transcript)' record=\(record)")
             return stub
         }
@@ -215,6 +215,17 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
 
     public func stopAll() {
         synthesizer?.stopSpeaking(at: .immediate)
+    }
+
+    /// Extend the STT inactivity timeout by marking current time as a "loud" moment.
+    /// Useful when the app detects user activity (e.g., button press) and wants to prevent
+    /// the listen from timing out during an intentional pause.
+    /// - Parameter: unused; reserved for future API expansion (e.g., to extend by a specific duration).
+    public func extendListen(by: TimeInterval? = nil) {
+        let now = ProcessInfo.processInfo.systemUptime
+        Task {
+            await sttActivityTracker.markLoud(at: now)
+        }
     }
 
     public func hardReset() {
@@ -243,24 +254,26 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO {
         }
         listenCont = nil
 
+        if let raw = rawRecordingURL {
+            try? FileManager.default.removeItem(at: raw)
+        }
         rawRecordingURL = nil
         currentListenShouldRecord = false
         firstSpeechStart = nil
         lastSpeechEnd = nil
-        latestTranscript = ""
+        transcript = ""
 
         // Clear TTS bookkeeping.
         speakContinuations.removeAll()
         ttsStartTimes.removeAll()
         measureContinuations.removeAll()
-    }
-}
 
-// MARK: - RecognitionContext helpers used by the listen shim
-
-public extension RecognitionContext {
-    var expectNumber: Bool {
-        if case .number = expectation { return true }
-        return false
+        // Clear clip playback state.
+        avClipPlayer?.stop()
+        avClipPlayerState = nil
+        clipPlayerNodeState?.stop()
+        clipPlayerNodeState = nil
+        clipWaitersState.removeAll()
+        clipCompletedState = false
     }
 }

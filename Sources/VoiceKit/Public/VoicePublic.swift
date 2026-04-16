@@ -13,6 +13,13 @@ import CoreGraphics
 
 // MARK: - Public results and errors
 
+/// Result of a voice listening (STT) operation.
+///
+/// - transcript: The recognized text from the user's speech.
+/// - recordingURL: Optional URL to the trimmed audio recording (if `record: true` was passed to `listen()`).
+///   If trimming succeeded, this is a trimmed .caf file with silence removed.
+///   If trimming failed, this is the raw recording. The file is temporary and should be
+///   copied or processed immediately; it may be deleted on the next operation.
 public struct VoiceResult: Sendable {
     public let transcript: String
     public let recordingURL: URL?
@@ -23,38 +30,89 @@ public struct VoiceResult: Sendable {
     }
 }
 
-public struct SimpleError: LocalizedError, Sendable {
-    public var message: String
-
-    public init(_ message: String) { self.message = message }
-
-    public var errorDescription: String? { message }
-}
-
 // MARK: - VoiceIO API (main-actor)
 
 /// App-facing voice box surface.
 /// Owns speaking, listening, short clips, lifecycle, and UI callbacks.
+/// All methods are @MainActor-isolated and must be called from the main thread.
 @MainActor
 public protocol VoiceIO: AnyObject {
-    var onListeningChanged: ((Bool) -> Void)? { get set }
-    var onTranscriptChanged: ((String) -> Void)? { get set }
-    var onLevelChanged: ((CGFloat) -> Void)? { get set }
-    var onTTSSpeakingChanged: ((Bool) -> Void)? { get set }
-    var onTTSPulse: ((CGFloat) -> Void)? { get set }
-    var onStatusMessageChanged: ((String?) -> Void)? { get set }
+    /// True while TTS synthesis is actively producing audio.
+    var isSpeaking: Bool { get }
 
+    /// True while a listen() call is in progress (from start through completion/cancellation).
+    var isListening: Bool { get }
+
+    /// The most recent STT transcript produced during or after a listen() call.
+    /// Empty string when no transcript is available.
+    var transcript: String { get }
+
+    /// Normalized audio input level in [0, 1] during a listen(). Zero when not listening.
+    var audioLevel: CGFloat { get }
+
+    /// Sine-wave pulse value in [0, 1] driven by TTS word boundaries. Zero when not speaking.
+    /// Useful for visual breathing animations synchronized to speech.
+    var pulse: CGFloat { get }
+
+    /// Optional status message for debugging or user feedback. Nil when cleared.
+    var statusMessage: String? { get }
+
+    /// Ensure microphone and speech recognition permissions are granted.
+    /// Throws `VoiceIOError.micUnavailable` or `.recognizerUnavailable` on failure.
     func ensurePermissions() async throws
+
+    /// Configure audio session for voice I/O (iOS: set playback category, sample rate, etc).
+    /// On macOS, this is typically a no-op; the system manages audio setup.
     func configureSessionIfNeeded() async throws
 
+    /// Speak text using the default voice profile.
+    /// Synthesizes audio and plays it using the system TTS engine.
+    /// Does not block; speaking happens asynchronously.
     func speak(_ text: String) async
+
+    /// Pause for the given duration. Respects task cancellation.
+    /// Equivalent to embedding `<silence:N>` inline in a speak() call.
+    func pause(_ seconds: TimeInterval) async
+
+    /// Listen for speech input using live STT.
+    ///
+    /// - Parameters:
+    ///   - timeout: Maximum duration to listen, in seconds. 0 means no overall timeout.
+    ///   - inactivity: Silence threshold in seconds. Listening stops when silence exceeds this duration.
+    ///     0 means no inactivity-based timeout (only overall timeout matters).
+    ///   - record: If true, save the raw audio recording to the temp directory.
+    ///
+    /// - Returns: VoiceResult containing the transcript and optional recording URL.
+    /// - Throws: `VoiceIOError.timedOut` if overall timeout exceeded,
+    ///   `VoiceIOError.cancelled` if cancelled by caller, or other errors on permission/format issues.
     func listen(timeout: TimeInterval, inactivity: TimeInterval, record: Bool) async throws -> VoiceResult
 
+    /// Prepare a clip for immediate playback (preload audio and configure mixing).
+    /// Must be followed by `startPreparedClip()` to actually play.
+    ///
+    /// - Parameters:
+    ///   - url: Local file URL to the audio clip.
+    ///   - gainDB: Gain adjustment in decibels. 0 = no change, negative = quieter, positive = louder.
     func prepareClip(url: URL, gainDB: Float) async throws
+
+    /// Start playback of a previously prepared clip.
+    /// Must call `prepareClip()` first.
     func startPreparedClip() async throws
+
+    /// Convenience: prepare and immediately play a clip in one call.
+    ///
+    /// - Parameters:
+    ///   - url: Local file URL to the audio clip.
+    ///   - gainDB: Gain adjustment in decibels.
     func playClip(url: URL, gainDB: Float) async throws
 
+    /// Stop all ongoing speech (TTS) and listening (STT) immediately.
+    /// Does not reset internal state; use `hardReset()` for complete cleanup.
     func stopAll()
+
+    /// Perform a complete reset of all voice I/O state.
+    /// Stops any in-flight listening or speaking, cleans up audio resources, and resets state variables.
+    /// Call this before tearing down the VoiceIO instance or when you need a fresh start.
     func hardReset()
 }
 
@@ -95,6 +153,29 @@ public struct TTSVoiceInfo: Identifiable, Hashable, Codable, Sendable {
     }
 }
 
+/// Per-voice speaking profile: rate (pace), pitch (tone), and volume (amplitude).
+///
+/// **rate**: Normalized speaking pace in [0, 1]. Zero is slowest; 1.0 is fastest.
+/// - Struct default (when constructed directly): 0.5 (perceptually linear midpoint)
+/// - Application default (via VoiceProfilesStore): 0.55 (slightly conversational for most voices)
+/// System range: `AVSpeechUtterance.rate` maps to [0.1, 10.0] internally, but
+/// perception is approximately linear in the range [0.3, 1.0].
+/// **Interaction with Tuning**: `Tuning.rateVariation` is applied as a random jitter
+/// around this profile rate at synthesis time, creating more natural variation.
+///
+/// **pitch**: Relative pitch multiplier in [0.5, 2.0]. One is neutral voice tone;
+/// < 1 produces lower pitch; > 1 produces higher pitch.
+/// Default: 1.0. Maps to `AVSpeechUtterance.pitchMultiplier`.
+///
+/// **volume**: Relative amplitude in [0, 1]. Zero is silent; 1.0 is full volume.
+/// - Struct default: 1.0
+/// - Application default (via VoiceProfilesStore): 0.9
+/// Applied at synthesis time. Maps to `AVSpeechUtterance.volume`.
+///
+/// **Mutability**: The voice id (`id`) is immutable, making profiles safe to share
+/// and cache. Rate, pitch, and volume are mutable for runtime tuning via UI or
+/// automation. When constructing profiles directly (not via store), consider using
+/// the store defaults (0.55 rate, 0.9 volume) for UI consistency.
 public struct TTSVoiceProfile: Sendable, Equatable, Codable {
     public let id: String
     public var rate: Double
@@ -109,6 +190,24 @@ public struct TTSVoiceProfile: Sendable, Equatable, Codable {
     }
 }
 
+/// Global TTS variation applied on top of voice profiles at synthesis time.
+///
+/// Tuning allows subtle randomization to make speech sound more natural.
+/// Unlike `TTSVoiceProfile` (which is per-voice), Tuning applies globally across all utterances.
+///
+/// **rateVariation**: Random jitter applied to the profile rate. In [0, 1]; at synthesis time,
+/// a random delta in [-rateVariation, +rateVariation] is added to the profile's rate.
+/// Example: profile rate 0.5 + variation 0.1 = each utterance gets a rate in [0.4, 0.6].
+/// Default: 0 (no variation; all utterances use the profile rate exactly).
+///
+/// **pitchVariation**: Random jitter applied to the profile pitch multiplier. In [0, 1];
+/// similar to rateVariation, a random delta is added at synthesis time.
+/// Default: 0 (no variation).
+///
+/// **volume**: Global amplitude scaling applied to all utterances. In [0, 1].
+/// This is separate from profile volume and is applied multiplicatively.
+/// Example: profile volume 0.8 * tuning volume 0.5 = final volume 0.4.
+/// Default: 1.0 (no scaling).
 public struct Tuning: Sendable, Equatable, Codable {
     public var rateVariation: Float
     public var pitchVariation: Float
@@ -123,24 +222,57 @@ public struct Tuning: Sendable, Equatable, Codable {
     }
 }
 
-/// TTS tuning + preview surface.
-/// Lets UI and helpers configure voice profiles and tuning, then speak
-/// short utterances for a specific voice id.
+/// TTS voice profile and tuning configuration interface.
+///
+/// Used by UI components and helpers to configure which voice speaks and how.
+/// Typical usage: VoiceChooserView sets profiles and tuning; VoiceChorus and
+/// other playback helpers read them and apply during synthesis.
+///
+/// Implementations (like RealVoiceIO) manage voice profiles, a default voice,
+/// and global tuning settings. All methods are @MainActor-isolated.
 @MainActor
 public protocol TTSConfigurable: AnyObject {
+    /// Store a profile for a voice id (create or update).
+    /// If the voice id already exists, this overwrites the previous profile.
     func setVoiceProfile(_ profile: TTSVoiceProfile)
+
+    /// Retrieve the stored profile for a voice id, or nil if not found.
     func getVoiceProfile(id: String) -> TTSVoiceProfile?
+
+    /// Set the default voice profile (used when speak() is called without an explicit voice id).
+    /// This also stores the profile in the voices map.
     func setDefaultVoiceProfile(_ profile: TTSVoiceProfile)
+
+    /// Get the currently configured default voice profile, or nil if none is set.
     func getDefaultVoiceProfile() -> TTSVoiceProfile?
+
+    /// Set the global tuning (rate/pitch/volume variation and scaling).
     func setTuning(_ tuning: Tuning)
+
+    /// Get the current tuning configuration.
     func getTuning() -> Tuning
 
-    /// Speak text using an optional voice profile id (nil uses default).
+    /// Speak text using an optionally specified voice profile.
+    /// - Parameters:
+    ///   - text: The text to synthesize and speak.
+    ///   - voiceID: Voice profile id to use. Nil uses the default voice profile.
+    /// Does not block; speaking happens asynchronously.
     func speak(_ text: String, using voiceID: String?) async
 }
 
 // MARK: - Recognition context
 
+/// Hints about what the user is expected to say, used by STT to improve accuracy.
+///
+/// The STT recognizer uses these hints to bias recognition toward expected inputs.
+/// For example, if you expect a number, the recognizer learns to listen for digits
+/// and number words rather than general freeform speech.
+///
+/// - **freeform**: No expectations; recognize whatever the user says.
+/// - **name**: User is expected to say one of the given allowed names.
+///   The recognizer will bias toward these strings and may reject speech that doesn't match.
+/// - **number**: User is expected to speak a number (e.g., "42", "two hundred three").
+///   The recognizer uses numeric contextual strings and post-processes speech accordingly.
 public struct RecognitionContext: Sendable {
     public enum Expectation: Sendable {
         case freeform
@@ -150,17 +282,26 @@ public struct RecognitionContext: Sendable {
 
     public var expectation: Expectation
 
+    /// Initialize with an expectation.
+    /// - Parameter expectation: The type of speech expected (default: .freeform).
     public init(expectation: Expectation = .freeform) { self.expectation = expectation }
+
+    /// Convenience helper: returns true if expectation is `.number`.
+    public var expectNumber: Bool {
+        if case .number = expectation { return true }
+        return false
+    }
 }
 
 public extension RecognitionContext {
     static var numericContextualStrings: [String] {
-        let digits = (0...20).map { String($0) } + ["30", "40", "50", "60", "70", "80", "90", "100"]
+        let digits = (0...20).map { String($0) } + ["30", "40", "50", "60", "70", "80", "90", "100", "1000"]
         let words = [
             "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
             "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
             "sixteen", "seventeen", "eighteen", "nineteen", "twenty",
-            "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "hundred"
+            "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety",
+            "hundred", "thousand", "million", "point"
         ]
         return digits + words
     }
@@ -168,11 +309,31 @@ public extension RecognitionContext {
 
 // MARK: - Operation gate
 
+/// A simple async gate for serializing access to a critical section.
+///
+/// **Purpose**: Prevent concurrent execution of mutually exclusive operations.
+/// For example, ensuring that TTS synthesis and STT listening don't overlap,
+/// or that voice I/O operations complete before a hard reset.
+///
+/// **Usage**:
+/// ```swift
+/// let gate = VoiceOpGate()
+/// await gate.acquire()
+/// defer { Task { await gate.release() } }
+/// // Perform protected operation here
+/// ```
+///
+/// **Limitations**: This is a simple cooperative lock without timeouts or fairness
+/// guarantees. If `acquire()` is called and the gate is already held, the caller
+/// will poll with a 200μs sleep. For production code requiring timeout or
+/// fair queuing, consider using a more sophisticated synchronization primitive.
 public actor VoiceOpGate {
     private var busy = false
 
     public init() {}
 
+    /// Acquire exclusive access, blocking until the gate is free.
+    /// No timeout; waits indefinitely if the gate is held by another task.
     public func acquire() async {
         while busy {
             try? await Task.sleep(nanoseconds: 200_000)
@@ -180,6 +341,10 @@ public actor VoiceOpGate {
         busy = true
     }
 
+    /// Release the gate, allowing other waiters to proceed.
     public func release() async { busy = false }
+
+    /// Force-clear the gate without checking state.
+    /// Use only for cleanup/reset after an error.
     public func forceClear() async { busy = false }
 }

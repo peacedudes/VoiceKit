@@ -27,4 +27,61 @@ internal final class RealVoiceIOTTSTests: TestSupport.QoSNeutralizingTestCase {
         await io.speak("Applying profile for test.")
         // If no crash, mapping succeeded.
     }
+
+    func testSpeakContinuationsCleanedUpAfterRepetitions() async throws {
+        let io = RealVoiceIO()
+
+        // Set fast rate (0.85) and quiet volume for test tolerance
+        let fastProfile = TTSVoiceProfile(id: "com.apple.speech.synthesis.voice.Alex", rate: 0.85, pitch: 1.0, volume: 0.2)
+        io.setVoiceProfile(fastProfile)
+        io.setDefaultVoiceProfile(fastProfile)
+        io.setTuning(Tuning(rateVariation: 0.01, pitchVariation: 0.02, volume: 0.2))
+
+        // Perform short speak operations to verify continuations are cleaned up.
+        let syllables = ["A", "B", "C", "D", "E"]
+
+        for i in 0..<20 {
+            let syll = syllables[i % syllables.count]
+            await io.speak(syll)
+        }
+
+        // Verify continuation dictionaries are empty (not leaking).
+        // This verifies the speak operations actually completed (continuations resumed and cleaned up).
+        XCTAssertTrue(io.speakContinuations.isEmpty, "speakContinuations should be empty after all speaks complete")
+        XCTAssertTrue(io.ttsStartTimes.isEmpty, "ttsStartTimes should be empty after all speaks complete")
+        XCTAssertTrue(io.measureContinuations.isEmpty, "measureContinuations should be empty after all speaks complete")
+    }
+
+    func testSpeakAndMeasureContinuationsCleanedUp() async throws {
+        // speakAndMeasure returns 0 in CI (no AVSpeech); duration assertions require real TTS.
+        guard !IsCI.running else { throw XCTSkip("Real TTS measurement; skipped in CI.") }
+
+        let io = RealVoiceIO()
+
+        // Set fast rate and quiet volume
+        let fastProfile = TTSVoiceProfile(id: "com.apple.speech.synthesis.voice.Alex", rate: 0.85, pitch: 1.0, volume: 0.2)
+        io.setVoiceProfile(fastProfile)
+        io.setDefaultVoiceProfile(fastProfile)
+        io.setTuning(Tuning(rateVariation: 0.01, pitchVariation: 0.02, volume: 0.2))
+
+        // Perform short measure operations and verify cleanup.
+        let syllables = ["Do", "Re", "Mi", "Fa", "Sol"]
+        var totalDuration: TimeInterval = 0
+
+        for i in 0..<15 {
+            let syll = syllables[i % syllables.count]
+            let duration = await io.speakAndMeasure(syll, using: nil)
+            // Duration should be > 0 in the real TTS path; CI stub returns 0.
+            XCTAssertGreaterThan(duration, 0, "speakAndMeasure should return non-zero duration in real TTS path")
+            totalDuration += duration
+        }
+
+        // Verify we accumulated some real synthesis time across operations
+        XCTAssertGreaterThan(totalDuration, 0.5, "Total synthesis time should be substantial (> 0.5s for 15 utterances)")
+
+        // Verify all tracking dicts are empty (operations completed and cleaned up)
+        XCTAssertTrue(io.speakContinuations.isEmpty, "speakContinuations should be cleaned up")
+        XCTAssertTrue(io.ttsStartTimes.isEmpty, "ttsStartTimes should be cleaned up")
+        XCTAssertTrue(io.measureContinuations.isEmpty, "measureContinuations should be cleaned up")
+    }
 }

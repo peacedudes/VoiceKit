@@ -32,8 +32,9 @@ Requirements
 ~~~swift
 import VoiceKit
 
+@Observable
 @MainActor
-final class DemoVM: ObservableObject {
+final class DemoVM {
     let voice = RealVoiceIO()
 
     func run() {
@@ -166,8 +167,90 @@ if let url = result.recordingURL {
 
 Notes:
 
-- 'prepareClip'/'startPreparedClip' exist to minimize the gap when chaining "speak → clip" by pre‑rolling the clip; whether you need both vs just 'playClip' depends on your app’s audio path. Measure if you care about single‑frame smoothness.
-- Internally, clip waiters are resumed exactly once; multiple 'stopAll()'/'hardReset()' calls are safe.
+- ‘prepareClip’/’startPreparedClip’ exist to minimize the gap when chaining "speak → clip" by pre‑rolling the clip; whether you need both vs just ‘playClip’ depends on your app’s audio path. Measure if you care about single‑frame smoothness.
+- Internally, clip waiters are resumed exactly once; multiple ‘stopAll()’/’hardReset()’ calls are safe.
+
+---
+
+## speak() with embedded tokens
+
+### Inline SFX and silence tokens
+
+‘speak()’ parses inline tokens in the text — no extra API calls needed:
+
+~~~swift
+let io = RealVoiceIO()
+let dingURL = Bundle.main.url(forResource: "ding", withExtension: "caf")!
+
+// Play a clip inline
+await io.speak("Hello <sfx:\(dingURL.absoluteString)> world")
+
+// Pause inline
+await io.speak("Ready? <silence:1.5> Go!")
+~~~
+
+Tokens:
+- `<sfx:URL>` — plays a clip at 0dB between surrounding text.
+- `<silence:N>` — pauses for N seconds (respects task cancellation).
+
+You can also pause explicitly between speak calls:
+
+~~~swift
+await io.speak("Step one.")
+await io.pause(1.5)
+await io.speak("Step two.")
+~~~
+
+### Parsing rules
+
+- **Sentence splitting**: Text is automatically split at `.`, `!`, `?` boundaries
+- **Token format**: `<sfx:URL>` or `<silence:N>` — value is anything until the closing `>`
+- **Synthesis order**: Each sentence segment is synthesized sequentially
+- **SFX playback**: Tokens are played between segments with 0dB gain
+- **Voice profile**: Applied uniformly to all text segments
+
+Example parsing: `"Hello world. <sfx:ding> How are you?"`
+- Segment 1: "Hello world." (synthesized)
+- Segment 2: ding.caf (played)
+- Segment 3: "How are you?" (synthesized)
+
+### When to use
+
+**Good fit:**
+- Simple patterns: "phrase + effect" or "phrase + pause"
+- Tutorial steps: "Step 1. [ding] [pause] Step 2. [bell] Done!"
+- Status announcements: "Processing <sfx:spinner> Complete <sfx:success>"
+
+**Not a good fit:**
+- Complex choreography (many clips, precise pauses)
+- Parallel playback (multiple channels)
+- Very tight timing requirements (lowest latency)
+
+For those cases, use `VoiceQueue` (below) or `prepareClip`/`startPreparedClip` (above).
+
+### Example: Tutorial with embedded tokens
+
+~~~swift
+@Observable
+@MainActor
+final class TutorialVM {
+    let io = RealVoiceIO()
+
+    func runTutorial() async {
+        try? await io.ensurePermissions()
+        try? await io.configureSessionIfNeeded()
+
+        let dingPath = Bundle.main.url(forResource: "ding", withExtension: "caf")?.absoluteString ?? ""
+        let bellPath = Bundle.main.url(forResource: "bell", withExtension: "caf")?.absoluteString ?? ""
+
+        await io.speak(
+            "Welcome to the tutorial. <sfx:\(dingPath)> <silence:0.5>" +
+            "This is step one. <sfx:\(bellPath)> " +
+            "You’re all done."
+        )
+    }
+}
+~~~
 
 ---
 
@@ -209,13 +292,13 @@ await q.play()
 ### Embedded SFX in text
 
 - VoiceQueue can parse inline SFX tokens in text.
-- Syntax: '[sfx:NAME]'
+- Syntax: '<sfx:NAME>'
 - Resolver: '(String) -> URL?' maps 'NAME' → audio file URL.
 
 Example:
 
 ~~~swift
-let text = "Hello [sfx:ding] world."
+let text = "Hello <sfx:ding> world."
 q.enqueueParsingSFX(
     text: text,
     resolver: { name in
@@ -368,7 +451,46 @@ final class RealSTTSmokeTests: XCTestCase {
 }
 ~~~
 
-CI: don’t set 'REAL_STT_SMOKE' → test is skipped.
+CI: don’t set ‘REAL_STT_SMOKE’ → test is skipped.
+
+### CI detection: IsCI.running
+
+VoiceKit automatically detects CI environments via the `IsCI` utility. When `IsCI.running == true`:
+
+- ‘ensurePermissions()’ succeeds immediately (no system dialogs)
+- ‘listen()’ returns deterministic stub results:
+  - If ‘RecognitionContext.expectation == .number’, returns transcript "42"
+  - Otherwise, returns the current ‘transcript’ property value (default: empty string)
+  - No audio hardware is accessed
+- ‘speak()’ uses a minimal synthetic path (no ‘AVSpeechSynthesizer’ instantiation)
+- All operations are fully deterministic and fast
+
+**Detection priority:**
+
+1. ‘VOICEKIT_FORCE_CI’ environment variable (override): "1", "true", or "yes" forces CI mode
+2. ‘CI’ environment variable (standard): set by GitHub Actions, GitLab CI, and other platforms
+3. If neither is set, defaults to false (real hardware mode)
+
+**Usage in tests:**
+
+~~~swift
+// Force CI mode in a test scheme:
+// Build → Schemes → Edit Scheme → Test → Environment Variables
+// Add: VOICEKIT_FORCE_CI = true
+
+// Or skip a test in CI:
+func testRealSTTFeature() async throws {
+    guard !IsCI.running else {
+        throw XCTSkip("Skipping real STT test in CI")
+    }
+    // ...real audio test...
+}
+
+// Or force real mode even in CI (for smoke tests):
+// VOICEKIT_FORCE_CI = false
+~~~
+
+For full details, see the `IsCI` enum documentation in `Sources/VoiceKit/Utilities/IsCI.swift`.
 
 ---
 
@@ -380,10 +502,10 @@ Controls advanced behaviours of 'RealVoiceIO'. All values have sensible defaults
 
 Fields (relevant ones):
 
-- 'trimPrePad: Double' - seconds of audio to keep *before* detected speech when trimming recordings.
-- 'trimPostPad: Double' - seconds of audio to keep *after* detected speech.
-- 'clipWaitTimeoutSeconds: Double' - how long to wait for a short clip to complete before timing out.
-- 'ttsSuppressAfterFinish: Double' - brief suppression window after TTS to avoid the mic "hearing" its own output.
+- 'trimPrePad: Double' - seconds of audio to keep *before* detected speech when trimming recordings. Preserves breath and consonant attack.
+- 'trimPostPad: Double' - seconds of audio to keep *after* detected speech. Preserves word tail and natural intonation.
+- 'clipWaitTimeoutSeconds: Double' - maximum duration to wait for a short clip (playClip, startPreparedClip) to complete. If the audio device is disconnected mid-playback, this prevents the app from hanging indefinitely.
+- 'ttsSuppressAfterFinish: Double' - duration to suppress microphone input immediately after TTS finishes. Prevents the microphone from picking up the speaker output when listen() starts immediately after speak().
 
 Usage example:
 
@@ -447,20 +569,21 @@ alias test='(swift build && SWIFTPM_TEST_LOG_FORMAT=xcode swift test) 2>&1 | tee
 ~~~swift
 @MainActor
 public protocol VoiceIO: AnyObject {
-    // UI callbacks
-    var onListeningChanged: ((Bool) -> Void)? { get set }
-    var onTranscriptChanged: ((String) -> Void)? { get set }
-    var onLevelChanged: ((CGFloat) -> Void)? { get set }
-    var onTTSSpeakingChanged: ((Bool) -> Void)? { get set }
-    var onTTSPulse: ((CGFloat) -> Void)? { get set }
-    var onStatusMessageChanged: ((String?) -> Void)? { get set }
+    // Observable state (fine-grained tracking via @Observable)
+    var isSpeaking: Bool { get }
+    var isListening: Bool { get }
+    var transcript: String { get }
+    var audioLevel: CGFloat { get }
+    var pulse: CGFloat { get }
+    var statusMessage: String? { get }
 
     // Session / permissions
     func ensurePermissions() async throws
     func configureSessionIfNeeded() async throws
 
     // Core I/O
-    func speak(_ text: String) async
+    func speak(_ text: String) async  // Uses default voice profile; supports <sfx:URL> and <silence:N> tokens
+    func pause(_ seconds: TimeInterval) async  // Explicit pause; respects task cancellation
     func listen(timeout: TimeInterval,
                 inactivity: TimeInterval,
                 record: Bool) async throws -> VoiceResult
@@ -490,6 +613,35 @@ public protocol TTSConfigurable: AnyObject {
     func speak(_ text: String, using voiceID: String?) async
 }
 ~~~
+
+### speak() methods (RealVoiceIO)
+
+Both overloads support embedded SFX tokens in the text:
+
+~~~swift
+// Use default voice profile
+public func speak(_ text: String) async
+
+// Use specific voice profile by ID
+public func speak(_ text: String, using voiceID: String?) async
+
+// Measure actual synthesis duration
+public func speakAndMeasure(_ text: String, using voiceID: String?) async -> TimeInterval
+~~~
+
+**Processing**:
+1. Text is split into sentences at boundaries: `.`, `!`, `?`
+2. Inline tokens (`<sfx:URL>`, `<silence:N>`) are parsed and extracted
+3. Text segments, SFX clips, and silences alternate sequentially
+4. Each text segment uses the specified voice profile
+5. SFX clips play with 0dB gain; silence tokens pause using `Task.sleep`
+
+**Example**:
+```swift
+let ding = "file:///path/to/ding.caf"
+await io.speak("Hello <sfx:\(ding)> <silence:0.5> world. How are you?")
+// → [speak "Hello ", play ding.caf, pause 0.5s, speak " world.", speak " How are you?"]
+```
 
 ### Models (shared)
 
@@ -553,4 +705,4 @@ Notes:
   - It posts into 'STTActivityTracker' and the STT request.
 - Avoid capturing '@MainActor self' inside any callbacks that are executed on realtime audio threads.
 
-For deeper implementation details and simulator quirks, see 'handoff.md' in the VoiceKit repo.
+For deeper implementation details and simulator quirks, see 'Docs/Concurrency.md'.

@@ -25,70 +25,94 @@ extension RealVoiceIO {
             let totalFrames = inFile.length
             let duration = Double(totalFrames) / sampleRate
 
-            var fallback = (sttStart == nil || sttEnd == nil || sttEnd! <= sttStart!)
-            var start = sttStart ?? 0
-            var end = sttEnd ?? duration
-            // If STT reports a tiny window relative to the raw file duration
-            // (e.g., long leading/trailing silence is present), prefer the
-            // energy-based bounds instead of trusting STT timestamps that are
-            // effectively relative to "first speech" rather than the file.
-            if !fallback, let startTime = sttStart, let endTime = sttEnd {
-                let span = max(0, endTime - startTime)
-                let nonSpeech = max(0, duration - span)
-                // Heuristic: if there's a lot more "non-speech" than speech,
-                // treat STT as truncated and fall back to energy scanning.
-                if nonSpeech > max(2.0, span * 0.5) {
-                    fallback = true
-                }
-            }
-            let debugMessage = """
-                trimAudioSmart sttStart=\(sttStart ?? -1) \
-                sttEnd=\(sttEnd ?? -1) \
-                prePad=\(prePad) postPad=\(postPad) \
-                rawDuration=\(String(format: "%.3f", duration))
-                """
-            log(.info, debugMessage)
+            var bounds = computeTrimBounds(sttStart: sttStart,
+                                          sttEnd: sttEnd,
+                                          duration: duration,
+                                          inFile: inFile,
+                                          totalFrames: totalFrames)
+            bounds.start = max(0, bounds.start - prePad)
+            bounds.end = min(duration, bounds.end + postPad)
+            log(.info, "trimAudioSmart finalWindow start=\(bounds.start) end=\(bounds.end) duration=\(duration)")
 
-            if fallback {
-                if let bounds = energyTrimBounds(inFile: inFile,
-                                                 sampleRate: sampleRate,
-                                                 totalFrames: totalFrames,
-                                                 thresholdDB: -35,
-                                                 chunk: 8192) {
-                    start = bounds.start
-                    end = max(bounds.end, bounds.start + 0.1)
-                    log(.info, "trimAudioSmart energyBounds start=\(bounds.start) end=\(bounds.end)")
-                } else { start = 0; end = duration }
-            }
-
-            start = max(0, start - prePad)
-            end = min(duration, end + postPad)
-            log(.info, "trimAudioSmart finalWindow start=\(start) end=\(end) duration=\(duration)")
-
-            guard end > start else { return inputURL }
-
-            let startFrame = AVAudioFramePosition(start * sampleRate)
-            let endFrame = AVAudioFramePosition(end * sampleRate)
-            let framesToRead = endFrame - startFrame
-            guard framesToRead > 0 else { return inputURL }
+            guard bounds.end > bounds.start else { return inputURL }
 
             let outURL = inputURL.deletingPathExtension().appendingPathExtension("trim.caf")
-            let outFile = try AVAudioFile(forWriting: outURL, settings: inFile.fileFormat.settings)
-
-            inFile.framePosition = startFrame
-            let chunkSize: AVAudioFrameCount = 8192
-            while inFile.framePosition < endFrame {
-                let remaining = AVAudioFrameCount(endFrame - inFile.framePosition)
-                let frames = min(chunkSize, remaining)
-                guard let buffer = AVAudioPCMBuffer(pcmFormat: inFile.processingFormat, frameCapacity: frames) else { break }
-                try inFile.read(into: buffer, frameCount: frames)
-                if buffer.frameLength == 0 { break }
-                buffer.frameLength = frames
-                try outFile.write(from: buffer)
-            }
+            try writeAudioTrimmed(from: inFile,
+                                 to: outURL,
+                                 startTime: bounds.start,
+                                 endTime: bounds.end,
+                                 sampleRate: sampleRate)
             return outURL
         } catch {
             return inputURL
+        }
+    }
+
+    private func computeTrimBounds(sttStart: Double?,
+                                   sttEnd: Double?,
+                                   duration: Double,
+                                   inFile: AVAudioFile,
+                                   totalFrames: AVAudioFramePosition) -> (start: Double, end: Double) {
+        var fallback = (sttStart == nil || sttEnd == nil || sttEnd! <= sttStart!)
+        var start = sttStart ?? 0
+        var end = sttEnd ?? duration
+
+        if !fallback, let startTime = sttStart, let endTime = sttEnd {
+            let span = max(0, endTime - startTime)
+            let nonSpeech = max(0, duration - span)
+            if nonSpeech > max(2.0, span * 0.5) {
+                fallback = true
+            }
+        }
+
+        let debugMessage = """
+            trimAudioSmart sttStart=\(sttStart ?? -1) \
+            sttEnd=\(sttEnd ?? -1) \
+            rawDuration=\(String(format: "%.3f", duration))
+            """
+        log(.info, debugMessage)
+
+        if fallback {
+            if let bounds = energyTrimBounds(inFile: inFile,
+                                            sampleRate: inFile.fileFormat.sampleRate,
+                                            totalFrames: totalFrames,
+                                            thresholdDB: -35,
+                                            chunk: 8192) {
+                start = bounds.start
+                end = max(bounds.end, bounds.start + 0.1)
+                log(.info, "trimAudioSmart energyBounds start=\(bounds.start) end=\(bounds.end)")
+            } else {
+                start = 0
+                end = duration
+            }
+        }
+        return (start, end)
+    }
+
+    private func writeAudioTrimmed(from inFile: AVAudioFile,
+                                   to outURL: URL,
+                                   startTime: Double,
+                                   endTime: Double,
+                                   sampleRate: Double) throws {
+        let sampleRate = inFile.fileFormat.sampleRate
+        let startFrame = AVAudioFramePosition(startTime * sampleRate)
+        let endFrame = AVAudioFramePosition(endTime * sampleRate)
+
+        let outFile = try AVAudioFile(forWriting: outURL, settings: inFile.fileFormat.settings)
+
+        inFile.framePosition = startFrame
+        let chunkSize: AVAudioFrameCount = 8192
+        while inFile.framePosition < endFrame {
+            let remaining = AVAudioFrameCount(endFrame - inFile.framePosition)
+            let frames = min(chunkSize, remaining)
+            let format = inFile.processingFormat
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else {
+                break
+            }
+            try inFile.read(into: buffer, frameCount: frames)
+            if buffer.frameLength == 0 { break }
+            buffer.frameLength = frames
+            try outFile.write(from: buffer)
         }
     }
 

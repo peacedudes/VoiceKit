@@ -51,77 +51,7 @@ extension RealVoiceIO {
             .split(separator: " ")
             .map(String.init)
 
-        let ones: [String: Int] = [
-            "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4,
-            "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9
-        ]
-        let teens: [String: Int] = [
-            "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14,
-            "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19
-        ]
-        let tens: [String: Int] = [
-            "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
-            "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90
-        ]
-
-        var intValue: Int?
-        var decimalPart: String?
-        var i = 0
-
-        // Combine multiple chunks by thousands if needed (simple concatenation rule).
-        func commitInt(_ value: Int) {
-            intValue = (intValue ?? 0) * 1000 + value
-        }
-
-        while i < tokens.count {
-            let token = tokens[i]
-
-            if token == "point" {
-                // Build decimal digits from remaining tokens via helper.
-                if let dec = Self.decimalDigits(from: tokens[(i + 1)...], ones: ones) {
-                    decimalPart = dec
-                } else {
-                    return trimmed
-                }
-                break
-            }
-
-            if let teenValue = teens[token] {
-                commitInt(teenValue)
-                i += 1
-                continue
-            }
-
-            if let tensValue = tens[token] {
-                // Lookahead to combine tens + ones (e.g., "forty two" -> 42)
-                var value = tensValue
-                if i + 1 < tokens.count, let onesDigit = ones[tokens[i + 1]] {
-                    value += onesDigit
-                    i += 1
-                }
-                commitInt(value)
-                i += 1
-                continue
-            }
-
-            if let digitValue = ones[token] {
-                commitInt(digitValue)
-                i += 1
-                continue
-            }
-
-            if let num = Int(token) {
-                commitInt(num)
-                i += 1
-                continue
-            }
-
-            if Double(token) != nil {
-                // Already numeric with potential decimal -> return original.
-                return trimmed
-            }
-
-            // Unknown token -> return original.
+        guard let (intValue, decimalPart) = parseNumericTokens(tokens) else {
             return trimmed
         }
 
@@ -134,6 +64,103 @@ extension RealVoiceIO {
         }
 
         return trimmed
+    }
+
+    /// Numeric word dictionaries for parsing.
+    private static let numericDictionaries = (
+        ones: [
+            "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4,
+            "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9
+        ],
+        teens: [
+            "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14,
+            "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19
+        ],
+        tens: [
+            "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
+            "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90
+        ],
+        scales: [
+            "hundred": 100, "thousand": 1000, "million": 1000000
+        ]
+    )
+
+    /// Parse token array into integer and optional decimal parts.
+    /// Returns nil if any token is unrecognized or invalid.
+    /// Handles: ones, teens, tens, hundreds, thousands, millions and decimal parts.
+    /// Example: "one thousand two hundred thirty four" → 1234
+    ///          "forty two" → 42
+    ///          "five point three" → 5.3
+    private static func parseNumericTokens(_ tokens: [String]) -> (intValue: Int?, decimalPart: String?)? {
+        let dicts = numericDictionaries
+        var intValue: Int?, decimalPart: String?, current = 0, i = 0
+
+        while i < tokens.count {
+            let token = tokens[i]
+
+            if token == "point" {
+                if let dec = Self.decimalDigits(from: tokens[(i + 1)...], ones: dicts.ones) {
+                    decimalPart = dec
+                } else {
+                    return nil
+                }
+                break
+            }
+
+            if let scale = dicts.scales[token] {
+                if scale < 1000 {
+                    current = (current == 0 ? 1 : current) * scale
+                } else {
+                    let toAdd = (current == 0 ? 1 : current) * scale
+                    intValue = (intValue ?? 0) + toAdd
+                    current = 0
+                }
+                i += 1
+                continue
+            }
+
+            if let teenValue = dicts.teens[token] {
+                current += teenValue
+                i += 1
+                continue
+            }
+
+            if let tensValue = dicts.tens[token] {
+                var value = tensValue
+                if i + 1 < tokens.count, let onesDigit = dicts.ones[tokens[i + 1]] {
+                    value += onesDigit
+                    i += 1
+                }
+                current += value
+                i += 1
+                continue
+            }
+
+            if let digitValue = dicts.ones[token] {
+                current += digitValue
+                i += 1
+                continue
+            }
+
+            if let num = Int(token) {
+                current += num
+                i += 1
+                continue
+            }
+
+            if Double(token) != nil {
+                return nil
+            }
+
+            return nil
+        }
+
+        // Add any remaining accumulated value to the total
+        if current > 0 {
+            intValue = (intValue ?? 0) + current
+        }
+
+        return (intValue, decimalPart)
     }
 
     /// Backward-compat unlabeled version.

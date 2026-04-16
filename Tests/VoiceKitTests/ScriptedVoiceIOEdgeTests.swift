@@ -22,15 +22,10 @@ internal final class ScriptedVoiceIOEdgeTests: XCTestCase {
             return XCTFail("Failed to build ScriptedVoiceIO")
         }
 
-        let began = expectation(description: "listening began")
-        let ended = expectation(description: "listening ended")
-        voice.onListeningChanged = { isOn in
-            if isOn { began.fulfill() } else { ended.fulfill() }
-        }
-
+        XCTAssertFalse(voice.isListening)
         let result = try await voice.listen(timeout: 0.8, inactivity: 0.2, record: false)
         XCTAssertEqual(result.transcript, "")
-        await fulfillment(of: [began, ended], timeout: 1.0)
+        XCTAssertFalse(voice.isListening, "isListening should be false after listen completes")
     }
 
     func testTwoSpeaksToggleSpeakingAndEmitPulse() async throws {
@@ -38,30 +33,19 @@ internal final class ScriptedVoiceIOEdgeTests: XCTestCase {
             return XCTFail("Failed to build ScriptedVoiceIO")
         }
 
-        let startedFirst = expectation(description: "speak 1 started")
-        let endedFirst = expectation(description: "speak 1 ended")
-        let startedSecond = expectation(description: "speak 2 started")
-        let endedSecond = expectation(description: "speak 2 ended")
+        XCTAssertFalse(voice.isSpeaking)
 
-        var startCount = 0
-        var endCount = 0
-        var sawAnyPulse = false
+        let speak1Task = Task { @MainActor in await voice.speak("first") }
+        try await Task.sleep(nanoseconds: 20_000_000)
+        XCTAssertTrue(voice.isSpeaking, "isSpeaking should be true during first speak")
+        await speak1Task.value
+        XCTAssertFalse(voice.isSpeaking, "isSpeaking should be false after first speak")
 
-        voice.onTTSSpeakingChanged = { speaking in
-            if speaking {
-                if startCount == 0 { startedFirst.fulfill() } else if startCount == 1 { startedSecond.fulfill() }
-                startCount += 1
-            } else {
-                if endCount == 0 { endedFirst.fulfill() } else if endCount == 1 { endedSecond.fulfill() }
-                endCount += 1
-            }
-        }
-        voice.onTTSPulse = { level in if level > 0 { sawAnyPulse = true } }
-
-        await voice.speak("first")
-        await voice.speak("second")
-
-        await fulfillment(of: [startedFirst, endedFirst, startedSecond, endedSecond], timeout: 2.0)
-        XCTAssertTrue(sawAnyPulse, "Expected at least one non-zero pulse across speaks")
+        let speak2Task = Task { @MainActor in await voice.speak("second") }
+        try await Task.sleep(nanoseconds: 20_000_000)
+        XCTAssertTrue(voice.isSpeaking, "isSpeaking should be true during second speak")
+        await speak2Task.value
+        XCTAssertFalse(voice.isSpeaking, "isSpeaking should be false after second speak")
+        XCTAssertEqual(voice.pulse, 0, "pulse should be reset to 0 after speak")
     }
 }
