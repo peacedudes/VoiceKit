@@ -53,6 +53,9 @@ internal final class RealVoiceIOTTSTests: TestSupport.QoSNeutralizingTestCase {
     }
 
     func testSpeakAndMeasureContinuationsCleanedUp() async throws {
+        // speakAndMeasure returns 0 in CI (no AVSpeech); duration assertions require real TTS.
+        guard !IsCI.running else { throw XCTSkip("Real TTS measurement; skipped in CI.") }
+
         let io = RealVoiceIO()
 
         // Set fast rate and quiet volume
