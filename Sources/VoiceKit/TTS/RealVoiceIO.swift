@@ -35,7 +35,7 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO, TempoMeasura
     /// Optional logger. Set from the app to trace VoiceKit events.
     /// Example:
     ///   io.logger = { level, msg in print("[VoiceKit][\(level)] \(msg)") }
-    public var logger: ((LogLevel, String) -> Void)?
+    @ObservationIgnored public var logger: ((LogLevel, String) -> Void)?
 
     @inline(__always)
     internal func log(_ level: LogLevel = .info, _ message: @autoclosure () -> String) {
@@ -43,25 +43,31 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO, TempoMeasura
     }
 
     // MARK: - Public config
-    public private(set) var config: VoiceIOConfig
+    @ObservationIgnored public private(set) var config: VoiceIOConfig
 
     // MARK: - TTS state
-    internal var profilesByID: [String: TTSVoiceProfile] = [:]
-    internal var defaultProfile: TTSVoiceProfile?
-    internal var tuning: Tuning = .init()
+    @ObservationIgnored internal var profilesByID: [String: TTSVoiceProfile] = [:]
+    @ObservationIgnored internal var defaultProfile: TTSVoiceProfile?
+    @ObservationIgnored internal var tuning: Tuning = .init()
 
-    // AVSpeechSynthesizer (lazy optional)
-    internal var synthesizer: AVSpeechSynthesizer?
+    // AVSpeechSynthesizer is @ObservationIgnored: it must not enter the observation
+    // registrar's withMutation path. AVFoundation's internal dispatch already conflicts
+    // with Swift's cooperative thread pool (see DispatchQueue.main.async workaround in
+    // RealVoiceIO+TTSImpl.swift); adding registrar overhead amplifies the problem.
+    @ObservationIgnored internal var synthesizer: AVSpeechSynthesizer?
 
-    // Continuations keyed by utterance
-    internal var speakContinuations: [ObjectIdentifier: CheckedContinuation<Void, Never>] = [:]
+    // Continuation dictionaries are mutated at high frequency during speech synthesis;
+    // keeping them out of the registrar avoids spurious SwiftUI invalidation and
+    // reduces overhead on the critical TTS path.
+    @ObservationIgnored internal var speakContinuations: [ObjectIdentifier: CheckedContinuation<Void, Never>] = [:]
 
     // Per-utterance timing (for duration measurement/calibration)
-    internal var ttsStartTimes: [ObjectIdentifier: TimeInterval] = [:]
-    internal var measureContinuations: [ObjectIdentifier: CheckedContinuation<TimeInterval, Never>] = [:]
+    @ObservationIgnored internal var ttsStartTimes: [ObjectIdentifier: TimeInterval] = [:]
+    @ObservationIgnored internal var measureContinuations: [ObjectIdentifier: CheckedContinuation<TimeInterval, Never>] = [:]
 
-    // Pulse animation phase accumulator (feeds into `pulse` via sine wave)
-    internal var ttsPhase: CGFloat = 0
+    // Pulse animation phase accumulator (feeds into `pulse` via sine wave).
+    // Ignored: intermediate accumulator; only `pulse` (the derived value) is observed.
+    @ObservationIgnored internal var ttsPhase: CGFloat = 0
 
     // MARK: - Environment helpers
 
@@ -82,45 +88,45 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO, TempoMeasura
 
     // Recognition context captured for listen shim + live STT.
     // Internal so STT extension can read it.
-    internal var recognitionContext: RecognitionContext = .init()
+    @ObservationIgnored internal var recognitionContext: RecognitionContext = .init()
 
     // MARK: - STT live state
 
-    internal var speechRecognizer: SFSpeechRecognizer? = SFSpeechRecognizer(locale: .autoupdatingCurrent)
-    internal var audioEngine: AVAudioEngine?
-    internal var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
-    internal var recognitionTask: SFSpeechRecognitionTask?
+    @ObservationIgnored internal var speechRecognizer: SFSpeechRecognizer? = SFSpeechRecognizer(locale: .autoupdatingCurrent)
+    @ObservationIgnored internal var audioEngine: AVAudioEngine?
+    @ObservationIgnored internal var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
+    @ObservationIgnored internal var recognitionTask: SFSpeechRecognitionTask?
 
-    internal var hasFinishedRecognition = false
-    internal var firstSpeechStart: Double?
-    internal var lastSpeechEnd: Double?
+    @ObservationIgnored internal var hasFinishedRecognition = false
+    @ObservationIgnored internal var firstSpeechStart: Double?
+    @ObservationIgnored internal var lastSpeechEnd: Double?
 
-    internal var listenOverallTask: Task<Void, Never>?
-    internal var listenInactivityTask: Task<Void, Never>?
+    @ObservationIgnored internal var listenOverallTask: Task<Void, Never>?
+    @ObservationIgnored internal var listenInactivityTask: Task<Void, Never>?
 
     // Tracks recent speech activity based on input energy.
-    internal let sttActivityTracker = STTActivityTracker()
+    @ObservationIgnored internal let sttActivityTracker = STTActivityTracker()
 
     // Per-listen recording state for live STT
-    internal var rawRecordingURL: URL?
-    internal var currentListenShouldRecord = false
+    @ObservationIgnored internal var rawRecordingURL: URL?
+    @ObservationIgnored internal var currentListenShouldRecord = false
 
     // Continuation for the current live listen (non-CI path)
-    internal var listenCont: CheckedContinuation<VoiceResult, Error>?
+    @ObservationIgnored internal var listenCont: CheckedContinuation<VoiceResult, Error>?
 
     // MARK: - Boosted clip playback state
 
     /// Pending continuations waiting for clip completion.
-    internal var clipWaitersState: [CheckedContinuation<Void, Error>] = []
+    @ObservationIgnored internal var clipWaitersState: [CheckedContinuation<Void, Error>] = []
 
     /// AVAudioPlayer for short-clip (boosted) playback.
-    internal var avClipPlayerState: AVAudioPlayer?
+    @ObservationIgnored internal var avClipPlayerState: AVAudioPlayer?
 
     /// AVAudioPlayerNode (retained for test compatibility; not actively used).
-    internal var clipPlayerNodeState: AVAudioPlayerNode?
+    @ObservationIgnored internal var clipPlayerNodeState: AVAudioPlayerNode?
 
     /// Flag tracking whether this clip session has completed.
-    internal var clipCompletedState = false
+    @ObservationIgnored internal var clipCompletedState = false
 
     // MARK: - Init
 

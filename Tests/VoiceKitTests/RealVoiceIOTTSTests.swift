@@ -52,6 +52,42 @@ internal final class RealVoiceIOTTSTests: TestSupport.QoSNeutralizingTestCase {
         XCTAssertTrue(io.measureContinuations.isEmpty, "measureContinuations should be empty after all speaks complete")
     }
 
+    /// Regression test for the unsafeForcedSync / mBuffers zero-byte bug.
+    ///
+    /// Root cause: AVSpeechSynthesizer.speak() internally calls dispatch_sync-style
+    /// primitives that AVFoundation flags as unsafe when called from a Swift Task
+    /// context. This corrupts audio-buffer setup, causing every buffer to arrive
+    /// with mDataByteSize == 0.  The symptom is that speakAndMeasure() returns 0
+    /// duration for every utterance even though didStart/didFinish still fire.
+    ///
+    /// Fix: dispatch speak() via DispatchQueue.main.async so it runs in a plain GCD
+    /// block that Swift's concurrency runtime does not tag as a concurrent context.
+    ///
+    /// Note: the warning itself prints to the console and cannot be captured by
+    /// XCTest assertions. We instead assert on the behavioral symptom: each
+    /// utterance must produce a measurably non-zero audio duration.
+    func testSpeakFromAsyncContextProducesNonZeroAudioDuration() async throws {
+        guard !IsCI.running else { throw XCTSkip("Real TTS path; skipped in CI.") }
+
+        let io = RealVoiceIO()
+        let profile = TTSVoiceProfile(
+            id: "com.apple.speech.synthesis.voice.Alex",
+            rate: 0.85, pitch: 1.0, volume: 0.1
+        )
+        io.setDefaultVoiceProfile(profile)
+
+        // Each sentence must have measurable duration. Zero would indicate the
+        // audio-buffer corruption introduced by calling speak() inside a Swift Task.
+        let phrases = ["Testing one.", "Testing two.", "Testing three."]
+        for phrase in phrases {
+            let duration = await io.speakAndMeasure(phrase, using: nil)
+            XCTAssertGreaterThan(
+                duration, 0.05,
+                "'\(phrase)' produced zero-duration audio — likely mBuffers[0].mDataByteSize == 0 regression"
+            )
+        }
+    }
+
     func testSpeakAndMeasureContinuationsCleanedUp() async throws {
         // speakAndMeasure returns 0 in CI (no AVSpeech); duration assertions require real TTS.
         guard !IsCI.running else { throw XCTSkip("Real TTS measurement; skipped in CI.") }

@@ -71,7 +71,16 @@ extension RealVoiceIO {
             operation: {
                 await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
                     speakContinuations[key] = cont
-                    synthesizer.speak(utterance)
+                    // Dispatch speak() outside the Swift concurrent execution frame.
+                    // AVSpeechSynthesizer.speak() uses internal synchronous dispatch
+                    // (unsafeForcedSync) that AVFoundation flags as unsafe when called
+                    // from a Swift Task context, even on @MainActor. A plain
+                    // DispatchQueue.main.async block runs on the same thread without
+                    // Swift's task-context tag, eliminating the warning and the
+                    // zero-byte audio buffer cascade it causes.
+                    DispatchQueue.main.async { [synthesizer] in
+                        synthesizer.speak(utterance)
+                    }
                 }
             },
             onCancel: {
@@ -122,7 +131,9 @@ extension RealVoiceIO {
             operation: {
                 await withCheckedContinuation { (cont: CheckedContinuation<TimeInterval, Never>) in
                     measureContinuations[key] = cont
-                    synthesizer.speak(utterance)
+                    DispatchQueue.main.async { [synthesizer] in
+                        synthesizer.speak(utterance)
+                    }
                 }
             },
             onCancel: {
