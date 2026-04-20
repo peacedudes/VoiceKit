@@ -71,6 +71,9 @@ extension RealVoiceIO {
         // Speech permission
         let status = await PermissionBridge.awaitSpeechAuth()
         guard status == .authorized else { throw VoiceIOError.micUnavailable }
+        if speechRecognizer == nil {
+            speechRecognizer = SFSpeechRecognizer(locale: .autoupdatingCurrent)
+        }
         guard speechRecognizer?.isAvailable == true else { throw VoiceIOError.recognizerUnavailable }
     }
 
@@ -147,6 +150,9 @@ extension RealVoiceIO {
     internal func performSTTListen(timeout: TimeInterval,
                                    inactivity: TimeInterval,
                                    record: Bool) async throws -> VoiceResult {
+        if speechRecognizer == nil {
+            speechRecognizer = SFSpeechRecognizer(locale: .autoupdatingCurrent)
+        }
         if Task.isCancelled { throw CancellationError() }
 
         #if os(iOS)

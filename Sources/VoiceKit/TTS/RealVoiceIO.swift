@@ -92,7 +92,11 @@ public final class RealVoiceIO: NSObject, TTSConfigurable, VoiceIO, TempoMeasura
 
     // MARK: - STT live state
 
-    @ObservationIgnored internal var speechRecognizer: SFSpeechRecognizer? = SFSpeechRecognizer(locale: .autoupdatingCurrent)
+    // Lazily initialized on the first listen() call. Eager creation at init
+    // time triggers SFSpeechRecognizer's internal dispatch_sync setup, causing
+    // unsafeForcedSync warnings during SwiftUI view construction. TTS-only
+    // callers (e.g., VoiceChorus) never need this object at all.
+    @ObservationIgnored internal var speechRecognizer: SFSpeechRecognizer?
     @ObservationIgnored internal var audioEngine: AVAudioEngine?
     @ObservationIgnored internal var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     @ObservationIgnored internal var recognitionTask: SFSpeechRecognitionTask?
