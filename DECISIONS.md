@@ -68,6 +68,35 @@ replace with a proper continuation queue.
 
 ---
 
+## AVSpeechSynthesizer.speak() dispatched via DispatchQueue.main.async
+
+`speakSentence()` and `speakAndMeasureSentence()` call `synthesizer.speak(utterance)` inside
+`withCheckedContinuation`. Even on `@MainActor`, this closure runs within a Swift Task execution
+frame. `AVSpeechSynthesizer.speak()` uses internal `dispatch_sync`-style primitives (flagged by
+AVFoundation as `unsafeForcedSync`) that are incompatible with the Swift concurrency runtime's
+task-context tag. The symptom is every audio buffer arriving with `mDataByteSize == 0`, making
+`speakAndMeasure()` return zero duration for every utterance.
+
+Fix: wrap the `synthesizer.speak(utterance)` call in `DispatchQueue.main.async { [synthesizer] in ... }`.
+This runs on the same main thread without the Swift task-context tag, satisfying AVFoundation.
+
+**How it holds**: The `DispatchQueue.main.async` block captures only `synthesizer` (not `self`).
+The continuation is stored before the dispatch, and the delegate's `didFinish` resumes it — no
+data races. The `[synthesizer]` capture avoids a retain cycle on `self`.
+
+---
+
+## SFSpeechRecognizer is lazily initialized
+
+`SFSpeechRecognizer` was previously created eagerly in `RealVoiceIO.init()`. This triggers the
+recognizer's internal XPC/dispatch setup at view-construction time and generates `unsafeForcedSync`
+warnings even in apps that never call `listen()` (e.g., VoiceChorus, ChorusLab).
+
+Fix: the property defaults to `nil`; `performSTTListen()` creates it on the first real listen.
+TTS-only callers never pay the creation cost at all.
+
+---
+
 ## ChorusLabApp lives in Demos/ (inside this repo)
 
 Convenient during active ChorusLab development to keep the demo co-located with the package for
