@@ -1,6 +1,13 @@
 # Changelog
 
-## [Unreleased — v0.2]
+## [Unreleased — v0.2.x]
+- Core
+  - Fix: `AVSpeechSynthesizer.speak()` now dispatched via `DispatchQueue.main.async` to escape the Swift Task execution frame. Eliminates `unsafeForcedSync` runtime warnings and the zero-byte `mBuffers` cascade they caused — observable as zero-duration audio from `speakAndMeasure()`.
+  - Fix: `SFSpeechRecognizer` is now lazily initialized on the first `listen()` call instead of at `RealVoiceIO.init()`. TTS-only callers (e.g., `VoiceChorus`, `ChorusLab`) no longer trigger startup `unsafeForcedSync` warnings from `SFSpeechRecognizer`'s internal XPC setup.
+- Tests
+  - `testSpeakFromAsyncContextProducesNonZeroAudioDuration` — regression guard asserting each utterance produces measurably non-zero audio duration when `speak()` is called from a Swift Task context.
+
+## [v0.2.0] - 2026-04-05
 - Core
   - **`@Observable` migration**: removed the six `onXxx` closure callbacks from the `VoiceIO` protocol and both implementations (`RealVoiceIO`, `ScriptedVoiceIO`). Replaced with stored observable properties: `isSpeaking`, `isListening`, `transcript`, `audioLevel`, `pulse`, `statusMessage`. SwiftUI views observe these with fine-grained tracking rather than manual binding.
   - `pause(_ seconds: TimeInterval) async` added to the `VoiceIO` protocol.

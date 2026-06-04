@@ -52,6 +52,70 @@ internal final class RealVoiceIOTTSTests: TestSupport.QoSNeutralizingTestCase {
         XCTAssertTrue(io.measureContinuations.isEmpty, "measureContinuations should be empty after all speaks complete")
     }
 
+    /// Regression test for the unsafeForcedSync / mBuffers zero-byte bug.
+    ///
+    /// Root cause: AVSpeechSynthesizer.speak() internally calls dispatch_sync-style
+    /// primitives that AVFoundation flags as unsafe when called from a Swift Task
+    /// context. This corrupts audio-buffer setup, causing every buffer to arrive
+    /// with mDataByteSize == 0.  The symptom is that speakAndMeasure() returns 0
+    /// duration for every utterance even though didStart/didFinish still fire.
+    ///
+    /// Fix: dispatch speak() via DispatchQueue.main.async so it runs in a plain GCD
+    /// block that Swift's concurrency runtime does not tag as a concurrent context.
+    ///
+    /// Note: the warning itself prints to the console and cannot be captured by
+    /// XCTest assertions. We instead assert on the behavioral symptom: each
+    /// utterance must produce a measurably non-zero audio duration.
+    func testSpeakFromAsyncContextProducesNonZeroAudioDuration() async throws {
+        guard !IsCI.running else { throw XCTSkip("Real TTS path; skipped in CI.") }
+
+        let io = RealVoiceIO()
+        let profile = TTSVoiceProfile(
+            id: "com.apple.speech.synthesis.voice.Alex",
+            rate: 0.85, pitch: 1.0, volume: 0.1
+        )
+        io.setDefaultVoiceProfile(profile)
+
+        // Each sentence must have measurable duration. Zero would indicate the
+        // audio-buffer corruption introduced by calling speak() inside a Swift Task.
+        let phrases = ["Testing one.", "Testing two.", "Testing three."]
+        for phrase in phrases {
+            let duration = await io.speakAndMeasure(phrase, using: nil)
+            XCTAssertGreaterThan(
+                duration, 0.05,
+                "'\(phrase)' produced zero-duration audio — likely mBuffers[0].mDataByteSize == 0 regression"
+            )
+        }
+    }
+
+    /// Regression: first speak on a fresh instance must not trigger unsafeForcedSync.
+    ///
+    /// Root cause: AVSpeechSynthesizer() internally calls AFPreferences via dispatch_sync.
+    /// When this happens inside a Swift Task context (even @MainActor), the runtime tags
+    /// the call as unsafeForcedSync, which corrupts audio buffer setup — all subsequent
+    /// buffers arrive with mDataByteSize == 0, silencing speech.
+    ///
+    /// Fix: ensureSynth() now creates the synthesizer via DispatchQueue.main.async so
+    /// it runs outside the Swift task-context tag.
+    func testFirstSpeakFromFreshInstanceProducesNonZeroAudioDuration() async throws {
+        guard !IsCI.running else { throw XCTSkip("Real TTS path; skipped in CI.") }
+
+        // Fresh instance — synthesizer is nil and must be created on first speak.
+        let io = RealVoiceIO()
+        let profile = TTSVoiceProfile(
+            id: "com.apple.speech.synthesis.voice.Alex",
+            rate: 0.85, pitch: 1.0, volume: 0.1
+        )
+        io.setDefaultVoiceProfile(profile)
+
+        // The very first call creates AVSpeechSynthesizer; it must produce non-zero
+        // duration proving the audio pipeline was not corrupted by unsafeForcedSync.
+        let duration = await io.speakAndMeasure("Hello.", using: nil)
+        XCTAssertGreaterThan(duration, 0.05,
+            "First speak produced zero-duration audio — mBuffers regression (ensureSynth inside Swift Task context)"
+        )
+    }
+
     func testSpeakAndMeasureContinuationsCleanedUp() async throws {
         // speakAndMeasure returns 0 in CI (no AVSpeech); duration assertions require real TTS.
         guard !IsCI.running else { throw XCTSkip("Real TTS measurement; skipped in CI.") }

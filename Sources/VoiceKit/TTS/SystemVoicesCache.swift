@@ -20,6 +20,10 @@ import Foundation
 public enum SystemVoicesCache {
     // Storage
     private static var cached: [TTSVoiceInfo] = []
+    /// Enhanced-quality voice identifiers captured during the last refresh().
+    /// Populated from AVSpeechSynthesisVoice.quality == .enhanced in the same
+    /// speechVoices() call that builds `cached`, so callers never need a second query.
+    private static var cachedEnhancedIDs: Set<String> = []
     private static var lastRefresh: Date?
 
     /// Return cached voices. Builds the cache on first access.
@@ -30,17 +34,30 @@ public enum SystemVoicesCache {
     }
 
     /// Rebuild the cache by querying AVSpeechSynthesisVoice.
+    /// Captures enhanced-quality voice identifiers in the same call, eliminating
+    /// the need for a second speechVoices() query just to filter by quality.
     /// Returns the new cached list.
     @discardableResult
     public static func refresh() -> [TTSVoiceInfo] {
-        // Query system voices and map to shared model.
-        let list = AVSpeechSynthesisVoice.speechVoices()
+        // Single speechVoices() call: derive both the full list and the enhanced-ID set.
+        let rawVoices = AVSpeechSynthesisVoice.speechVoices()
+        let list = rawVoices
             .map { TTSVoiceInfo(id: $0.identifier, name: $0.name, language: $0.language) }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 
         cached = list
+        cachedEnhancedIDs = Set(rawVoices.filter { $0.quality == .enhanced }.map { $0.identifier })
         lastRefresh = Date()
         return list
+    }
+
+    /// Enhanced-quality voice identifiers captured during the last refresh().
+    /// If the cache is empty, triggers a refresh first.
+    /// Callers should use this instead of calling AVSpeechSynthesisVoice.speechVoices()
+    /// a second time to filter by quality.
+    public static func enhancedVoiceIDs() -> Set<String> {
+        if cached.isEmpty { _ = refresh() }
+        return cachedEnhancedIDs
     }
 
     /// Last time the cache was built.
@@ -49,6 +66,7 @@ public enum SystemVoicesCache {
     /// Clear the cache (next all() will rebuild). Rarely needed.
     public static func clear() {
         cached = []
+        cachedEnhancedIDs = []
         lastRefresh = nil
     }
 }
