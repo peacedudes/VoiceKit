@@ -20,7 +20,9 @@ internal final class SystemVoicesCacheTests: XCTestCase {
 
     override func tearDown() {
         // Restore clean state so tests don't leak into each other.
-        SystemVoicesCache.clear()
+        // MainActor.assumeIsolated is safe here: XCTest always invokes tearDown
+        // on the main thread for @MainActor test classes.
+        MainActor.assumeIsolated { SystemVoicesCache.clear() }
         super.tearDown()
     }
 
