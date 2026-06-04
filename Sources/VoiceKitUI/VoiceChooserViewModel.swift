@@ -109,6 +109,9 @@ public final class VoiceChooserViewModel {
         }
 
         if allowSystemVoices {
+            // refresh() issues a single speechVoices() call and caches both the voice
+            // list and enhanced IDs. Avoids the double-query that previously occurred
+            // when refreshAvailableVoices() called refresh() and then speechVoices() again.
             _ = SystemVoicesCache.refresh()
             let list = SystemVoicesCache.all()
             self.voices = list
@@ -116,15 +119,7 @@ public final class VoiceChooserViewModel {
 
             // Gate enhanced voice detection under XCTest to avoid AV/XPC lookup noise in CI.
             let isXCTest = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-            if !isXCTest {
-                self.enhancedVoiceIDs = Set(
-                    AVSpeechSynthesisVoice.speechVoices()
-                        .filter { $0.quality == .enhanced }
-                        .map { $0.identifier }
-                )
-            } else {
-                self.enhancedVoiceIDs = []
-            }
+            self.enhancedVoiceIDs = isXCTest ? [] : SystemVoicesCache.enhancedVoiceIDs()
 
             self.isLoading = false
             bootstrapProfilesIfNeeded()
