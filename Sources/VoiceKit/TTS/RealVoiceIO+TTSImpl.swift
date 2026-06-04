@@ -19,11 +19,29 @@ import CoreGraphics
 @MainActor
 extension RealVoiceIO {
 
-    internal func ensureSynth() {
-        if synthesizer == nil {
-            let synth = AVSpeechSynthesizer()
-            synth.delegate = self
-            synthesizer = synth
+    /// Ensure AVSpeechSynthesizer exists, creating it outside the Swift task context.
+    ///
+    /// AVSpeechSynthesizer() on iOS 16+ with Apple Intelligence calls AFPreferences
+    /// via dispatch_sync during initialization. When this happens inside a Swift Task
+    /// (even on @MainActor) the runtime's task-context tag causes AVFoundation to flag
+    /// it as unsafeForcedSync, which corrupts audio buffer setup — all subsequent
+    /// buffers arrive with mDataByteSize == 0, silencing speech entirely.
+    ///
+    /// Fix: suspend the current task, then create the synthesizer in a plain
+    /// DispatchQueue.main.async block that runs without the task-context tag.
+    /// This is the same mechanism applied to synthesizer.speak() in speakSentence().
+    internal func ensureSynth() async {
+        guard synthesizer == nil else { return }
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            DispatchQueue.main.async { [weak self] in
+                MainActor.assumeIsolated {
+                    guard let self, self.synthesizer == nil else { return }
+                    let synth = AVSpeechSynthesizer()
+                    synth.delegate = self
+                    self.synthesizer = synth
+                }
+                cont.resume()
+            }
         }
     }
 
@@ -61,7 +79,7 @@ extension RealVoiceIO {
             return
         }
 
-        ensureSynth()
+        await ensureSynth()
         guard let synthesizer else { return }
         let utterance = AVSpeechUtterance(string: sentence)
         applyProfile(to: utterance, voiceID: voiceID ?? defaultProfile?.id)
@@ -121,7 +139,7 @@ extension RealVoiceIO {
 
     /// Speak a single sentence and measure its duration.
     private func speakAndMeasureSentence(_ sentence: String, using voiceID: String?) async -> TimeInterval {
-        ensureSynth()
+        await ensureSynth()
         guard let synthesizer else { return 0.0 }
         let utterance = AVSpeechUtterance(string: sentence)
         applyProfile(to: utterance, voiceID: voiceID ?? defaultProfile?.id)
